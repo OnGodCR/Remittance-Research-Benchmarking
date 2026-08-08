@@ -68,6 +68,17 @@ NON_RESULT_PHASES = {
     "phase-1",
     "capacity-check",
     "phase-2-step1-pilot",
+    "phase-2-exploratory-ceiling",
+    # Session A shake-out, 8 Aug 2026: validating that each realism technique
+    # works and moves results in the expected direction. 60-second windows and
+    # a single repeat, against the pre-registered 300 seconds and five. The
+    # effects measured are real and informative -- and are precisely why these
+    # must not be reported as results, because a single unreplicated run
+    # cannot separate a genuine effect from a lucky draw.
+    "step0-baseline-hw",
+    "step1-impairment",
+    "step3-background",
+    "step4-adversarial",
 }
 
 

@@ -108,24 +108,48 @@ case "$ACTION" in
 
   apply)
     log "Applying network impairment to $COUNT validators"
-    echo "  (additional delay on top of real cloud-backbone latency)"
+    echo "  (consensus traffic only -- the measurement path stays clean)"
     echo
+
+    # Read every validator's address so impairment can be TARGETED.
+    IPS=()
+    while IFS= read -r ip; do [ -n "$ip" ] && IPS+=("$ip"); done \
+      < <(tofu output -json validator_private_ips | jq -r '.[]')
+
     for ((i = 0; i < COUNT; i++)); do
       d=${DELAY_MS[$i]}; j=${JITTER_MS[$i]}; l=${LOSS_PCT[$i]}
-      # `netem` is the kernel's own network emulator. Applied to the primary
-      # interface so it affects all consensus traffic leaving this validator.
-      # `distribution normal` makes jitter behave like real networks rather
-      # than a uniform random spread.
-      ssh_node "$i" "sudo tc qdisc del dev ens4 root 2>/dev/null; \
-        sudo tc qdisc add dev ens4 root netem \
-          delay ${d}ms ${j}ms distribution normal loss ${l}%" \
-        || die "Could not apply impairment to validator-$i."
-      printf '  validator-%d  %-22s +%sms ±%sms, %s%% loss\n' \
-        "$i" "${CORRIDOR[$i]}" "$d" "$j" "$l"
+
+      # CRITICAL: impair ONLY validator-to-validator traffic.
+      #
+      # The first version attached netem to the interface root, which delays
+      # EVERYTHING leaving the machine -- including replies to the load
+      # generator. Measured on 8 Aug 2026: the generator's scheduling lag
+      # jumped from 10ms to 553ms at 100/sec and 48 SECONDS at 300/sec, and
+      # both runs auto-invalidated. The chain was unaffected (99.3 and 298.6
+      # achieved, zero failures); we were degrading our own instrument.
+      #
+      # A benchmark must impair the system under test, never the thing
+      # measuring it. So: a priority queue whose third band carries netem,
+      # and filters that steer ONLY packets addressed to other validators
+      # into it. Generator traffic takes an unimpaired band.
+      cmd="sudo tc qdisc del dev ens4 root 2>/dev/null; \
+           sudo tc qdisc add dev ens4 root handle 1: prio bands 3; \
+           sudo tc qdisc add dev ens4 parent 1:3 handle 30: netem \
+             delay ${d}ms ${j}ms distribution normal loss ${l}%"
+      for ((k = 0; k < COUNT; k++)); do
+        [ "$k" -eq "$i" ] && continue
+        cmd="$cmd; sudo tc filter add dev ens4 protocol ip parent 1:0 prio 1 \
+             u32 match ip dst ${IPS[$k]}/32 flowid 1:3"
+      done
+
+      ssh_node "$i" "$cmd" || die "Could not apply impairment to validator-$i."
+      printf '  validator-%d  %-22s +%sms ±%sms, %s%% loss  (to %d peers)\n' \
+        "$i" "${CORRIDOR[$i]}" "$d" "$j" "$l" "$((COUNT - 1))"
     done
     echo
-    log "Impairment active. Record these values with the results -- they are"
-    echo "    an independent variable, not an implementation detail."
+    log "Impairment active on consensus traffic only."
+    echo "    Record these values with the results -- they are an independent"
+    echo "    variable, not an implementation detail."
     ;;
 
   clear)
