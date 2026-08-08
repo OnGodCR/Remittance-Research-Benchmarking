@@ -1,0 +1,13 @@
+# Pinned so the laptop and the cloud generator run identical code. An
+# unpinned install could quietly give the generator a different web3 version
+# than the one the adapter was tested against, and a benchmark that measures
+# different software in different places is not a benchmark.
+#
+# Versions verified against the working local environment on 8 Aug 2026 --
+# not guessed. web3 7.16.0 is the version the proof-of-authority middleware
+# fix was written against (ExtraDataToPOAMiddleware); older versions name it
+# geth_poa_middleware and the import would fail.
+web3==7.16.0
+py-solc-x==2.0.5
+pandas==3.0.5
+pyarrow==25.0.0
