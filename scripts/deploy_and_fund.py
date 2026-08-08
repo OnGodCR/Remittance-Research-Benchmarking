@@ -201,7 +201,13 @@ def main() -> int:
 
     # -- deploy -----------------------------------------------------------
     abi, bytecode = compile_contract()
-    nonce = w3.eth.get_transaction_count(funder.address)
+    # "pending", not the default "latest".
+    #
+    # The default excludes transactions already sitting in the mempool. If a
+    # previous attempt was interrupted after submitting but before mining,
+    # those nonces are taken -- and reusing them is rejected as a replacement
+    # transaction, which reads as an unrelated failure.
+    nonce = w3.eth.get_transaction_count(funder.address, "pending")
 
     if args.skip_deploy:
         # Funding a SECOND wallet pool against the token already in use --
@@ -229,16 +235,42 @@ def main() -> int:
     token = w3.eth.contract(address=token_address, abi=abi)
 
     # -- fund gas ---------------------------------------------------------
+    # Fire every funding transaction, THEN wait for the last one.
+    #
+    # The previous version waited for each transaction to be mined before
+    # sending the next, so funding cost one block time per wallet -- roughly
+    # six minutes for 160 wallets, and it exceeded a ten-minute command limit.
+    #
+    # They all come from the funder account with consecutive nonces, so the
+    # chain necessarily mines them in order. Once the final one is confirmed,
+    # every earlier one is too. Waiting on the last is therefore sufficient,
+    # and turns ~160 block times into ~1.
     print(f"funding {len(senders)} wallets with native coin for fees...")
     fund_amount = w3.to_wei(FUND_PER_SENDER_ETHER, "ether")
+    last_hash = None
     for i, sender in enumerate(senders):
-        send_and_wait(w3, {
+        signed = Account.sign_transaction({
             "to": sender.address, "value": fund_amount, "gas": 21_000,
             "gasPrice": gas_price, "nonce": nonce, "chainId": args.chain_id,
-        }, args.funder_key, f"gas funding for {sender.address}")
+        }, args.funder_key)
+        last_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
         nonce += 1
-        if (i + 1) % 10 == 0 or i + 1 == len(senders):
-            print(f"  {i + 1}/{len(senders)}")
+        if (i + 1) % 40 == 0 or i + 1 == len(senders):
+            print(f"  submitted {i + 1}/{len(senders)}")
+
+    print("  waiting for the final funding transaction to confirm...")
+    receipt = w3.eth.wait_for_transaction_receipt(last_hash, timeout=300)
+    if receipt.status != 1:
+        raise RuntimeError("gas funding failed on chain")
+
+    # Verify rather than assume: if any wallet is short of gas, every payment
+    # it sends fails and the run records an architecture failure that is
+    # actually our setup.
+    unfunded = [s.address for s in senders[:5] + senders[-5:]
+                if w3.eth.get_balance(s.address) < fund_amount // 2]
+    if unfunded:
+        raise RuntimeError(f"wallets did not receive gas: {unfunded}")
+    print(f"  all {len(senders)} funded")
 
     # -- mint tokens ------------------------------------------------------
     # Batched: one transaction instead of dozens.

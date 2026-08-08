@@ -84,9 +84,11 @@ variable "max_lifetime_minutes" {
     overnight during debugging. A 7-node cluster is roughly $1.15/hour, so a
     forgotten weekend is about $80.
 
-    RAISED to 780 minutes (13 hours) on 8 Aug 2026. The full pre-registered
-    sweep is 140 runs x 300s = 11.7 hours, so the previous 480-minute cap
-    would have killed it roughly two thirds of the way through.
+    RAISED to 900 minutes (15 hours) on 8 Aug 2026. The sweep is 140 runs x
+    300s = 11.7 hours of pure measurement, but each run also carries setup and
+    drain, so real elapsed time is nearer 12.4 hours plus deployment. A 13-hour
+    cap left under an hour of margin, and a timer firing during the final runs
+    would waste the entire sweep.
 
     This weakens the guard, so the idle watcher matters more than before --
     and that one has already failed once (it watched a port the validators
@@ -94,7 +96,7 @@ variable "max_lifetime_minutes" {
     transactions inside blocks, which the cluster's own chatter cannot fake.
   EOT
   type        = number
-  default     = 780
+  default     = 900
 }
 
 variable "idle_shutdown_minutes" {
