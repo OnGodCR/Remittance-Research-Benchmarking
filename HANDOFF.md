@@ -168,19 +168,37 @@ Fixed in advance:
 
 ## 10. Results
 
-*Filled in at the end of each phase. Nothing here yet.*
-
 | Phase | Status | What it produced |
 |---|---|---|
-| Setup | **Complete — 7 Aug 2026** | Measurement program built and verified against a synthetic backend: arrival timing statistically correct (0.05% drift at 300/sec), latency measurement accurate to within 1ms, failure accounting correct. No cloud spend. |
-| 1 — Pipeline validation, one region | Not started | — |
-| 2 — Realism techniques added one at a time, Polygon | Not started | — |
+| Setup | **Complete — 7 Aug 2026** | Measurement program built and verified: arrival timing statistically correct (0.05% drift at 300/sec), latency accurate to within 1ms, failure accounting correct. No cloud spend. |
+| 1 — Pipeline validation, one region | **Complete — 8 Aug 2026** | 4-validator cluster in Virginia. 1,499 payments, zero failures, 3.115s settlement. Pipeline proven end to end. **No paper data by design.** |
+| 2 — Realism techniques, one at a time | **Step 1 of 5 complete** | Multi-region live across 4 continents. First capacity curve measured (below). |
 | 3 — Full realism on Polygon, then Lightning | Not started | — |
 | 4 — Sharding (NEAR) | Not started | — |
 | 5 — Calibration and confidence intervals | Not started | — |
 | 6 — Cross-architecture comparison | Not started | — |
 
-**Phase 1 produces no results for the paper.** It validates that the machinery records reality accurately. Its data is explicitly excluded from all analysis.
+**Neither Phase 1 nor the Phase 2 pilot produces results for the paper.** Both are excluded automatically by the pre-registered rules. As of 8 Aug 2026 the clean dataset is empty and correctly so — no run yet meets the pre-registered protocol of 300-second windows and five repeats.
+
+### First capacity curve (Phase 2, exploratory)
+
+Four validators in Virginia, Mumbai, Singapore and London. 60-second windows, one repeat — **below the pre-registered protocol, so exploratory only** (§4 of the analysis plan).
+
+| Offered (per sec) | Achieved | Failures | Settlement | Valid |
+|---|---|---|---|---|
+| 10 | 9.4 | 0 | 3.18s | yes |
+| 25 | 24.8 | 0 | 3.27s | yes |
+| 50 | 49.1 | 0 | 3.41s | yes |
+| 100 | 99.3 | 0 | 4.13s | yes |
+| 150 | 148.8 | 0 | **19.26s** | yes |
+| 200 | — | — | — | **no — harness saturated** |
+| 300 | — | — | — | **no — harness saturated** |
+
+**The knee sits between 100 and 150 per second.** Settlement is essentially flat to 100, then jumps 4.7× at 150 while the chain still accepts every payment. That combination — nothing rejected, everything slower — is a queue building, not the chain refusing work. It is the classic signature of a system past its sustainable rate.
+
+**A tension between two pre-registered criteria, worth writing up rather than resolving quietly.** At 150 per second Polygon *passes* the primary metric (99.2% of offered load delivered, 0% failures, against a 90%/5% bar) but *fails* the architecture-selection rule's ceiling of 10 seconds at the 95th percentile. Both thresholds were fixed before any data existed. The honest reading is that Polygon **moves** 150 payments per second but does not **settle** them acceptably at that rate — a more useful finding than a single throughput number.
+
+**The 200 and 300 runs measure our own tooling, not the blockchain.** The harness fell 2.0 and 20.4 seconds behind its own schedule (threshold: 250ms) and auto-invalidated both. Without that detector, "300 offered, 104 achieved, 11,675 failures" would have looked like Polygon collapsing. It was a single-core Python limit. Fixed since by splitting load across processes; those two levels are still unmeasured.
 
 ---
 
@@ -203,6 +221,10 @@ Read this before writing any results prose.
 6. **Do not present the calibration figure as a capability comparison without qualification.** Real networks currently run well below capacity because of **demand**, not limits. Our measured ceiling divided by their current activity is not a statement about capability. Two separate figures are reported: a *demand ratio* (showing our test loads are realistic) and a *capability gap* (against the busiest the real network has ever been). **Observed mainnet throughput is a floor on capacity, never a measurement of it.**
 
 7. **Do not benchmark measured results against the ~3,800 TPS Polygon figure** as though it were empirical. See Section 8.
+
+   An early observation supporting this: at the block parameters used here, gas arithmetic caps throughput near **418 per second** for stablecoin transfers, or about **714** even for the simplest possible native transfer. Reaching 3,800 would require assumptions the vendor does not publish. This is not proof the figure is wrong, but it strengthens the case for treating it as a marketing claim rather than a benchmark.
+
+8. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
 
 ---
 
