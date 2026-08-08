@@ -55,7 +55,18 @@ cd "$TF_DIR"
 
 ZONE=$(tofu output -raw zone 2>/dev/null || grep -oE '"zone": *"[^"]+"' terraform.tfstate | head -1 | cut -d'"' -f4)
 CHAIN_ID=$(tofu output -raw chain_id)
-mapfile -t PRIVATE_IPS < <(tofu output -json validator_private_ips | jq -r '.[]')
+
+# Read the project from the deployment itself rather than relying on gcloud's
+# global setting, which can be unset or pointed elsewhere.
+PROJECT=$(grep -oE '"project": *"[^"]+"' terraform.tfstate | head -1 | cut -d'"' -f4)
+[ -n "$PROJECT" ] || PROJECT=$(gcloud config get-value project 2>/dev/null)
+[ -n "$PROJECT" ] || die "Could not determine the GCP project."
+# Portable array read. `mapfile` would be cleaner but is bash 4+, and macOS
+# still ships bash 3.2 -- this script has to run on the operator's laptop.
+PRIVATE_IPS=()
+while IFS= read -r ip; do
+  [ -n "$ip" ] && PRIVATE_IPS+=("$ip")
+done < <(tofu output -json validator_private_ips | jq -r '.[]')
 COUNT=${#PRIVATE_IPS[@]}
 [ "$COUNT" -ge 4 ] || die "Need at least 4 validators for Byzantine fault tolerance, found $COUNT."
 
@@ -65,7 +76,12 @@ names=()
 for ((i = 0; i < COUNT; i++)); do names+=("bench-p1-validator-$i"); done
 
 ssh_node() {
-  gcloud compute ssh "$1" --zone "$ZONE" --tunnel-through-iap=false \
+  # NOTE: --tunnel-through-iap is a switch, not a key=value flag. Writing
+  # `--tunnel-through-iap=false` makes gcloud reject the whole command, and
+  # because failures here are swallowed the caller just sees "not ready yet"
+  # and loops until timeout -- ten minutes of billing for nothing.
+  gcloud compute ssh "$1" --zone "$ZONE" --project "$PROJECT" \
+    --no-tunnel-through-iap \
     --command "$2" -- -o StrictHostKeyChecking=no -o LogLevel=ERROR 2>/dev/null
 }
 
@@ -83,13 +99,16 @@ done
 
 # --- collect identities ---------------------------------------------------
 log "Collecting validator identities..."
-declare -a ADDRS NODE_IDS
+declare -a ADDRS NODE_IDS BLS_KEYS
 for ((i = 0; i < COUNT; i++)); do
   identity=$(ssh_node "${names[$i]}" "cat /var/lib/edge/identity.json")
   ADDRS[i]=$(echo "$identity" | jq -r '.address')
   NODE_IDS[i]=$(echo "$identity" | jq -r '.node_id')
+  BLS_KEYS[i]=$(echo "$identity" | jq -r '.bls')
   [ -n "${ADDRS[$i]}" ] && [ "${ADDRS[$i]}" != "null" ] \
     || die "Could not read an address from ${names[$i]}."
+  [ -n "${BLS_KEYS[$i]}" ] && [ "${BLS_KEYS[$i]}" != "null" ] \
+    || die "Could not read a BLS key from ${names[$i]}."
   printf '  %s  %s\n' "${names[$i]}" "${ADDRS[$i]}"
 done
 
@@ -117,9 +136,13 @@ log "Funding account: $FUNDER_ADDR"
 # Done on validator 0 because that machine already has the software.
 log "Writing the shared genesis file..."
 
+# Flag names verified against polygon-edge v1.3.2 on 8 Aug 2026. Earlier
+# documentation refers to `--ibft-validator`, which no longer exists; the flag
+# is `--validators`, and with the default BLS validator type each entry is
+# <ECDSA address>:<BLS public key>. There is no `--force` flag either.
 validator_flags=""
-for addr in "${ADDRS[@]}"; do
-  validator_flags+=" --ibft-validator ${addr}"
+for ((i = 0; i < COUNT; i++)); do
+  validator_flags+=" --validators ${ADDRS[$i]}:${BLS_KEYS[$i]}"
 done
 
 bootnode_flags=""
@@ -127,26 +150,38 @@ for ((i = 0; i < COUNT && i < 3; i++)); do
   bootnode_flags+=" --bootnode /ip4/${PRIVATE_IPS[$i]}/tcp/1478/p2p/${NODE_IDS[$i]}"
 done
 
-ssh_node "${names[0]}" "sudo -u edge /usr/local/bin/polygon-edge genesis \
+# Must run from a directory the `edge` user can read: with no explicit
+# validators path the command falls back to reading the working directory,
+# and a permission error there is reported as a confusing "failed to read
+# from prefix" rather than as a permissions problem.
+ssh_node "${names[0]}" "sudo rm -f /var/lib/edge/genesis.json; \
+  sudo -u edge bash -c 'cd /var/lib/edge && /usr/local/bin/polygon-edge genesis \
   --dir /var/lib/edge/genesis.json \
   --consensus ibft \
   --chain-id ${CHAIN_ID} \
   --block-gas-limit ${BLOCK_GAS_LIMIT} \
   --premine ${FUNDER_ADDR}:${PREMINE_BALANCE} \
-  ${validator_flags} ${bootnode_flags} --force" \
+  ${validator_flags} ${bootnode_flags}'" \
   || die "Genesis creation failed. Check /var/log/validator-setup.log on ${names[0]}."
 
 log "Distributing genesis to the other validators..."
-ssh_node "${names[0]}" "cat /var/lib/edge/genesis.json" > "$WORK/genesis.json"
-[ -s "$WORK/genesis.json" ] || die "Genesis file came back empty."
+# `sudo` is required: the genesis file is written 0660 owned by the edge user,
+# so the SSH login account cannot read it. Without sudo this returns nothing
+# and every validator starts against an empty chain definition.
+ssh_node "${names[0]}" "sudo cat /var/lib/edge/genesis.json" > "$WORK/genesis.json"
+[ -s "$WORK/genesis.json" ] || die "Genesis file came back empty -- check permissions on ${names[0]}."
+jq -e . "$WORK/genesis.json" >/dev/null 2>&1 || die "Genesis file is not valid JSON."
+log "  genesis is $(wc -c < "$WORK/genesis.json" | tr -d ' ') bytes"
 
 for ((i = 1; i < COUNT; i++)); do
   gcloud compute scp "$WORK/genesis.json" "${names[$i]}:/tmp/genesis.json" \
-    --zone "$ZONE" --quiet >/dev/null 2>&1 \
-    || die "Could not copy genesis to ${names[$i]}."
+    --zone "$ZONE" --project "$PROJECT" --quiet 2>&1 | tail -2
   ssh_node "${names[$i]}" "sudo mv /tmp/genesis.json /var/lib/edge/genesis.json && \
-    sudo chown edge:edge /var/lib/edge/genesis.json"
-  printf '  %s\n' "${names[$i]}"
+    sudo chown edge:edge /var/lib/edge/genesis.json && \
+    sudo chmod 0640 /var/lib/edge/genesis.json"
+  size=$(ssh_node "${names[$i]}" "sudo stat -c %s /var/lib/edge/genesis.json 2>/dev/null || echo 0")
+  [ "$size" -gt 100 ] || die "Genesis did not arrive on ${names[$i]} (got $size bytes)."
+  printf '  %s ok (%s bytes)\n' "${names[$i]}" "$size"
 done
 
 # --- start the validators -------------------------------------------------
