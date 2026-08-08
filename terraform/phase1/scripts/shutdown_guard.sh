@@ -42,11 +42,22 @@ shutdown -h "+$MAX_LIFETIME_MINUTES" \
 echo "hard shutdown armed for +$MAX_LIFETIME_MINUTES minutes"
 
 # --- Guard 2: idle watcher ------------------------------------------------
-# Watches for connections on the node's RPC port -- the port only the
-# measurement program talks to. Consensus traffic between validators uses
-# different ports and continues regardless, so this distinguishes "nobody is
-# benchmarking" from "the blockchain is alive", which a CPU-based check could
-# not do (a validator's CPU is never idle).
+# Watches whether the CHAIN IS PROCESSING TRANSACTIONS, not whether network
+# connections exist.
+#
+# REWRITTEN 8 Aug 2026 after the original cost $1.61 by never firing.
+#
+# The first version counted established connections on the RPC port, on the
+# assumption that only the measurement program talks to it. That assumption
+# was wrong: validators hold RPC connections to each other, so a four-node
+# cluster permanently looked busy to its own idle check. Its log showed the
+# counter resetting every couple of minutes -- "activity resumed (16
+# connections)" -- for seven straight hours with nothing running. Only the
+# hard lifetime cap stopped it.
+#
+# Transaction throughput is the honest signal. An idle chain still produces
+# blocks (so block height is useless), but those blocks are EMPTY. Counting
+# transactions cannot be fooled by the cluster's own chatter.
 cat >/usr/local/bin/idle-watch.sh <<'WATCHER'
 #!/bin/bash
 set -uo pipefail
@@ -57,24 +68,47 @@ CHECK_INTERVAL=60
 idle_checks=0
 required_checks=$((IDLE_MINUTES * 60 / CHECK_INTERVAL))
 
-# Grace period. Without it, a cluster that takes a while to be configured
-# could switch itself off before the operator ever connects to it.
+# Grace period, so a cluster still being configured does not switch itself
+# off before the operator has connected to it.
 sleep 600
 
-while true; do
-  # Established connections to or from the RPC port, in either direction, so
-  # the same check works on validators (receiving) and the generator (sending).
-  active=$(ss -tn state established \
-    "( sport = :$RPC_PORT or dport = :$RPC_PORT )" 2>/dev/null | tail -n +2 | wc -l)
+rpc() {
+  curl -s --max-time 10 -X POST -H 'Content-Type: application/json' \
+    --data "$1" "http://localhost:$RPC_PORT" 2>/dev/null
+}
 
-  if [ "$active" -gt 0 ]; then
+# Transactions seen in the newest block. Empty blocks mean nobody is
+# benchmarking, however much the validators chatter among themselves.
+tx_in_latest_block() {
+  local blk hex
+  blk=$(rpc '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+        | grep -o '"result":"[^"]*"' | cut -d'"' -f4)
+  [ -z "$blk" ] && { echo "-1"; return; }   # cannot tell -> treat as active
+  hex=$(rpc "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\"params\":[\"$blk\",false],\"id\":1}")
+  echo "$hex" | grep -o '"transactions":\[[^]]*\]' | grep -o '0x[a-fA-F0-9]\{64\}' | wc -l
+}
+
+# On the generator there is no local chain, so fall back to asking whether a
+# benchmark process is actually running.
+harness_running() {
+  pgrep -f "harness.cli" >/dev/null 2>&1 && echo 1 || echo 0
+}
+
+while true; do
+  if ss -ltn "( sport = :$RPC_PORT )" 2>/dev/null | tail -n +2 | grep -q .; then
+    active=$(tx_in_latest_block)          # this machine is a validator
+  else
+    active=$(harness_running)             # this machine is the generator
+  fi
+
+  if [ "$active" -ne 0 ]; then
     if [ "$idle_checks" -gt 0 ]; then
-      echo "$(date -u) activity resumed ($active connections), idle counter reset"
+      echo "$(date -u) activity resumed (signal=$active), idle counter reset"
     fi
     idle_checks=0
   else
     idle_checks=$((idle_checks + 1))
-    echo "$(date -u) no benchmark activity ($idle_checks/$required_checks)"
+    echo "$(date -u) chain idle, no transactions ($idle_checks/$required_checks)"
     if [ "$idle_checks" -ge "$required_checks" ]; then
       echo "$(date -u) idle for $IDLE_MINUTES minutes -- shutting down to stop billing"
       shutdown -h now "Automatic shutdown: idle for $IDLE_MINUTES minutes."
