@@ -113,10 +113,22 @@ def compile_contract() -> tuple[list, str]:
         print(f"installing Solidity compiler {version} (one-time)...")
         solcx.install_solc(version)
 
-    print(f"compiling {CONTRACT.name}...")
+    # EVM target must be "london", NOT the compiler default.
+    #
+    # Solidity 0.8.20+ targets the Shanghai instruction set, which added PUSH0
+    # (opcode 0x5F) in April 2023. Polygon Edge v1.3.2 was released in January
+    # 2024 but does not implement it. Deploying Shanghai-compiled bytecode to
+    # this chain fails in a way that looks nothing like a compiler problem:
+    # the transaction is accepted, mined, and reverts having consumed exactly
+    # the full gas limit -- the signature of an unrecognised instruction.
+    #
+    # This costs us nothing. PUSH0 is a small gas optimisation, not a feature,
+    # and the contract's behaviour is identical either way.
+    print(f"compiling {CONTRACT.name} (EVM target: london)...")
     compiled = solcx.compile_files(
         [str(CONTRACT)], output_values=["abi", "bin"],
         solc_version=version, optimize=True, optimize_runs=200,
+        evm_version="london",
     )
     key = next(k for k in compiled if k.endswith(":TestStablecoin"))
     return compiled[key]["abi"], compiled[key]["bin"]

@@ -124,6 +124,20 @@ class PolygonAdapter(Adapter):
     async def setup(self, context: dict[str, Any]) -> None:
         self.w3 = AsyncWeb3(AsyncHTTPProvider(self.rpc_url))
 
+        # REQUIRED for proof-of-authority chains, which Polygon Edge is.
+        #
+        # PoA consensus stores validator signatures in each block header's
+        # extraData field, making it far longer than the 32 bytes Ethereum's
+        # spec allows. Without this middleware, web3 rejects every block as
+        # malformed -- so no settlement is ever detected, every payment times
+        # out at 60 seconds, and the run reports 100% failure.
+        #
+        # That failure mode is dangerous precisely because it looks like a
+        # finding: "the architecture failed every transaction" is a plausible
+        # sentence. It was our client refusing to read the blocks.
+        from web3.middleware import ExtraDataToPOAMiddleware
+        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+
         actual_chain_id = await self.w3.eth.chain_id
         if actual_chain_id != self.chain_id:
             raise RuntimeError(
