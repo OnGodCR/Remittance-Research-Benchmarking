@@ -54,9 +54,21 @@ LOG_PATH = REPO / "data" / "clean" / "exclusions.log"
 #: truncated latency.
 WARMUP_SECONDS = 10.0
 
-#: Runs from these phases never contribute to results. Phase 1 exists to prove
-#: the machinery records reality; its numbers are not findings.
-NON_RESULT_PHASES = {"phase-0-smoke", "phase-1", "capacity-check"}
+#: Runs from these phases never contribute to results.
+#:
+#: phase-1 and capacity-check exist to prove the machinery records reality.
+#:
+#: phase-2-step1-pilot is a short exploratory ramp -- 60-second windows and a
+#: single repeat, against the pre-registered protocol of 300 seconds and five
+#: repeats (ANALYSIS_PLAN.md S5). It is genuinely informative about where the
+#: knee sits, but reporting a one-repeat number as a result would imply a
+#: precision the data does not have. Exploratory only, per S4.
+NON_RESULT_PHASES = {
+    "phase-0-smoke",
+    "phase-1",
+    "capacity-check",
+    "phase-2-step1-pilot",
+}
 
 
 @dataclass

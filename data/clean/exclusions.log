@@ -1,14 +1,14 @@
 ========================================================================
-Exclusion log -- generated 2026-08-08 05:48:47 UTC
+Exclusion log -- generated 2026-08-08 06:18:57 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 20,039 across 10 runs
+Payments in raw   : 69,801 across 17 runs
 Payments in clean : 0 across 0 runs
-Excluded          : 20,039 payments
+Excluded          : 69,801 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
@@ -22,4 +22,10 @@ Excluded          : 20,039 payments
   target  : phase-1
   affected: 3
   reason  : phase-1 validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-2-step1-pilot
+  affected: 7
+  reason  : phase-2-step1-pilot validates the pipeline; its numbers are not findings
 
