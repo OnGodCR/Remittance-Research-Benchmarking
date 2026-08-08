@@ -1,0 +1,19 @@
+========================================================================
+Exclusion log -- generated 2026-08-08 02:41:17 UTC
+========================================================================
+
+Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
+existed. Nothing here was deleted: every excluded run remains in
+data/raw/all_runs_raw.parquet, flagged.
+
+Payments in raw   : 16,733 across 7 runs
+Payments in clean : 0 across 0 runs
+Excluded          : 16,733 payments
+
+------------------------------------------------------------------------
+[non-result phase]
+  scope   : run
+  target  : capacity-check
+  affected: 7
+  reason  : capacity-check validates the pipeline; its numbers are not findings
+
