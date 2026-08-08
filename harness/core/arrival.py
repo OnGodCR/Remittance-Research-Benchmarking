@@ -81,8 +81,27 @@ class LagSummary:
                 f"max={self.max_lag*1000:.1f}ms -- {verdict}")
 
 
+#: Lag above which a run's numbers cannot be trusted.
+#:
+#: TIGHTENED from 250ms to 40ms on 8 Aug 2026, after the original threshold
+#: proved far too lenient in practice.
+#:
+#: A single-process run at 150 payments/sec showed 141ms of p95 lag -- inside
+#: the old 250ms threshold, so it was recorded as VALID -- and reported 19.26s
+#: settlement latency. The same configuration re-run across four processes
+#: showed 11ms of lag and 3.51s latency. The "valid" run had overstated
+#: settlement by 5.5x, and led us to report a throughput knee that does not
+#: exist.
+#:
+#: The lesson: passing a saturation check is not the same as being unaffected
+#: by saturation. Backpressure inside the client distorts measurements long
+#: before it shows up as gross scheduling lag. 40ms sits comfortably below the
+#: level where distortion was observed.
+SATURATION_THRESHOLD_SECONDS = 0.04
+
+
 def summarize_lag(scheduled: list[float], submitted: list[float | None],
-                  threshold_seconds: float = 0.25) -> LagSummary:
+                  threshold_seconds: float = SATURATION_THRESHOLD_SECONDS) -> LagSummary:
     """Compare intended vs actual submission times.
 
     This is the guard against the failure mode claude.md S8 warns about: at
