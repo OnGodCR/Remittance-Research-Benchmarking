@@ -99,9 +99,12 @@ variable "max_lifetime_minutes" {
     Google's budget alerts only send email; a paid account has no hard
     spending cap. This timer and the idle watcher are the only real
     protection against a forgotten cluster.
+
+    RAISED to 780 minutes (13 hours) on 8 Aug 2026 so the full 11.7-hour
+    sweep can complete. The idle watcher therefore carries more weight now.
   EOT
   type        = number
-  default     = 480
+  default     = 780
 }
 
 variable "idle_shutdown_minutes" {
