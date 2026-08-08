@@ -114,8 +114,56 @@ async def check_failure_accounting() -> None:
         store.close()
 
 
+def check_worker_split() -> None:
+    """Splitting load across processes must not change the offered load.
+
+    Each worker strides through the same schedule. If the union were not
+    exactly the original, offered load would silently become a different
+    stochastic process -- several independent Poisson streams rather than one,
+    which have different burst behaviour. Bursts are where queues form and
+    systems break, so this would quietly change what is being measured.
+    """
+    print("\n== worker split ==")
+    offsets = poisson_schedule(150, 60, seed=99)
+
+    for workers in (2, 4, 8):
+        union = []
+        for w in range(workers):
+            union += [(i, off) for i, off in enumerate(offsets) if i % workers == w]
+        union.sort()
+
+        assert len(union) == len(offsets), (
+            f"{workers} workers: {len(union)} transactions vs {len(offsets)} scheduled"
+        )
+        assert [off for _, off in union] == offsets, (
+            f"{workers} workers: arrival times differ from the single-process schedule"
+        )
+        assert [i for i, _ in union] == list(range(len(offsets))), (
+            f"{workers} workers: sequence numbers are not the original ones"
+        )
+
+        shares = [sum(1 for i in range(len(offsets)) if i % workers == w)
+                  for w in range(workers)]
+        spread = max(shares) - min(shares)
+        assert spread <= 1, f"{workers} workers: uneven split {shares}"
+        print(f"  {workers} workers -> {len(union):,} tx, identical schedule, "
+              f"balanced within {spread} tx OK")
+
+    # Accounts must never be shared: two processes on one account collide on
+    # transaction ordering, which looks exactly like chain congestion.
+    for workers in (2, 4, 8):
+        keys = [f"key{i}" for i in range(46)]
+        slices = [[k for i, k in enumerate(keys) if i % workers == w] for w in range(workers)]
+        flat = [k for s in slices for k in s]
+        assert len(flat) == len(set(flat)), f"{workers} workers: accounts overlap"
+        assert sorted(flat) == sorted(keys), f"{workers} workers: accounts lost"
+        assert all(s for s in slices), f"{workers} workers: a worker got no accounts"
+    print("  account partitions are disjoint and complete OK")
+
+
 async def main() -> None:
     check_arrival_statistics()
+    check_worker_split()
     await check_pipeline()
     await check_failure_accounting()
     print("\nAll smoke checks passed.")

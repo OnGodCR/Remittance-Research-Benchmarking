@@ -25,6 +25,7 @@ from pathlib import Path
 from .adapters.null import NullAdapter
 from .adapters.polygon import PolygonAdapter
 from .core.arrival import seed_for
+from .core.parallel import run_parallel_benchmark
 from .core.runner import run_benchmark
 from .core.storage import RunConfig, Store
 
@@ -73,7 +74,42 @@ def load_polygon_adapter(config_path: Path) -> PolygonAdapter:
     )
 
 
+def _adapter_spec(config_path: Path) -> dict:
+    """Everything a worker process needs to build its own adapter.
+
+    Passed as plain data because worker processes are spawned fresh -- an
+    adapter object holds network connections that cannot cross a process
+    boundary.
+    """
+    config = json.loads(config_path.read_text())
+    keys_path = REPO / "keys" / "senders.json"
+    if not keys_path.exists():
+        raise SystemExit(f"missing {keys_path}. Run scripts/deploy_and_fund.py first.")
+    return {
+        "rpc_url": config["rpc_url"],
+        "token_address": config["token_address"],
+        "sender_keys": json.loads(keys_path.read_text()),
+        "recipients": config["recipients"],
+        "chain_id": config["chain_id"],
+        "gas_price_wei": config.get("gas_price_wei", 1_000_000_000),
+    }
+
+
 async def cmd_run(args: argparse.Namespace) -> int:
+    if args.workers > 1:
+        spec = _adapter_spec(Path(args.config))
+        store = Store(args.db)
+        cfg = RunConfig(
+            architecture="polygon", adapter="polygon-edge",
+            tx_size_usd=args.amount, target_tps=args.tps,
+            window_seconds=args.window, repeat_index=args.repeat,
+            arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
+            phase=args.phase, arm=args.arm,
+        )
+        summary = await run_parallel_benchmark(cfg, store, spec, workers=args.workers)
+        store.close()
+        return 0 if not summary["generator_saturated"] else 2
+
     adapter = load_polygon_adapter(Path(args.config))
 
     needed = PolygonAdapter.required_pool_size(args.tps)
@@ -200,6 +236,10 @@ def main() -> int:
     p_run.add_argument("--repeat", type=int, default=0)
     p_run.add_argument("--phase", default="phase-1")
     p_run.add_argument("--arm", default="baseline", choices=["baseline", "adversarial"])
+    p_run.add_argument("--workers", type=int, default=1,
+                       help="processes to split the load across. Python uses one "
+                            "processor core, which capped the harness at ~150/sec "
+                            "in the Phase 2 pilot. Use 4+ above 100/sec.")
     p_run.set_defaults(func=cmd_run)
 
     p_cap = sub.add_parser("capacity", help="measure the harness's own ceiling")

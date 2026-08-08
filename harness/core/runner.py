@@ -64,30 +64,58 @@ async def run_benchmark(
     *,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     verbose: bool = True,
+    worker_index: int = 0,
+    worker_count: int = 1,
+    run_id: str | None = None,
 ) -> dict:
     """Execute one test run and persist every transaction.
 
     Returns the run summary dict. Check `generator_saturated` on it before
     trusting the throughput number for anything.
+
+    **Splitting across processes.** Python executes on a single processor
+    core, which became the binding limit at ~150 payments/second in the
+    Phase 2 pilot -- above that the harness, not the chain, was the
+    bottleneck. Passing `worker_count > 1` runs several processes, each
+    firing the transactions where `seq % worker_count == worker_index`.
+
+    That specific split matters: the full Poisson schedule is generated
+    identically in every worker from the same seed, and each takes a stride
+    through it. The union of all workers therefore reproduces the original
+    arrival pattern EXACTLY, so offered load stays a true Poisson process
+    rather than several independent ones layered on top of each other, which
+    would have different burst behaviour.
+
+    Every worker must be given the same `run_id`, or one test appears in the
+    data as several unrelated partial runs. Workers must also be given
+    DISJOINT sender accounts -- two processes sharing an account would
+    collide on transaction ordering, which looks exactly like chain
+    congestion.
     """
-    offsets = poisson_schedule(cfg.target_tps, cfg.window_seconds, cfg.arrival_seed)
+    all_offsets = poisson_schedule(cfg.target_tps, cfg.window_seconds, cfg.arrival_seed)
+    # Stride through the shared schedule. Sequence numbers stay GLOBAL so the
+    # merged data reconstructs the original ordering exactly.
+    schedule = [(i, off) for i, off in enumerate(all_offsets)
+                if i % worker_count == worker_index]
 
     loop = asyncio.get_running_loop()
     counters = _Counters()
     buffers = _Buffers()
-    submitted_at: list[float | None] = [None] * len(offsets)
+    submitted_at: dict[int, float] = {}
 
     await adapter.setup(cfg.extra)
     if not await adapter.health_check():
         await adapter.teardown()
         raise RuntimeError(f"adapter {adapter.name} failed its health check; aborting run")
 
-    run_id = store.start_run(cfg, scheduled_count=len(offsets), t0_wall=time.time())
-    store.record_schedule(run_id, offsets)
+    run_id = store.start_run(cfg, scheduled_count=len(all_offsets),
+                             t0_wall=time.time(), run_id=run_id)
+    store.record_schedule_pairs(run_id, schedule)
 
     if verbose:
-        print(f"[{run_id}] {len(offsets)} tx scheduled @ {cfg.target_tps:g} TPS "
-              f"over {cfg.window_seconds:g}s (seed {cfg.arrival_seed})")
+        share = "" if worker_count == 1 else f" (worker {worker_index+1}/{worker_count})"
+        print(f"[{run_id}] {len(schedule)} tx scheduled @ {cfg.target_tps:g} TPS "
+              f"over {cfg.window_seconds:g}s (seed {cfg.arrival_seed}){share}")
 
     t0 = loop.time()
 
@@ -176,7 +204,7 @@ async def run_benchmark(
         # Pacer: create each task just in time rather than all up front --
         # at 300 TPS over 300s that would be 90k coroutines allocated before
         # the first one runs.
-        for seq, offset in enumerate(offsets):
+        for seq, offset in schedule:
             delay = offset - now()
             if delay > 0:
                 await asyncio.sleep(delay)
@@ -206,7 +234,8 @@ async def run_benchmark(
         store.end_run(run_id)
         await adapter.teardown()
 
-    lag = summarize_lag(offsets, submitted_at)
+    lag = summarize_lag([off for _, off in schedule],
+                        [submitted_at.get(seq) for seq, _ in schedule])
     summary = store.run_summary(run_id)
     summary["generator_saturated"] = lag.saturated
     summary["lag"] = lag

@@ -145,10 +145,14 @@ class Store:
 
     # -- run lifecycle ----------------------------------------------------
 
-    def start_run(self, cfg: RunConfig, scheduled_count: int, t0_wall: float | None = None) -> str:
-        run_id = cfg.run_id()
+    def start_run(self, cfg: RunConfig, scheduled_count: int, t0_wall: float | None = None,
+                  run_id: str | None = None) -> str:
+        # `run_id` is supplied when the load is split across worker processes:
+        # every worker must record against the SAME run, or one test would
+        # appear in the data as several unrelated partial runs.
+        run_id = run_id or cfg.run_id()
         self.conn.execute(
-            """INSERT INTO runs (run_id, architecture, adapter, phase, arm,
+            """INSERT OR IGNORE INTO runs (run_id, architecture, adapter, phase, arm,
                    tx_size_usd, target_tps, repeat_index, window_seconds,
                    arrival_seed, scheduled_count, t0_wall, harness_version,
                    config_json)
@@ -202,6 +206,20 @@ class Store:
             "INSERT INTO transactions (run_id, seq, scheduled_offset, status) "
             "VALUES (?,?,?, 'pending')",
             ((run_id, i, off) for i, off in enumerate(offsets)),
+        )
+
+    def record_schedule_pairs(self, run_id: str, pairs) -> None:
+        """Insert a worker's slice of the schedule, preserving global sequence
+        numbers.
+
+        Used when load is split across processes: each worker records only the
+        transactions it owns, but keeps the sequence number from the shared
+        schedule so the merged data reconstructs the original arrival order.
+        """
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO transactions (run_id, seq, scheduled_offset, status) "
+            "VALUES (?,?,?, 'pending')",
+            ((run_id, seq, off) for seq, off in pairs),
         )
 
     def record_submitted(self, run_id: str, seq: int, offset: float, tx_ref: str | None,
