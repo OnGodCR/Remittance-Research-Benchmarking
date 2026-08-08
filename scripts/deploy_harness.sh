@@ -85,8 +85,12 @@ gcloud compute scp "$TARBALL" "$GENERATOR:/tmp/harness.tar.gz" \
   --zone "$ZONE" --project "$PROJECT" --quiet >/dev/null 2>&1 \
   || die "Could not copy the harness to the generator."
 
+# Ownership goes to whoever gcloud actually logs in as, which is the local
+# username, NOT 'ubuntu'. Hardcoding 'ubuntu' leaves the directory unwritable
+# by the SSH user, and the venv step then fails with a bare permission error
+# that says nothing about ownership.
 ssh_gen "sudo tar -xzf /tmp/harness.tar.gz -C $REMOTE_DIR && \
-         sudo chown -R ubuntu:ubuntu $REMOTE_DIR && rm -f /tmp/harness.tar.gz" \
+         sudo chown -R \$(id -un):\$(id -gn) $REMOTE_DIR && rm -f /tmp/harness.tar.gz" \
   || die "Could not unpack the harness on the generator."
 log "  code in place"
 
