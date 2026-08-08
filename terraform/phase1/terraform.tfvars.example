@@ -1,0 +1,35 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored --
+# it holds your project ID and home IP address, neither of which belongs in a
+# repository that becomes public at publication.
+#
+#     cp terraform.tfvars.example terraform.tfvars
+
+# Your GCP project ID, from the Cloud console home page.
+# Auto-created projects look like "project-1a2b3c4d-5e6f-7890-abcd".
+project_id = "REPLACE-ME"
+
+# Your public IP as a CIDR block. Find it with:
+#     curl -s https://ifconfig.me
+# then append /32.
+#
+# This restricts SSH and blockchain access to you alone. Leaving these ports
+# open to the internet on machines holding chain keys is how test clusters end
+# up mining somebody else's cryptocurrency.
+operator_ip_cidr = "REPLACE-ME/32"
+
+# --- everything below has a sensible default; uncomment only to override ---
+
+# Phase 1 uses 4 validators, the smallest genuinely fault-tolerant cluster.
+# Phase 2 onward uses 7, which is what the measured results are based on.
+# validator_count = 4
+
+# Spot machines cost 60-90% less. Google can reclaim them at any time; the
+# harness detects that and marks the affected run invalid rather than keeping
+# a run whose numbers were disturbed.
+# use_spot = true
+
+# THE SAFETY NET. Google's budget alerts only send email -- they do not stop
+# spending, and a paid account has no hard cap. These two timers are the only
+# thing standing between a forgotten cluster and a real bill.
+# max_lifetime_minutes  = 480   # hard shutdown, armed at boot
+# idle_shutdown_minutes = 30    # shut down when no benchmark is running

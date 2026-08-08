@@ -1,0 +1,40 @@
+# Python environment
+.venv/
+__pycache__/
+*.py[cod]
+
+# SECRETS -- never commit. A leaked cloud key on GitHub gets found by automated
+# scrapers within minutes and the account drained. This stays here even though
+# the repo is currently private, because it will be made public at publication.
+*.pem
+*.key
+*-key.json
+keys/
+secrets/
+.env
+gcp-credentials*.json
+service-account*.json
+
+# Infrastructure state. Contains resource IDs and can contain secrets in
+# plaintext. Also merges terribly.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Working data. SQLite is the harness's live store during runs; the committed
+# archives are the two Parquet files under data/, which ARE tracked.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+data/working/
+
+# Solidity build output -- regenerated from contracts/*.sol on every deploy
+build/
+artifacts/
+
+# OS noise
+.DS_Store
+terraform.tfvars
