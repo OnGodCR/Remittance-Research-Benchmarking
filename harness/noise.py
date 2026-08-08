@@ -146,10 +146,19 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--config", required=True)
     p.add_argument("--duration", type=float, default=300.0)
-    p.add_argument("--base-tps", type=float, default=20.0,
-                   help="quiet-period background rate")
-    p.add_argument("--peak-tps", type=float, default=80.0,
-                   help="busy-period background rate")
+    # CALIBRATED TO REAL POLYGON MAINNET ACTIVITY, 8 Aug 2026.
+    #
+    # Polygon PoS carries roughly 7.5 million transactions per day, about 87
+    # per second, and is reported at 68-109/sec during normal operation. The
+    # original 20-80 default (mean ~45) understated real background load by
+    # roughly half, which would have made our chain look emptier -- and
+    # therefore better-performing -- than the network it stands in for.
+    #
+    # 60-115 gives a mean near 87, matching observed mainnet activity.
+    p.add_argument("--base-tps", type=float, default=60.0,
+                   help="quiet-period background rate (calibrated to mainnet)")
+    p.add_argument("--peak-tps", type=float, default=115.0,
+                   help="busy-period background rate (calibrated to mainnet)")
     p.add_argument("--keys", default="keys/noise_senders.json",
                    help="separate account pool -- MUST NOT overlap the measured "
                         "workload's accounts, or the two collide on transaction "

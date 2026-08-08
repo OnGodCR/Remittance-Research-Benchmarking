@@ -52,6 +52,12 @@ _GAS_LIMIT = 120_000
 #: never miss one, but not so often that polling itself becomes load.
 _BLOCK_POLL_INTERVAL = 0.2
 
+#: How many receipt requests may be in flight at once when falling back to
+#: per-transaction fetching. High enough to clear a block's worth quickly,
+#: low enough not to flood a single node -- which would create client-side
+#: congestion indistinguishable from the chain slowing down.
+_RECEIPT_CONCURRENCY = 64
+
 #: Token has 6 decimals, matching USDC/USDT. $1 == 1_000_000 base units.
 _TOKEN_UNITS = 10 ** 6
 
@@ -352,15 +358,41 @@ class PolygonAdapter(Adapter):
                 self._supports_block_receipts = False
 
         block = await self.w3.eth.get_block(number, full_transactions=False)
-        receipts = []
+
+        # Collect only the transactions that are ours; background traffic
+        # shares these blocks and fetching its receipts would be wasted work.
+        wanted = []
         for tx_hash in block.transactions:
             key = tx_hash.hex().lower()
             if not key.startswith("0x"):
                 key = "0x" + key
-            if key not in self._pending:
-                continue  # background traffic, not ours
-            try:
-                receipts.append(dict(await self.w3.eth.get_transaction_receipt(tx_hash)))
-            except Exception:
-                continue
-        return receipts
+            if key in self._pending:
+                wanted.append(tx_hash)
+        if not wanted:
+            return []
+
+        # CONCURRENT, not sequential.
+        #
+        # This previously awaited each receipt one at a time inside a loop. At
+        # 300 payments/sec roughly 600 of our transactions land in each
+        # 2-second block, so the watcher spent ~600 serial round trips per
+        # block -- and every one of those blocks arrives whether or not the
+        # previous batch finished. That backlog, not processor count, is the
+        # likeliest reason the generator saturated at 500 and 1000/sec even
+        # with eight worker processes.
+        #
+        # Bounded concurrency rather than unbounded: firing 600 simultaneous
+        # requests at a single node would create exactly the client-side
+        # congestion this is trying to avoid, and could be mistaken for the
+        # chain slowing down.
+        sem = asyncio.Semaphore(_RECEIPT_CONCURRENCY)
+
+        async def fetch(tx_hash):
+            async with sem:
+                try:
+                    return dict(await self.w3.eth.get_transaction_receipt(tx_hash))
+                except Exception:
+                    return None
+
+        results = await asyncio.gather(*(fetch(h) for h in wanted))
+        return [r for r in results if r is not None]
