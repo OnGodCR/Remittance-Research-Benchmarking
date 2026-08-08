@@ -280,3 +280,5 @@ As of 8 Aug 2026: **207,065 payments across 23 runs**, of which 9 are flagged in
 | 8 Aug 2026 | Background traffic raised 20–80 → 60–115/sec | Original understated real Polygon activity (~87/sec) by roughly half |
 | 8 Aug 2026 | Receipt fetching made concurrent | Was serial, one round trip per transaction per block — the likely cause of generator saturation above 300/sec |
 | 8 Aug 2026 | Impairment retargeted to consensus traffic only | Interface-wide application was degrading the measurement instrument, not just the system under test |
+| 8 Aug 2026 | HTTP connection pool raised 100 → 256 | Default was below our concurrent demand; excess requests queued silently and would have been recorded as chain latency |
+| 8 Aug 2026 | Quota requested 64 → 96 | Two concurrent clusters halve sweep wall-clock at identical cost. Requests that DOUBLE the limit have been denied twice (32→128, 64→128); 50% steps were approved twice (32→48, 48→64). |
