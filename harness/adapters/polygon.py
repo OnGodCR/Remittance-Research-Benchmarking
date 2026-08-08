@@ -52,6 +52,11 @@ _GAS_LIMIT = 120_000
 #: never miss one, but not so often that polling itself becomes load.
 _BLOCK_POLL_INTERVAL = 0.2
 
+#: Simultaneous HTTP connections allowed to the node. The library's default
+#: is 100; we routinely want more, and exceeding it makes requests silently
+#: queue rather than fail -- appearing in the data as chain latency.
+_HTTP_CONNECTION_LIMIT = 256
+
 #: How many receipt requests may be in flight at once when falling back to
 #: per-transaction fetching. High enough to clear a block's worth quickly,
 #: low enough not to flood a single node -- which would create client-side
@@ -128,7 +133,32 @@ class PolygonAdapter(Adapter):
     # -- lifecycle --------------------------------------------------------
 
     async def setup(self, context: dict[str, Any]) -> None:
-        self.w3 = AsyncWeb3(AsyncHTTPProvider(self.rpc_url))
+        provider = AsyncHTTPProvider(self.rpc_url)
+
+        # RAISE THE HTTP CONNECTION LIMIT.
+        #
+        # The underlying HTTP library defaults to 100 simultaneous connections
+        # per session. At 300 payments/second we ask for more than that: up to
+        # 64 concurrent receipt fetches plus in-flight submissions from ~64
+        # sender accounts, all to a single node.
+        #
+        # Exceeding the pool does not error -- requests simply WAIT for a free
+        # connection. That wait is indistinguishable from the chain responding
+        # slowly, so it would have been recorded as settlement latency. It is
+        # the same class of mistake as the serial receipt fetching: our own
+        # client queueing, reported as the architecture's behaviour.
+        import aiohttp
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=_HTTP_CONNECTION_LIMIT,
+                limit_per_host=_HTTP_CONNECTION_LIMIT,
+                ttl_dns_cache=300,
+            ),
+            timeout=aiohttp.ClientTimeout(total=30),
+        )
+        await provider.cache_async_session(session)
+
+        self.w3 = AsyncWeb3(provider)
 
         # REQUIRED for proof-of-authority chains, which Polygon Edge is.
         #
@@ -154,11 +184,18 @@ class PolygonAdapter(Adapter):
         # Each account's on-chain nonce is fetched once. After this we track it
         # locally: asking the node before every send would double our request
         # rate and reintroduce the bottleneck we're avoiding.
-        self._senders = []
-        for key in self._sender_keys:
-            acct = Account.from_key(key)
-            nonce = await self.w3.eth.get_transaction_count(acct.address, "pending")
-            self._senders.append(_Sender(address=acct.address, key=key, nonce=nonce))
+        #
+        # Fetched concurrently rather than one after another. Setup happens
+        # before every run in a 140-run sweep, and with 160 accounts the
+        # serial version spent a round trip per account each time.
+        accounts = [Account.from_key(k) for k in self._sender_keys]
+        nonces = await asyncio.gather(
+            *(self.w3.eth.get_transaction_count(a.address, "pending") for a in accounts)
+        )
+        self._senders = [
+            _Sender(address=a.address, key=k, nonce=n)
+            for a, k, n in zip(accounts, self._sender_keys, nonces)
+        ]
 
         self._last_block = await self.w3.eth.block_number
         self._pending = {}

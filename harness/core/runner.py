@@ -162,13 +162,16 @@ async def run_benchmark(
             counters.inflight -= 1
 
     def flush() -> None:
-        for rec in buffers.submitted:
-            store.record_submitted(*rec)
-        buffers.submitted.clear()
-        for run, seq, status, conf, gas, fee, hops, err in buffers.outcomes:
-            store.record_outcome(run, seq, status, confirmed_offset=conf, gas_used=gas,
-                                 fee_native=fee, route_hops=hops, error=err)
-        buffers.outcomes.clear()
+        # Batched deliberately. The row-at-a-time version issued one statement
+        # per payment -- roughly 3,000 per flush at 300/sec -- and every one
+        # of them blocked the event loop that is timing the run. Batching
+        # prepares each statement once and commits the lot in one go.
+        if buffers.submitted:
+            store.record_submitted_batch(buffers.submitted)
+            buffers.submitted.clear()
+        if buffers.outcomes:
+            store.record_outcome_batch(buffers.outcomes)
+            buffers.outcomes.clear()
 
     async def sampler() -> None:
         """Per-second time series. Enables excluding warm-up analytically

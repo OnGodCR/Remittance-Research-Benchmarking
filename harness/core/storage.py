@@ -245,6 +245,32 @@ class Store:
              run_id, seq),
         )
 
+    def record_submitted_batch(self, rows) -> None:
+        """Batched form of record_submitted.
+
+        The per-row version issues a separate statement for every payment. At
+        300 payments/second the harness flushes ~3,000 of them at a time, and
+        each one blocks the event loop it is running on -- injecting jitter
+        into the very timestamps being measured. `executemany` prepares the
+        statement once and runs the whole batch inside a single transaction.
+        """
+        self.conn.executemany(
+            "UPDATE transactions SET submitted_offset=?, tx_ref=?, amount_native=? "
+            "WHERE run_id=? AND seq=?",
+            [(off, ref, amt, run, seq) for (run, seq, off, ref, amt) in rows],
+        )
+
+    def record_outcome_batch(self, rows) -> None:
+        """Batched form of record_outcome. See record_submitted_batch."""
+        self.conn.executemany(
+            """UPDATE transactions
+                  SET status=?, confirmed_offset=?, gas_used=?, fee_native=?,
+                      route_hops=?, error=?
+                WHERE run_id=? AND seq=?""",
+            [(status, conf, gas, fee, hops, err, run, seq)
+             for (run, seq, status, conf, gas, fee, hops, err) in rows],
+        )
+
     def record_sample(self, run_id: str, second: int, submitted: int, confirmed: int,
                       failed: int, inflight: int) -> None:
         self.conn.execute(
