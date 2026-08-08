@@ -179,7 +179,19 @@ Fees on a private chain are an artifact of our own configuration and would be ci
 
 **Measured: 35,865 gas per stablecoin transfer.**
 
-⚠️ **Open question.** This assumes the recipient already holds the token. A first-time recipient costs roughly 40% more, because writing a balance from zero is far more expensive than updating one. We warm recipients deliberately, so ours is the **repeat-transfer** cost. Whether that or the first-time figure belongs in the paper depends on whether corridors are modelled as recurring family transfers or one-off sends.
+**RESOLVED 8 Aug 2026 — the warm-recipient figure is the correct one to report.**
+
+The question was whether to use 35,865 (recipient already holds the token) or roughly 40% more (first-time recipient, where writing a balance from zero is far more expensive). The resolution rests on **what a scaled remittance system actually looks like on-chain**:
+
+Remittances at volume do not move between self-custodied personal wallets. They move through institutions — a sending service converts fiat to stablecoin, transfers on-chain to a receiving partner, and the partner pays out in local currency. **The on-chain leg is therefore between a small, fixed set of institutional treasury addresses**, not between millions of distinct individuals. This is how live crypto-remittance products are built.
+
+Consequently the first-time-recipient cost is paid **once per corridor partner, ever**, and amortises to nothing across the millions of transfers that follow. Reporting it as a per-transaction cost would materially overstate the settlement cost of every remittance after the first.
+
+Our test configuration reflects this: **32 reused recipient addresses**, standing in for a limited set of institutional endpoints, rather than a fresh address per payment.
+
+**Caveat to state in the paper**: this holds for the institutional model. A fully self-custodial design — sender's own wallet to recipient's own wallet, which some advocate specifically to remove intermediaries — would pay the cold-start cost on every new recipient. That is an architectural choice, and it is the kind of tradeoff the Design Science section should weigh rather than something the measurement should hide.
+
+*Reasoning contributed by Angad, 8 Aug 2026.*
 
 ---
 
@@ -249,3 +261,7 @@ As of 8 Aug 2026: **207,065 payments across 23 runs**, of which 9 are flagged in
 | 8 Aug 2026 | Reported knee at 100–150/sec retracted | Was our harness, not the chain |
 | 8 Aug 2026 | Idle-shutdown signal changed to block contents | Original watched a port validators use among themselves; cost $1.61 |
 | 8 Aug 2026 | Processor quota raised 32 → 48 | Unblocks hardware matching |
+| 8 Aug 2026 | Hard shutdown cap raised 480 → 780 min | The full sweep is 11.7 h; the old cap would have killed it two-thirds through |
+| 8 Aug 2026 | Warm-recipient gas confirmed as the reported figure | Scaled remittances move between institutional treasury addresses, so cold-start cost amortises to nothing — see §6 |
+| 8 Aug 2026 | Exploratory load levels added above 300/sec | Polygon cleared the whole pre-registered range; the ceiling is too low to find its limit. Primary metric unchanged. |
+| 8 Aug 2026 | Processor quota requested 48 → 64 | Enables 7 validators at published production spec |

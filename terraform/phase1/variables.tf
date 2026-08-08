@@ -84,20 +84,34 @@ variable "max_lifetime_minutes" {
     overnight during debugging. A 7-node cluster is roughly $1.15/hour, so a
     forgotten weekend is about $80.
 
-    480 minutes covers the longest planned unattended sweep with headroom.
+    RAISED to 780 minutes (13 hours) on 8 Aug 2026. The full pre-registered
+    sweep is 140 runs x 300s = 11.7 hours, so the previous 480-minute cap
+    would have killed it roughly two thirds of the way through.
+
+    This weakens the guard, so the idle watcher matters more than before --
+    and that one has already failed once (it watched a port the validators
+    use among themselves, and cost $1.61 overnight). It now counts
+    transactions inside blocks, which the cluster's own chatter cannot fake.
   EOT
   type        = number
-  default     = 480
+  default     = 780
 }
 
 variable "idle_shutdown_minutes" {
   description = <<-EOT
     Shut down after this long with no benchmark activity.
 
-    Detected by watching for connections to the node's RPC port, which only
-    the measurement program talks to. Peer-to-peer consensus traffic uses a
-    different port and continues regardless, so this cleanly distinguishes
-    "cluster is idle" from "cluster is alive".
+    Detected by counting TRANSACTIONS INSIDE BLOCKS.
+
+    The original version watched connections on the RPC port, assuming only
+    the measurement program used it. Wrong: validators hold RPC connections
+    to each other, so a cluster permanently looked busy to its own idle
+    check and ran 7.3 hours overnight before the hard cap stopped it ($1.61).
+
+    An idle chain still produces blocks, so height proves nothing -- but
+    those blocks are EMPTY, and emptiness cannot be faked by the cluster's
+    own chatter. The generator, having no local chain, checks instead for a
+    running harness process.
   EOT
   type        = number
   default     = 30
