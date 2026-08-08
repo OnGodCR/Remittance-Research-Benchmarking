@@ -193,9 +193,8 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
         for tps in LOAD_STEPS:
             for repeat in range(REPEATS):
                 done += 1
-                adapter = load_polygon_adapter(Path(args.config))
                 cfg = RunConfig(
-                    architecture="polygon", adapter=adapter.name,
+                    architecture="polygon", adapter="polygon-edge",
                     tx_size_usd=amount, target_tps=float(tps),
                     window_seconds=WINDOW, repeat_index=repeat,
                     arrival_seed=seed_for(BASE_SEED, tps, amount, repeat),
@@ -203,7 +202,14 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
                 )
                 print(f"[{done}/{total}] ${amount:g} @ {tps}/sec, repeat {repeat}")
                 try:
-                    summary = await run_benchmark(adapter, cfg, store, verbose=False)
+                    if args.workers > 1:
+                        summary = await run_parallel_benchmark(
+                            cfg, store, _adapter_spec(Path(args.config)),
+                            workers=args.workers, verbose=False)
+                    else:
+                        summary = await run_benchmark(
+                            load_polygon_adapter(Path(args.config)), cfg, store,
+                            verbose=False)
                     print(f"    achieved {summary['achieved_tps']:.1f}/sec | "
                           f"ok {summary['confirmed']} fail {summary['failed']}")
                     if summary["generator_saturated"]:
@@ -254,6 +260,10 @@ def main() -> int:
     p_sweep.add_argument("--config", required=True)
     p_sweep.add_argument("--phase", required=True)
     p_sweep.add_argument("--arm", default="baseline", choices=["baseline", "adversarial"])
+    p_sweep.add_argument("--workers", type=int, default=8,
+                         help="processes to split load across. Defaults to 8: a "
+                              "single process caps out near 150/sec, and the sweep "
+                              "goes to 300.")
     p_sweep.set_defaults(func=cmd_sweep)
 
     args = parser.parse_args()
