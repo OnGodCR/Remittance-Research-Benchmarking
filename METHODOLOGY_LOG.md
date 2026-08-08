@@ -109,7 +109,7 @@ Values are deliberately conservative. Overstating impairment would bias results 
 | Parameter | Value |
 |---|---|
 | Transaction type | Native value transfer, **21,000 gas** |
-| Rate | Varies between a configurable floor and ceiling (default 20–80/sec) |
+| Rate | Varies, **60–115/sec, mean ~88** — calibrated to observed mainnet activity |
 | Rate pattern | Two overlaid sine waves — one at half the run length, one at 37 s |
 | Accounts | Separate pool, no overlap with the measured workload |
 
@@ -119,7 +119,13 @@ Values are deliberately conservative. Overstating impairment would bias results 
 
 **Why separate accounts**: shared accounts would collide on transaction ordering, and the resulting interference would be our own doing rather than genuine congestion.
 
-**What it corrects**: every measurement to date ran against an essentially empty chain — roughly 4% of block capacity used at 300 payments/second. Real remittances compete for block space.
+**Calibration to real mainnet activity (8 Aug 2026).** Polygon PoS carries roughly **7.5 million transactions per day — about 87 per second** — and is reported at 68–109/sec during normal operation. Our initial default of 20–80/sec (mean ~45) **understated real background load by roughly half**, which would have made our chain appear emptier, and therefore better-performing, than the network it stands in for. Raised to 60–115/sec for a mean near 87.
+
+This is a case where checking realism made results *worse*, which is the direction that matters.
+
+**What it corrects**: every measurement before this ran against an essentially empty chain — roughly 4% of block capacity used at 300 payments/second. Real remittances compete for block space.
+
+**Resulting utilisation**: at 300 remittances/sec plus ~87/sec of background traffic, block utilisation reaches roughly 84% (300 × 35,865 + 87 × 21,000 gas per second, against 15M gas/sec capacity). Real Polygon at ~87/sec of mixed traffic runs nearer 29%. The difference is the experimental variable — we are deliberately offering peak remittance demand on top of realistic ambient load.
 
 ### #4 Hardware matched to real validator specs — **applied 8 Aug 2026**
 Validators run **n2-standard-8 (8 vCPU / 32 GB)**, matching Polygon's published validator guidance. Generator likewise 8 vCPU. Total 40 of the 64-core quota. Storage deliberately not matched (§3.5).
@@ -271,3 +277,6 @@ As of 8 Aug 2026: **207,065 payments across 23 runs**, of which 9 are flagged in
 | 8 Aug 2026 | Warm-recipient gas confirmed as the reported figure | Scaled remittances move between institutional treasury addresses, so cold-start cost amortises to nothing — see §6 |
 | 8 Aug 2026 | Exploratory load levels added above 300/sec | Polygon cleared the whole pre-registered range; the ceiling is too low to find its limit. Primary metric unchanged. |
 | 8 Aug 2026 | Processor quota requested 48 → 64 | Enables 7 validators at published production spec |
+| 8 Aug 2026 | Background traffic raised 20–80 → 60–115/sec | Original understated real Polygon activity (~87/sec) by roughly half |
+| 8 Aug 2026 | Receipt fetching made concurrent | Was serial, one round trip per transaction per block — the likely cause of generator saturation above 300/sec |
+| 8 Aug 2026 | Impairment retargeted to consensus traffic only | Interface-wide application was degrading the measurement instrument, not just the system under test |
