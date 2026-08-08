@@ -1,78 +1,95 @@
 # Resume Here — state as of 8 August 2026
 
-Everything in the cloud is **destroyed**. Nothing is billing. Verified: 0 machines, 0 disks, 0 addresses, 0 of 32 processors in use.
+Everything in the cloud is **destroyed**. Nothing is billing.
 
 ---
 
-## Where Phase 1 got to
+## Where things stand
 
-**Phase 1 substantially succeeded.** The full pipeline was proven end to end on real cloud infrastructure:
+| Phase | State |
+|---|---|
+| Setup — measurement program | Complete, verified |
+| Phase 1 — pipeline validation, one region | **Complete.** 1,499 payments, zero failures, 3.115s settlement |
+| Phase 2 step 1 — multi-region | **Complete.** 4 continents, first capacity curve measured |
+| Phase 2 step 2 — injected latency | Not started |
+| Phase 2 step 3 — hardware matching | **Blocked on quota** |
+| Phase 2 step 4 — background traffic | Not started |
+| Phase 2 step 5 — adversarial nodes | Not started |
 
-- 4-validator Polygon Edge cluster deployed and reached consensus
-- Chain produced blocks continuously
-- Test dollar contract deployed (524,778 gas)
-- 46 sender wallets funded
-- Benchmark ran against the live chain: **308 payments, 0 failures, 5.1 achieved vs 5 offered**
-
-That last line is the thing Phase 1 existed to prove: the machinery deploys, submits, measures, and records correctly against a real blockchain.
-
----
-
-## The one unresolved issue
-
-**The load generator was saturated at just 5 payments/second** — 204ms average scheduling lag, which auto-flagged the run invalid.
-
-This is **not** a harness limit. The same code sustained 300/second at 1.1ms lag against a local target. The cause is that the benchmark was run **from the laptop over the public internet**, so every submission paid a transatlantic round trip.
-
-**Fix, for the first thing to do on resuming:** run the harness on the `bench-p1-generator` machine, which sits in the same region as the validators. That was always the design — Phase 1 just skipped it because the generator machine only gets prepared by its startup script, and the harness itself was never copied onto it.
-
-Concretely, `generator_setup.sh` ends with "Next: copy the harness to /opt/benchmark and create its virtualenv." That step needs writing and adding to the bootstrap.
-
-Until that is done, **no throughput number from this project is trustworthy**, because the harness would be the bottleneck rather than the chain.
+**Data on record:** 69,801 payments across 17 runs, all committed. Four runs correctly flagged invalid. The clean dataset is empty and correctly so — nothing yet meets the pre-registered protocol of 300-second windows and five repeats.
 
 ---
 
-## Five real bugs found and fixed
+## The headline result so far
 
-Each would have cost hours or produced wrong data. All fixes are committed.
+Polygon Edge, four validators across Virginia, Mumbai, Singapore and London:
 
-1. **macOS ships bash 3.2** (2007), which lacks `mapfile`. Bootstrap script rewritten to be portable.
-2. **`--tunnel-through-iap=false` is invalid** — it is a switch, not a key=value flag. gcloud rejected every remote command, and because failures were swallowed the script just looped "not ready yet" until timeout. Ten minutes of billing for nothing.
-3. **Polygon Edge v1.3.2 flags differ from the documentation.** `--ibft-validator` does not exist; it is `--validators`, and with the default BLS validator type each entry is `<address>:<BLS key>`. There is no `--force` flag. Genesis must also run from a directory the `edge` user can read, or it fails with a misleading "failed to read from prefix" error.
-4. **Genesis file is written 0660 owned by `edge`**, so copying it to the other validators returned an empty file. Needs `sudo cat`.
-5. **The contract would not deploy.** Solidity 0.8.20+ targets the Shanghai instruction set (April 2023), which includes PUSH0. Polygon Edge v1.3.2 predates it. The failure is deceptive: the transaction is accepted, mined, and reverts having consumed *exactly* the full gas limit. Fixed by compiling with `evm_version="london"`.
+| Offered/sec | Achieved | Failures | Settlement |
+|---|---|---|---|
+| 10 | 9.4 | 0 | 3.18s |
+| 25 | 24.8 | 0 | 3.27s |
+| 50 | 49.1 | 0 | 3.41s |
+| 100 | 99.3 | 0 | 4.13s |
+| 150 | 148.8 | 0 | **19.26s** |
 
-## The most dangerous bug of all
+**The knee is between 100 and 150.** Flat to 100, then a 4.7× jump in settlement with still zero failures — a queue building rather than the chain rejecting work.
 
-6. **Proof-of-authority block headers broke settlement detection entirely.** Polygon Edge stores validator signatures in each block's `extraData`, making it far longer than Ethereum's 32-byte limit. web3 rejected every block as malformed, so no settlement was ever detected, every payment timed out at 60 seconds, and the run reported **100% failure**.
-
-This one matters beyond the fix. "The architecture failed every single transaction" is a perfectly plausible-sounding result that would have gone straight into the paper. It was our client refusing to read the blocks. Fixed by injecting `ExtraDataToPOAMiddleware`.
-
-**This is the strongest argument for why Phase 1 exists**, and it is worth a sentence in the Methodology section.
+Exploratory only: 60-second windows and one repeat, against the pre-registered 300 seconds and five.
 
 ---
 
-## Cost
+## Immediate next step
 
-Roughly **$0.30–0.50 total** for the whole session — five small machines for about 90 minutes on spot pricing.
+**Re-run 200 and 300 per second with 4 workers.**
 
-Google's billing reports on a 6–24 hour delay, so the console will still show $0 for a while. That is expected and is not evidence of anything.
+Those two levels are currently unmeasured. The earlier attempts failed because the harness itself ran out of processor capacity (2.0s and 20.4s of scheduling lag against a 250ms threshold), and both auto-invalidated. The multi-process fix is built and tested but has never been run against a real chain.
 
-Credit position: **$300, expires 6 November 2026.**
+Open question worth answering: at 200 and 300, how much of the earlier collapse was us and how much was the chain? Best guess is mostly us, but that is exactly the kind of guess worth replacing with data.
+
+Cost: roughly $0.30, about 30 minutes.
+
+```
+cd terraform/phase2 && tofu apply -auto-approve
+./scripts/bootstrap_cluster.sh --phase phase2
+./scripts/deploy_harness.sh --phase phase2
+# then deploy_and_fund and run with --workers 4
+cd terraform/phase2 && tofu destroy -auto-approve   # ALWAYS
+```
 
 ---
 
-## Next session, in order
+## Blocked
 
-1. **Write the harness deployment step** — copy the code to the generator machine, create its virtualenv, and run benchmarks from there rather than from the laptop. Add it to `bootstrap_cluster.sh`.
-2. **Re-run Phase 1 properly** from in-region. Confirm the generator is no longer the bottleneck, then run the real 300-second validation at 5/second.
-3. **Record the real per-hour cost** once Google's billing catches up — that is the number for the budget conversation.
-4. **Then Phase 2**: multi-region, injected latency, hardware matching, background traffic, adversarial nodes — one at a time, per `claude.md` §9.
+**Hardware matching (Phase 2 step 3) needs the quota increase.** Requested 8 Aug 05:28: `CPUS_ALL_REGIONS` from 32 to 128. Still granted 32. Seven validators at 8 processors plus a generator needs 60.
 
-## Before Phase 2, one thing needs requesting
+Check with:
 
-The account's **global processor cap is 32**, which is what broke the first deployment. Phase 2 needs 7 validators at 8 processors plus a generator = **60**.
+```
+gcloud quotas preferences list --project=project-c4c87dcb-da41-4caf-922
+```
 
-Request an increase of `CPUS_ALL_REGIONS` to at least 64. It is not instant, so do it early.
+**Do not request "Preemptible CPUs".** It reads 0, which means it has never been requested — and in that state spot machines draw on the regular processor quota. Requesting it would lock them into a separate, smaller bucket and make things worse.
 
-**Do not request "Preemptible CPUs" quota.** It currently reads 0, which means it has never been requested — and in that state spot machines fall back on the regular processor quota. Requesting it would lock spot machines into a separate, smaller bucket and make things worse.
+---
+
+## Bugs found and fixed so far
+
+Each would have produced wrong data or wasted hours. All fixed and committed.
+
+1. **Proof-of-authority block headers broke settlement detection.** Edge stores validator signatures in `extraData`, exceeding Ethereum's 32-byte limit, so web3 rejected every block and every payment timed out. The run reported **100% failure** — a plausible-sounding result that was purely our client refusing to read blocks. The single strongest argument for why Phase 1 exists.
+2. **Solidity 0.8.20+ targets an instruction set Edge v1.3.2 predates.** Deployment is accepted, mined, and reverts having consumed *exactly* the full gas limit. Nothing about it looks like a compiler problem. Fixed with `evm_version="london"`.
+3. **The harness was the bottleneck, not the chain**, at 200+ per second. Fixed by splitting across processes.
+4. **polygon-edge v1.3.2 flags differ from its documentation** — `--ibft-validator` and `--force` do not exist; genesis must run from a directory the `edge` user can read.
+5. **Genesis is written 0660 owned by `edge`**, so distribution returned an empty file without erroring.
+6. **`--tunnel-through-iap=false` is invalid syntax.** gcloud rejected every remote command and the swallowed failures read as "not ready yet".
+7. **Directory ownership hardcoded to `ubuntu`** while gcloud logs in as the local username.
+8. **macOS bash 3.2 lacks `mapfile`.**
+9. **Global processor cap is separate from the per-region one.** Checking only the regional quota let a deployment start that could never finish.
+
+---
+
+## Two open questions for the paper
+
+**Gas per transfer: 35,865 or ~51,000?** Ours assumes the recipient already holds the token. A first-time recipient costs roughly 40% more, because writing a balance from zero is far more expensive than updating one. Which belongs in the cost analysis depends on whether corridors are modelled as repeat transfers to family or one-off sends. Both are defensible; the choice moves the headline cost figure materially.
+
+**Two pre-registered criteria disagree at 150 per second.** It passes the primary metric (99.2% delivered, 0% failures) but fails the architecture-selection latency ceiling (19.26s against 10s). Both were locked before any data existed. Report the tension rather than resolving it quietly — "moves 150/sec but does not settle acceptably at that rate" is a better finding than a single number.
