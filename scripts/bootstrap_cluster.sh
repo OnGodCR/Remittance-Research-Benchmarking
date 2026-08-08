@@ -33,7 +33,21 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TF_DIR="$REPO/terraform/phase1"
+
+# Which deployment to bootstrap. Phase 1 is single-region; Phase 2 onward
+# spreads validators across regions, which means each machine lives in a
+# different zone and every remote command must name the right one.
+PHASE="phase1"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --phase) PHASE="$2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+TF_DIR="$REPO/terraform/$PHASE"
+NODE_PREFIX="bench-p1"
+[ "$PHASE" = "phase2" ] && NODE_PREFIX="bench-p2"
 KEYS_DIR="$REPO/keys"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -70,29 +84,50 @@ done < <(tofu output -json validator_private_ips | jq -r '.[]')
 COUNT=${#PRIVATE_IPS[@]}
 [ "$COUNT" -ge 4 ] || die "Need at least 4 validators for Byzantine fault tolerance, found $COUNT."
 
-log "Cluster: $COUNT validators, chain id $CHAIN_ID, zone $ZONE"
+# Per-validator zones. Phase 1 has them all in one zone; from Phase 2 each
+# validator sits in a different region. Naming the wrong zone makes gcloud
+# report the machine as nonexistent, which this script would read as "not
+# ready yet" and loop on until timeout -- so the mapping has to be exact.
+ZONES=()
+while IFS= read -r z; do
+  [ -n "$z" ] && ZONES+=("$z")
+done < <(tofu output -json validator_zones 2>/dev/null | jq -r '.[]' 2>/dev/null || true)
+if [ ${#ZONES[@]} -ne "$COUNT" ]; then
+  # Phase 1 has no validator_zones output; everything is in one zone.
+  ZONES=()
+  for ((i = 0; i < COUNT; i++)); do ZONES+=("$ZONE"); done
+fi
+
+log "Cluster: $COUNT validators, chain id $CHAIN_ID ($PHASE)"
+for ((i = 0; i < COUNT; i++)); do
+  printf '  validator-%d  %-20s %s\n' "$i" "${ZONES[$i]}" "${PRIVATE_IPS[$i]}"
+done
 
 names=()
-for ((i = 0; i < COUNT; i++)); do names+=("bench-p1-validator-$i"); done
+for ((i = 0; i < COUNT; i++)); do names+=("${NODE_PREFIX}-validator-$i"); done
 
+# Takes an INDEX, not a name, so the correct zone is always paired with the
+# correct machine.
+#
+# NOTE: --tunnel-through-iap is a switch, not a key=value flag. Writing
+# `--tunnel-through-iap=false` makes gcloud reject the whole command, and
+# because failures here are swallowed the caller just sees "not ready yet"
+# and loops until timeout -- ten minutes of billing for nothing.
 ssh_node() {
-  # NOTE: --tunnel-through-iap is a switch, not a key=value flag. Writing
-  # `--tunnel-through-iap=false` makes gcloud reject the whole command, and
-  # because failures here are swallowed the caller just sees "not ready yet"
-  # and loops until timeout -- ten minutes of billing for nothing.
-  gcloud compute ssh "$1" --zone "$ZONE" --project "$PROJECT" \
+  local idx="$1"
+  gcloud compute ssh "${names[$idx]}" --zone "${ZONES[$idx]}" --project "$PROJECT" \
     --no-tunnel-through-iap \
     --command "$2" -- -o StrictHostKeyChecking=no -o LogLevel=ERROR 2>/dev/null
 }
 
 # --- wait for setup to finish ---------------------------------------------
 log "Waiting for validator setup to complete (installs the blockchain software)..."
-for name in "${names[@]}"; do
+for ((i = 0; i < COUNT; i++)); do
   for attempt in $(seq 1 60); do
-    if ssh_node "$name" "test -f /var/lib/edge/identity.json" 2>/dev/null; then
-      printf '  %s ready\n' "$name"; break
+    if ssh_node "$i" "test -f /var/lib/edge/identity.json" 2>/dev/null; then
+      printf '  %s ready\n' "${names[$i]}"; break
     fi
-    [ "$attempt" -eq 60 ] && die "$name never finished setup. Check /var/log/validator-setup.log on it."
+    [ "$attempt" -eq 60 ] && die "${names[$i]} never finished setup. Check /var/log/validator-setup.log on it."
     sleep 10
   done
 done
@@ -101,7 +136,7 @@ done
 log "Collecting validator identities..."
 declare -a ADDRS NODE_IDS BLS_KEYS
 for ((i = 0; i < COUNT; i++)); do
-  identity=$(ssh_node "${names[$i]}" "cat /var/lib/edge/identity.json")
+  identity=$(ssh_node "$i" "cat /var/lib/edge/identity.json")
   ADDRS[i]=$(echo "$identity" | jq -r '.address')
   NODE_IDS[i]=$(echo "$identity" | jq -r '.node_id')
   BLS_KEYS[i]=$(echo "$identity" | jq -r '.bls')
@@ -154,7 +189,7 @@ done
 # validators path the command falls back to reading the working directory,
 # and a permission error there is reported as a confusing "failed to read
 # from prefix" rather than as a permissions problem.
-ssh_node "${names[0]}" "sudo rm -f /var/lib/edge/genesis.json; \
+ssh_node 0 "sudo rm -f /var/lib/edge/genesis.json; \
   sudo -u edge bash -c 'cd /var/lib/edge && /usr/local/bin/polygon-edge genesis \
   --dir /var/lib/edge/genesis.json \
   --consensus ibft \
@@ -168,18 +203,18 @@ log "Distributing genesis to the other validators..."
 # `sudo` is required: the genesis file is written 0660 owned by the edge user,
 # so the SSH login account cannot read it. Without sudo this returns nothing
 # and every validator starts against an empty chain definition.
-ssh_node "${names[0]}" "sudo cat /var/lib/edge/genesis.json" > "$WORK/genesis.json"
+ssh_node 0 "sudo cat /var/lib/edge/genesis.json" > "$WORK/genesis.json"
 [ -s "$WORK/genesis.json" ] || die "Genesis file came back empty -- check permissions on ${names[0]}."
 jq -e . "$WORK/genesis.json" >/dev/null 2>&1 || die "Genesis file is not valid JSON."
 log "  genesis is $(wc -c < "$WORK/genesis.json" | tr -d ' ') bytes"
 
 for ((i = 1; i < COUNT; i++)); do
   gcloud compute scp "$WORK/genesis.json" "${names[$i]}:/tmp/genesis.json" \
-    --zone "$ZONE" --project "$PROJECT" --quiet 2>&1 | tail -2
-  ssh_node "${names[$i]}" "sudo mv /tmp/genesis.json /var/lib/edge/genesis.json && \
+    --zone "${ZONES[$i]}" --project "$PROJECT" --quiet 2>&1 | tail -2
+  ssh_node "$i" "sudo mv /tmp/genesis.json /var/lib/edge/genesis.json && \
     sudo chown edge:edge /var/lib/edge/genesis.json && \
     sudo chmod 0640 /var/lib/edge/genesis.json"
-  size=$(ssh_node "${names[$i]}" "sudo stat -c %s /var/lib/edge/genesis.json 2>/dev/null || echo 0")
+  size=$(ssh_node "$i" "sudo stat -c %s /var/lib/edge/genesis.json 2>/dev/null || echo 0")
   [ "$size" -gt 100 ] || die "Genesis did not arrive on ${names[$i]} (got $size bytes)."
   printf '  %s ok (%s bytes)\n' "${names[$i]}" "$size"
 done
@@ -187,7 +222,7 @@ done
 # --- start the validators -------------------------------------------------
 log "Starting validators..."
 for ((i = 0; i < COUNT; i++)); do
-  ssh_node "${names[$i]}" "sudo tee /etc/systemd/system/edge.service >/dev/null <<'UNIT'
+  ssh_node "$i" "sudo tee /etc/systemd/system/edge.service >/dev/null <<'UNIT'
 [Unit]
 Description=Polygon Edge validator
 After=network-online.target
@@ -223,7 +258,7 @@ RPC="http://${PRIVATE_IPS[0]}:8545"
 first_block=""
 for attempt in $(seq 1 30); do
   sleep 5
-  height=$(ssh_node "${names[0]}" \
+  height=$(ssh_node 0 \
     "curl -s -X POST -H 'Content-Type: application/json' \
      --data '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}' \
      http://localhost:8545" | jq -r '.result // empty' 2>/dev/null || echo "")

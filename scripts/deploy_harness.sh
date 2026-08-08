@@ -30,8 +30,18 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TF_DIR="$REPO/terraform/phase1"
+
+PHASE="phase1"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --phase) PHASE="$2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+TF_DIR="$REPO/terraform/$PHASE"
 GENERATOR="bench-p1-generator"
+[ "$PHASE" = "phase2" ] && GENERATOR="bench-p2-generator"
 REMOTE_DIR="/opt/benchmark"
 
 log()  { printf '\033[0;36m==>\033[0m %s\n' "$*"; }
@@ -43,7 +53,9 @@ command -v jq     >/dev/null || die "jq not found."
 cd "$TF_DIR"
 [ -f terraform.tfstate ] || die "No cluster found. Run 'tofu apply' first."
 
-ZONE=$(tofu output -raw zone)
+# The generator has its own zone output from Phase 2 onward; in Phase 1 it
+# shares the single cluster zone.
+ZONE=$(tofu output -raw generator_zone 2>/dev/null || tofu output -raw zone)
 CHAIN_ID=$(tofu output -raw chain_id)
 PROJECT=$(grep -oE '"project": *"[^"]+"' terraform.tfstate | head -1 | cut -d'"' -f4)
 [ -n "$PROJECT" ] || PROJECT=$(gcloud config get-value project 2>/dev/null)
@@ -51,8 +63,17 @@ PROJECT=$(grep -oE '"project": *"[^"]+"' terraform.tfstate | head -1 | cut -d'"'
 
 # The PRIVATE address, deliberately. This is the entire point of the exercise:
 # traffic stays inside the cloud network instead of crossing the internet.
-VALIDATOR_IP=$(tofu output -json validator_private_ips | jq -r '.[0]')
-RPC_URL="http://${VALIDATOR_IP}:8545"
+#
+# From Phase 2 the deployment names which validator the generator should talk
+# to -- the one in its own region. Submission cost then stays constant across
+# runs while *consensus* pays the cross-region price, so the measured
+# degradation is attributable to consensus rather than to how far the client
+# happened to be from its entry point.
+RPC_URL=$(tofu output -raw rpc_url 2>/dev/null || echo "")
+if [ -z "$RPC_URL" ]; then
+  RPC_URL="http://$(tofu output -json validator_private_ips | jq -r '.[0]'):8545"
+fi
+VALIDATOR_IP=$(echo "$RPC_URL" | sed -E 's#^http://([^:]+):.*#\1#')
 
 cd "$REPO"
 
