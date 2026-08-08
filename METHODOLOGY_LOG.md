@@ -76,7 +76,11 @@ Real remittances on Polygon move USDC/USDT. A token transfer costs roughly **thr
 ### #1 Multi-region deployment — **applied and validated**
 Four regions as listed in §2. Confirmed working 8 Aug 2026: consensus reached and blocks produced across four continents.
 
-### #2 Injected latency, jitter and packet loss — **built, not yet run**
+### #2 Injected latency, jitter and packet loss — **applied and validated 8 Aug 2026**
+
+**Measured effect** (300 payments/sec): settlement rose from **3.80 s to 7.63 s**, roughly doubling. At 100/sec the effect was negligible (3.26 s → 3.35 s). Impairment therefore interacts with load rather than adding a constant penalty — at low load there is slack to absorb retransmission, at high load delays compound.
+
+**Correction made during validation.** The first implementation attached the emulator to the whole network interface, which also delayed the load generator's own submissions. The generator's scheduling lag jumped from 10 ms to 553 ms at 100/sec and 48 s at 300/sec, invalidating both runs, while the chain itself was unaffected. Now applied through a priority queue with filters matching only other validators' addresses, so consensus traffic is impaired and the measurement path is not. **A benchmark must degrade the system under test, never the instrument measuring it.**
 
 Applied with the Linux kernel's own network emulator (`netem`) to each validator's primary interface, affecting consensus traffic between validators. The generator's path is deliberately left unimpaired — the measuring instrument should not be degraded, only the system under test.
 
@@ -100,7 +104,7 @@ Jitter uses a normal distribution rather than uniform, matching how real network
 
 Values are deliberately conservative. Overstating impairment would bias results pessimistically, which is as misleading as understating it.
 
-### #3 Competing background traffic — **built, not yet run**
+### #3 Competing background traffic — **applied and validated 8 Aug 2026**
 
 | Parameter | Value |
 |---|---|
@@ -117,12 +121,14 @@ Values are deliberately conservative. Overstating impairment would bias results 
 
 **What it corrects**: every measurement to date ran against an essentially empty chain — roughly 4% of block capacity used at 300 payments/second. Real remittances compete for block space.
 
-### #4 Hardware matched to real validator specs — **NOT YET BUILT**
-Unblocked 8 Aug 2026 when the processor quota rose from 32 to 48. Constraint: 4 validators at 8 processors plus an 8-processor generator = 40, within the cap. Seven validators at real spec would need 64. **The trade-off between validator count and realistic hardware is an open decision.**
+### #4 Hardware matched to real validator specs — **applied 8 Aug 2026**
+Validators run **n2-standard-8 (8 vCPU / 32 GB)**, matching Polygon's published validator guidance. Generator likewise 8 vCPU. Total 40 of the 64-core quota. Storage deliberately not matched (§3.5).
+
+**Measured effect**: at 300 payments/sec, settlement improved from **5.30 s on 4-core validators to 3.80 s on 8-core** — a 28% reduction. This is the one realism technique that makes results *better*, and it is worth stating as such: matching real hardware is not automatically a pessimising choice.
 
 ### #5 Lightning liquidity topology — Phase 3, not applicable to Polygon
 
-### #6 Adversarial / unreliable nodes — **built, not yet run**
+### #6 Adversarial / unreliable nodes — **applied and validated 8 Aug 2026**
 
 | Parameter | Value |
 |---|---|

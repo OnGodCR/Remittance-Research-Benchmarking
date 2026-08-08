@@ -154,6 +154,19 @@ def main() -> int:
                         help="sender wallets to prepare (46 supports 300/sec)")
     parser.add_argument("--gas-price-gwei", type=float, default=1.0)
     parser.add_argument("--output", default="config/phase1.json")
+    parser.add_argument("--keys-out", default="keys/senders.json",
+                        help="where to write the private keys")
+    parser.add_argument("--account-label", default="sender",
+                        help="derivation label. Changing it produces a COMPLETELY "
+                             "SEPARATE wallet pool -- required for background "
+                             "traffic, which must never share accounts with the "
+                             "measured workload or the two collide on transaction "
+                             "ordering and the interference is our own doing.")
+    parser.add_argument("--skip-deploy", action="store_true",
+                        help="fund wallets against an already-deployed token "
+                             "instead of deploying a new one")
+    parser.add_argument("--token-address", default=None,
+                        help="existing token, required with --skip-deploy")
     args = parser.parse_args()
 
     w3 = Web3(HTTPProvider(args.rpc_url))
@@ -182,23 +195,36 @@ def main() -> int:
         return 1
 
     seed = load_or_create_seed()
-    senders = derive_accounts(seed, "sender", args.senders)
+    senders = derive_accounts(seed, args.account_label, args.senders)
     recipients = derive_accounts(seed, "recipient", RECIPIENT_COUNT)
     print(f"derived {len(senders)} senders and {len(recipients)} recipients")
 
     # -- deploy -----------------------------------------------------------
     abi, bytecode = compile_contract()
     nonce = w3.eth.get_transaction_count(funder.address)
-    contract = w3.eth.contract(abi=abi, bytecode=bytecode)
-    deploy_tx = contract.constructor().build_transaction({
-        "from": funder.address, "nonce": nonce,
-        "gas": 2_000_000, "gasPrice": gas_price, "chainId": args.chain_id,
-    })
-    receipt = send_and_wait(w3, deploy_tx, args.funder_key, "contract deployment")
-    token_address = receipt.contractAddress
-    nonce += 1
-    print(f"token deployed at {token_address} "
-          f"(deployment used {receipt.gasUsed:,} gas)")
+
+    if args.skip_deploy:
+        # Funding a SECOND wallet pool against the token already in use --
+        # how the background-traffic accounts are created. Deploying a fresh
+        # token here would leave the measured workload pointing at a
+        # different contract from the noise, and the two would no longer
+        # compete for the same block space, which is the entire point.
+        if not args.token_address:
+            print("ERROR: --skip-deploy requires --token-address")
+            return 1
+        token_address = w3.to_checksum_address(args.token_address)
+        print(f"reusing existing token at {token_address}")
+    else:
+        contract = w3.eth.contract(abi=abi, bytecode=bytecode)
+        deploy_tx = contract.constructor().build_transaction({
+            "from": funder.address, "nonce": nonce,
+            "gas": 2_000_000, "gasPrice": gas_price, "chainId": args.chain_id,
+        })
+        receipt = send_and_wait(w3, deploy_tx, args.funder_key, "contract deployment")
+        token_address = receipt.contractAddress
+        nonce += 1
+        print(f"token deployed at {token_address} "
+              f"(deployment used {receipt.gasUsed:,} gas)")
 
     token = w3.eth.contract(address=token_address, abi=abi)
 
@@ -264,7 +290,8 @@ def main() -> int:
                 "which is gitignored. Re-derive with scripts.deploy_and_fund.",
     }, indent=2) + "\n")
 
-    keys_path = KEYS_DIR / "senders.json"
+    keys_path = REPO / args.keys_out
+    keys_path.parent.mkdir(parents=True, exist_ok=True)
     keys_path.write_text(json.dumps([s.key.hex() for s in senders], indent=2) + "\n")
     keys_path.chmod(0o600)
 
