@@ -100,11 +100,13 @@ variable "max_lifetime_minutes" {
     spending cap. This timer and the idle watcher are the only real
     protection against a forgotten cluster.
 
-    RAISED to 780 minutes (13 hours) on 8 Aug 2026 so the full 11.7-hour
-    sweep can complete. The idle watcher therefore carries more weight now.
+    RAISED to 900 minutes (15 hours) on 8 Aug 2026. The sweep's real elapsed
+    time is nearer 12.4 hours once per-run setup and drain are counted, so 13
+    hours left too little margin. The idle watcher carries more weight the
+    longer this cap gets.
   EOT
   type        = number
-  default     = 780
+  default     = 900
 }
 
 variable "idle_shutdown_minutes" {
