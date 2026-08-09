@@ -329,6 +329,28 @@ At the $200 World Bank benchmark size:
 
 ---
 
+## 9.2 Adversarial arm — completed result
+
+Same realism stack as the clean baseline, plus validators dropping offline throughout. 3 load levels × $200 × 5 repeats = 15 runs, 300-second windows. 123 outage events recorded and joined to the payment data.
+
+| Offered/sec | Clean | With node failures | Throughput lost |
+|---|---|---|---|
+| 100 | 100.1/s, 0.00% fail | 99.4/s [99–100], 0.8% fail | **0.8%** |
+| 200 | 200.8/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
+| 300 | 270.5/s, 9.97% fail | 156.2/s [93–203], 48.0% fail | **42.2%** |
+
+**The damage scales with how loaded the system already is.** With ample headroom, losing a quarter of the validator set costs under 1% of throughput. At the sustainable ceiling it costs 26%. Past it, 42% — and nearly half of all payments fail.
+
+**Polygon Edge does not degrade gracefully under node loss.** It absorbs a missing validator almost for free while slack exists, and collapses once it does not. There is no gentle middle.
+
+**Note the spread.** At 300/sec, identical configurations produced 93 to 203 payments/sec — better than a 2× range. Outage timing is random, so a run where a validator drops during a lull survives far better than one where it drops mid-surge. A single run could have reported either extreme. This is the clearest justification in the study for the five-repeat protocol, and the reason this arm in particular must be reported as ranges rather than means.
+
+**Why this matters for remittances.** Peak demand and infrastructure strain arrive together — payday clustering and holiday surges are exactly when systems are most loaded and most likely to have something fail. This curve says that is the worst possible combination. The design rule that follows: **size for node failure, not for clean-condition throughput.** A system provisioned on the clean 200/sec figure would lose a quarter of its payments the first time a validator rebooted during a busy period.
+
+⚠️ **Read alongside the realism limitation in §4 technique #6.** The injection is ~130× more hostile than real Polygon. These figures measure *sensitivity to validator loss*, not expected mainnet behaviour.
+
+---
+
 ## 10. Change log
 
 | Date | Change | Reason |
