@@ -195,24 +195,24 @@ At the $200 World Bank benchmark:
 | 50 | 50.0 | 0.00% | 3.20s | 4.22s | 4.46s |
 | 100 | 100.1 | 0.00% | 3.23s | 4.25s | 4.52s |
 | 150 | 150.3 | 0.00% | 3.31s | 4.38s | 4.70s |
-| **200** | **200.8** | **0.00%** | 3.43s | 4.76s | 6.48s |
+| **200** | **200.9** | **0.00%** | 3.43s | 4.77s | 6.35s |
 | 300 | 270.5 | 9.97% | 10.61s | 24.26s | 30.49s |
 
 **Sustainable throughput at $200 = 200 payments per second.** This is the pre-registered primary metric: the highest load step where achieved throughput reaches at least 90% of offered load AND failures stay under 5%. At 300/sec both conditions fail — 90.2% delivered, 9.97% failures.
+
+⚠️ **Do not write "9.97% of payments failed" without the mechanism.** Every failure in this study was a *submission rejection* — the chain's queue was full and refused the transaction, which therefore has no transaction hash and consumed no gas. Nothing the chain accepted ever failed to settle, and the 60-second timeout never fired in any run. The correct phrasing is that the network committed roughly 270/sec and refused the surplus at the door. A rejected submission returns an error the sender can retry; it is not a payment lost in transit, and the distinction is a genuine strength worth stating. Note also that the queue was left at Polygon Edge's default size, so the ~270/sec ceiling is architectural while the exact 9.97% is queue-dependent.
 
 **The knee sits between 200 and 300/sec.** Settlement is essentially flat from 10 through 200 (3.19s to 3.43s at the median), then triples at 300 while failures appear for the first time. A system passing from comfortable to overloaded within one step of the ramp.
 
 **Against the architecture-selection thresholds:** at 200/sec Polygon clears both — p95 of 4.76s against the 10-second ceiling, and cost far under $0.10. At 300/sec it fails both the latency ceiling (p95 24.26s) and the failure bar.
 
-**Transaction size does not drive failure.** At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship with amount. This confirms the pre-registered prediction that these networks charge for computational work performed rather than value moved, and it is the baseline against which Lightning's expected *inverse* relationship should be read.
+**Transaction size does not drive failure.** At 300/sec: $10 9.79%, $50 8.51%, $200 9.97%, $500 12.85% — no monotonic relationship with amount. Within a storage tier the four amounts differ by 12 gas (0.044%), which is calldata encoding, not value. This confirms the pre-registered prediction that these networks charge for computational work performed rather than value moved, and it is the baseline against which Lightning's expected *inverse* relationship should be read.
 
 **Context for the reader:** global remittances average roughly 140-150 payments/second ($905B/year ÷ $200). Polygon Edge comfortably clears steady-state global remittance demand at under 5 seconds settlement, but breaks in the middle of the 200-300/sec range this study defines as realistic peak (holiday, payday clustering). *Sufficient for steady state, marginal at peak* is a more useful finding than any single throughput number, and it points directly at what the Design Science section must address.
 
 **A superseded exploratory figure, for the record.** An early pilot suggested Polygon sustained 300/sec with zero failures. That came from 60-second windows on a chain without background traffic. Under the full protocol it does not hold. Short windows measured the burst, not the steady state — a concrete argument for why the 300-second window was specified.
 
 ---
-
-### Earlier exploratory curve (superseded — do not cite)
 
 ### Earlier exploratory curve — SUPERSEDED, do not cite
 
@@ -264,7 +264,9 @@ Read this before writing any results prose.
 
    An early observation supporting this: at the block parameters used here, gas arithmetic caps throughput near **418 per second** for stablecoin transfers, or about **714** even for the simplest possible native transfer. Reaching 3,800 would require assumptions the vendor does not publish. This is not proof the figure is wrong, but it strengthens the case for treating it as a marketing claim rather than a benchmark.
 
-9. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
+9. **Do not call the failure rate a settlement failure rate.** Every failure recorded in this study is a *submission rejection*: the chain's transaction queue was full and refused the payment before it entered the chain. No transaction the chain accepted ever failed to settle, and the 60-second timeout threshold never fired once in 155 measured runs. Write *"the network committed roughly 270 payments per second and rejected the surplus at submission"*, not *"10% of payments failed"* — the second implies payments lost in transit, which did not happen and which is precisely the outcome a remittance system must avoid. The queue was left at Polygon Edge's default, so the throughput ceiling is architectural while the exact rejection percentage is queue-dependent.
+
+10. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
 
 ---
 

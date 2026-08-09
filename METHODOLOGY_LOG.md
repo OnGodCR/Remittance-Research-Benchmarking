@@ -217,11 +217,11 @@ Five repeats per configuration, each with a **different arrival seed** derived d
 ### Cost methodology
 Fees on a private chain are an artifact of our own configuration and would be circular to report. Instead: measure **gas consumed** (deterministic, architecture-determined, genuinely real), then convert using **real mainnet prices from public explorers on a single stated date**, cited once for the whole paper.
 
-**Measured: 28,467 gas per stablecoin transfer** (mean over the results dataset; median 27,465).
+**Measured: 28,538 gas per stablecoin transfer** (mean over the results dataset; median 27,465).
 
-The distribution is tiered by EVM storage-access cost: 27,465 gas where both balance slots are warm (55.3% of transfers), 31,665 with one cold access (9.8%), 35,865 fully cold (3.6%).
+The distribution is tiered by EVM storage-access cost: ~27,465 gas where both balance slots are warm (80.1% of transfers), ~31,665 with one cold access (14.4%), ~35,865 fully cold (5.6%). Within each tier values vary by ±12 gas with the number of zero bytes in the encoded amount.
 
-**Converted to dollars: $0.0006 per remittance.** Using PolygonScan's Standard gas price of 270.927 Gwei and POL at $0.0774, both pulled 9 August 2026 — see `data/reference/calibration_2026-08-09.md`, the single pricing reference for the whole paper. Clears the pre-registered $0.10 threshold by roughly 168×, and consumes 0.01% of the UN SDG 10.c budget of $6.00 on a $200 transfer.
+**Converted to dollars: $0.0006 per remittance.** Using PolygonScan's Standard gas price of 270.927 Gwei and POL at $0.0774, both pulled 9 August 2026 — see `data/reference/calibration_2026-08-09.md`, the single pricing reference for the whole paper. Clears the pre-registered $0.10 threshold by roughly 167×, and consumes 0.01% of the UN SDG 10.c budget of $6.00 on a $200 transfer.
 
 Note that 270 Gwei is high against Polygon's historical 30-50 Gwei range, so this figure is **conservative** — a long-run average would be cheaper. Stated as a limitation rather than silently smoothed.
 
@@ -316,7 +316,7 @@ At the $200 World Bank benchmark size:
 | 50 | 50.0 | 0.00% | 3.20s | 4.22s | 4.46s |
 | 100 | 100.1 | 0.00% | 3.23s | 4.25s | 4.52s |
 | 150 | 150.3 | 0.00% | 3.31s | 4.38s | 4.70s |
-| **200** | **200.8** | **0.00%** | 3.43s | 4.76s | 6.48s |
+| **200** | **200.9** | **0.00%** | 3.43s | 4.77s | 6.35s |
 | 300 | 270.5 | 9.97% | 10.61s | 24.26s | 30.49s |
 
 **Sustainable throughput at $200 = 200/sec**, per the pre-registered primary metric (§2 of the analysis plan: achieved ≥90% of offered AND failures <5%). At 300/sec both conditions fail — 90.2% of offered load delivered and 9.97% failures — so 200 is the highest step clearing the bar.
@@ -325,7 +325,7 @@ At the $200 World Bank benchmark size:
 
 **Against the architecture-selection thresholds (§10):** at 200/sec Polygon clears both — p95 of 4.76s against a 10s ceiling, and cost well under $0.10. At 300/sec it fails the latency ceiling (p95 24.26s) as well as the failure bar.
 
-**Transaction size does not drive failure**, as predicted in §12. At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship with amount, consistent with the prediction that these networks charge for computational work rather than value moved. Contrast this with the inverse size/success relationship expected for Lightning.
+**Transaction size does not drive failure**, as predicted in §12. At 300/sec: $10 9.79%, $50 8.51%, $200 9.97%, $500 12.85% — no monotonic relationship with amount. Compared within a storage tier, gas differs by 12 across all four amounts (0.044%), and that residue is calldata zero-byte cost rather than value. Consistent with the prediction that these networks charge for computational work rather than value moved. Contrast this with the inverse size/success relationship expected for Lightning.
 
 **Note on the earlier exploratory figure.** A pilot at 60-second windows suggested Polygon sustained 300/sec with zero failures. The full protocol — 300-second windows and realistic background traffic — shows that does not hold under sustained load. Short windows measured the burst, not the steady state.
 
@@ -333,12 +333,12 @@ At the $200 World Bank benchmark size:
 
 ## 9.2 Adversarial arm — completed result
 
-Same realism stack as the clean baseline, plus validators dropping offline throughout. 3 load levels × $200 × 5 repeats = 15 runs, 300-second windows. 123 outage events recorded and joined to the payment data.
+Same realism stack as the clean baseline, plus validators dropping offline throughout. 3 load levels × $200 × 5 repeats = 15 runs, 300-second windows. 119 outage events recorded and joined to the payment data.
 
 | Offered/sec | Clean | With node failures | Throughput lost |
 |---|---|---|---|
 | 100 | 100.1/s, 0.00% fail | 99.4/s [99–100], 0.8% fail | **0.8%** |
-| 200 | 200.8/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
+| 200 | 200.9/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
 | 300 | 270.5/s, 9.97% fail | 156.2/s [93–203], 48.0% fail | **42.2%** |
 
 **The damage scales with how loaded the system already is.** With ample headroom, losing a quarter of the validator set costs under 1% of throughput. At the sustainable ceiling it costs 26%. Past it, 42% — and nearly half of all payments fail.
@@ -379,3 +379,17 @@ Same realism stack as the clean baseline, plus validators dropping offline throu
 | 9 Aug 2026 | Node outage events imported into the database | The adversarial script logged them to a text file the transaction data could not be joined to, defeating the point of logging them. |
 | 9 Aug 2026 | Outage timestamp format corrected | The script used `%3N`, unsupported by the remote `date`, which emitted the literal characters "3N" and produced timestamps no parser accepts. |
 | 8 Aug 2026 | Quota requested 64 → 96 | Two concurrent clusters halve sweep wall-clock at identical cost. Requests that DOUBLE the limit have been denied twice (32→128, 64→128); 50% steps were approved twice (32→48, 48→64). |
+
+## Audit — 9 Aug 2026
+
+Full re-verification of every published Polygon figure against the dataset, at Angad's request, before moving to Phase 3. Every headline number was recomputed from `data/clean/all_runs_clean.parquet` rather than carried forward from earlier notes.
+
+**Two material findings.**
+
+1. **22 duplicate runs.** The sweep's resume restarted from the beginning of the load ladder rather than the point of interruption, measuring 22 configurations twice with identical arrival seeds. Four matrix cells held 10 runs instead of 5. Excluded under `ANALYSIS_PLAN.md` §13 amendment 4; the matrix is now exactly 140 runs with 5 per cell. Effect on results negligible ($200 curve 200.8 to 200.9/sec at one step); all conclusions unchanged.
+
+2. **Failure mechanism was mischaracterised.** Every failure in the study is a *submission rejection* (`txpool is full`), not a settlement failure. No accepted transaction ever failed to settle, and the 60-second timeout never fired once. The reported failure rate is an overflow rate at Edge's default queue size. Now stated explicitly in `POLYGON_ANALYSIS.md` §2, with the queue-size dependency recorded as a limitation.
+
+**Four smaller corrections.** The gas tier table accounted for only 68.7% of transactions (the ±12 gas calldata variants were listed as separate tiers rather than grouped); mean gas refined to 28,538 and cost to 167× under threshold, still $0.0006. Size-independence restated within storage tier, isolating amount from storage warmth: 12 gas, 0.044%. Exclusion counts corrected — the 9 saturation/defect runs sit inside the 34 non-result phases rather than adding to them. Node-event import had 2 exact duplicates and one orphaned run.
+
+**Confirmed unchanged:** the whole $200 curve, the 200/sec ceiling, the knee, every adversarial figure, background traffic at mean 87.5/sec, the warm-up rule, the 290s throughput denominator, and the matrix's completeness at 28 of 28 cells.
