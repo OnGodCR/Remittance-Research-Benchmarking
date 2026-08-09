@@ -267,6 +267,36 @@ As of 8 Aug 2026: **207,065 payments across 23 runs**, of which 9 are flagged in
 
 ---
 
+## 9.1 Polygon Edge — completed result (Phase 2, full realism stack)
+
+Four validators across Virginia, Mumbai, Singapore and London at published production specification (8 vCPU / 32 GB), with injected per-corridor latency, jitter and packet loss on consensus traffic, and background traffic calibrated to real mainnet activity (~88 tx/sec). 300-second windows, 5 repeats, first 10 seconds discarded.
+
+**Complete matrix: 140 of 140 configurations.**
+
+At the $200 World Bank benchmark size:
+
+| Offered/sec | Achieved | Failures | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 10 | 9.9 | 0.00% | 3.19s | 4.16s | 4.40s |
+| 25 | 25.0 | 0.00% | 3.19s | 4.17s | 4.39s |
+| 50 | 50.0 | 0.00% | 3.20s | 4.22s | 4.46s |
+| 100 | 100.1 | 0.00% | 3.23s | 4.25s | 4.52s |
+| 150 | 150.3 | 0.00% | 3.31s | 4.38s | 4.70s |
+| **200** | **200.8** | **0.00%** | 3.43s | 4.76s | 6.48s |
+| 300 | 270.5 | 9.97% | 10.61s | 24.26s | 30.49s |
+
+**Sustainable throughput at $200 = 200/sec**, per the pre-registered primary metric (§2 of the analysis plan: achieved ≥90% of offered AND failures <5%). At 300/sec both conditions fail — 90.2% of offered load delivered and 9.97% failures — so 200 is the highest step clearing the bar.
+
+**The knee is between 200 and 300/sec.** Settlement is essentially flat from 10 to 200 (3.19s → 3.43s at the median), then rises threefold at 300 while failures appear for the first time. That is a system passing from comfortable to overloaded within one step of the ramp.
+
+**Against the architecture-selection thresholds (§10):** at 200/sec Polygon clears both — p95 of 4.76s against a 10s ceiling, and cost well under $0.10. At 300/sec it fails the latency ceiling (p95 24.26s) as well as the failure bar.
+
+**Transaction size does not drive failure**, as predicted in §12. At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship with amount, consistent with the prediction that these networks charge for computational work rather than value moved. Contrast this with the inverse size/success relationship expected for Lightning.
+
+**Note on the earlier exploratory figure.** A pilot at 60-second windows suggested Polygon sustained 300/sec with zero failures. The full protocol — 300-second windows and realistic background traffic — shows that does not hold under sustained load. Short windows measured the burst, not the steady state.
+
+---
+
 ## 10. Change log
 
 | Date | Change | Reason |
