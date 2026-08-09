@@ -2,7 +2,7 @@
 
 **Audience**: the writing partner drafting the research paper. This document is self-contained — you should not need to read the codebase to write from it.
 
-**Status**: living document. Updated at the end of every phase. Last updated **7 August 2026** (end of setup, before Phase 1 deployment).
+**Status**: living document. Updated at the end of every phase. Last updated **9 August 2026** — Phase 2 complete (Polygon, 140/140 configurations); adversarial arm in progress; Phases 3-6 not started.
 
 **How to use this**: Sections 1-9 are settled and can be written from directly. Section 10 fills in as data arrives. Section 11 is the list of things the paper must **not** claim — read it before writing any results prose, because several plausible-sounding sentences would be wrong.
 
@@ -172,7 +172,7 @@ Fixed in advance:
 |---|---|---|
 | Setup | **Complete — 7 Aug 2026** | Measurement program built and verified: arrival timing statistically correct (0.05% drift at 300/sec), latency accurate to within 1ms, failure accounting correct. No cloud spend. |
 | 1 — Pipeline validation, one region | **Complete — 8 Aug 2026** | 4-validator cluster in Virginia. 1,499 payments, zero failures, 3.115s settlement. Pipeline proven end to end. **No paper data by design.** |
-| 2 — Realism techniques, one at a time | **Step 1 of 5 complete** | Multi-region live across 4 continents. First capacity curve measured (below). |
+| 2 — Realism techniques, one at a time | **COMPLETE — 140/140 configurations** | Full realism stack. Headline result below. Adversarial arm running as of 9 Aug. |
 | 3 — Full realism on Polygon, then Lightning | Not started | — |
 | 4 — Sharding (NEAR) | Not started | — |
 | 5 — Calibration and confidence intervals | Not started | — |
@@ -180,7 +180,45 @@ Fixed in advance:
 
 **Neither Phase 1 nor the Phase 2 pilot produces results for the paper.** Both are excluded automatically by the pre-registered rules. As of 8 Aug 2026 the clean dataset is empty and correctly so — no run yet meets the pre-registered protocol of 300-second windows and five repeats.
 
-### First capacity curve (Phase 2, exploratory)
+### Polygon Edge — the completed result
+
+Four validators across Virginia, Mumbai, Singapore and London, at published production specification (8 vCPU / 32 GB), with per-corridor latency, jitter and packet loss injected on consensus traffic, and background traffic calibrated to real Polygon mainnet activity (~88 transactions/sec). 300-second windows, five repeats per configuration, first 10 seconds discarded.
+
+**Complete matrix: 140 of 140 configurations.**
+
+At the $200 World Bank benchmark:
+
+| Offered/sec | Achieved | Failures | p50 | p95 | p99 |
+|---|---|---|---|---|---|
+| 10 | 9.9 | 0.00% | 3.19s | 4.16s | 4.40s |
+| 25 | 25.0 | 0.00% | 3.19s | 4.17s | 4.39s |
+| 50 | 50.0 | 0.00% | 3.20s | 4.22s | 4.46s |
+| 100 | 100.1 | 0.00% | 3.23s | 4.25s | 4.52s |
+| 150 | 150.3 | 0.00% | 3.31s | 4.38s | 4.70s |
+| **200** | **200.8** | **0.00%** | 3.43s | 4.76s | 6.48s |
+| 300 | 270.5 | 9.97% | 10.61s | 24.26s | 30.49s |
+
+**Sustainable throughput at $200 = 200 payments per second.** This is the pre-registered primary metric: the highest load step where achieved throughput reaches at least 90% of offered load AND failures stay under 5%. At 300/sec both conditions fail — 90.2% delivered, 9.97% failures.
+
+**The knee sits between 200 and 300/sec.** Settlement is essentially flat from 10 through 200 (3.19s to 3.43s at the median), then triples at 300 while failures appear for the first time. A system passing from comfortable to overloaded within one step of the ramp.
+
+**Against the architecture-selection thresholds:** at 200/sec Polygon clears both — p95 of 4.76s against the 10-second ceiling, and cost far under $0.10. At 300/sec it fails both the latency ceiling (p95 24.26s) and the failure bar.
+
+**Transaction size does not drive failure.** At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship with amount. This confirms the pre-registered prediction that these networks charge for computational work performed rather than value moved, and it is the baseline against which Lightning's expected *inverse* relationship should be read.
+
+**Context for the reader:** global remittances average roughly 140-150 payments/second ($905B/year ÷ $200). Polygon Edge comfortably clears steady-state global remittance demand at under 5 seconds settlement, but breaks in the middle of the 200-300/sec range this study defines as realistic peak (holiday, payday clustering). *Sufficient for steady state, marginal at peak* is a more useful finding than any single throughput number, and it points directly at what the Design Science section must address.
+
+**A superseded exploratory figure, for the record.** An early pilot suggested Polygon sustained 300/sec with zero failures. That came from 60-second windows on a chain without background traffic. Under the full protocol it does not hold. Short windows measured the burst, not the steady state — a concrete argument for why the 300-second window was specified.
+
+---
+
+### Earlier exploratory curve (superseded — do not cite)
+
+### Earlier exploratory curve — SUPERSEDED, do not cite
+
+Retained only so the progression is visible. These came from 60-second windows on a chain without background traffic, and the completed result above contradicts them at 300/sec.
+
+#### (superseded) First capacity curve
 
 Four validators in Virginia, Mumbai, Singapore and London. 60-second windows, one repeat — **below the pre-registered protocol, so exploratory only** (§4 of the analysis plan).
 

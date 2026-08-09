@@ -1,5 +1,19 @@
 # Project Handoff: Blockchain Remittance Scaling Architecture Benchmarking
 
+> ## 0. CURRENT STATE — added 9 Aug 2026
+>
+> **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:
+>
+> 1. **`RESUME_HERE.md`** — what is running right now, results so far, and the operational traps that have already cost time or money
+> 2. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
+> 3. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
+>
+> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations, 7.02M payments). Adversarial arm running as of 9 Aug. Phases 3-6 not started.
+>
+> **Headline result:** Polygon Edge sustains **200 payments/second** at $200 under the full realism stack, with the knee between 200 and 300/sec. Details in `RESUME_HERE.md` §3.
+>
+> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The test matrix is 465 runs, not the trimmed alternative. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet.
+
 **Purpose of this document**: This is a full context handoff for Claude Code, which will handle the scripting, infrastructure deployment, and technical debugging for the simulation portion of this research project. Read this whole document before starting any work. It explains not just *what* to build, but *why*, so you can make good judgment calls when something isn't explicitly specified.
 
 > **Companion document**: `DECISIONS.md` records every technical decision made during the Aug 2026 scoping pass, with full reasoning. This document says *what* we're doing; `DECISIONS.md` says *why we chose it over the alternatives*. Read both.
