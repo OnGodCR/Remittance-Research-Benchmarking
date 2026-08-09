@@ -152,7 +152,13 @@ Validators run **n2-standard-8 (8 vCPU / 32 GB)**, matching Polygon's published 
 
 **Why every event is logged**: a deliberate outage is indistinguishable from a cloud provider reclaiming a spot instance. Conflating the two would corrupt exactly the comparison this arm exists to make.
 
-### #7 Calibration against mainnet — Phase 5, not yet started
+### #7 Calibration against mainnet — **pricing and topology data pulled 9 Aug 2026; ratios still to compute**
+
+External figures are recorded once in `data/reference/calibration_2026-08-09.md` and cited from there. Pulled: Polygon gas price and POL price (PolygonScan), and Lightning network topology (1ML).
+
+The **key topology finding for realism technique #5**: average Lightning node capacity is **142× the median** (0.440 BTC vs 0.003107 BTC). That extreme skew is the network's actual structure — a few dominant hubs, thousands of thin leaves. Funding our test channels evenly would produce a network far easier to route through than the real one, understating exactly the routing failures this study exists to measure.
+
+Still outstanding: NEAR pricing (Phase 4), and observed mainnet *peak* throughput for the capability-gap figure (§11 of the analysis plan).
 
 ### #8 Five repeats / confidence intervals — **wired, not yet run**
 Five repeats per configuration, each with a **different arrival seed** derived deterministically from one project-wide base seed (20260807). Repeats sharing an arrival pattern would understate variance and produce artificially narrow intervals.
@@ -190,6 +196,10 @@ Five repeats per configuration, each with a **different arrival seed** derived d
 Fees on a private chain are an artifact of our own configuration and would be circular to report. Instead: measure **gas consumed** (deterministic, architecture-determined, genuinely real), then convert using **real mainnet prices from public explorers on a single stated date**, cited once for the whole paper.
 
 **Measured: 35,865 gas per stablecoin transfer.**
+
+**Converted to dollars: $0.00075 per remittance.** Using PolygonScan's Standard gas price of 270.927 Gwei and POL at $0.0774, both pulled 9 August 2026 — see `data/reference/calibration_2026-08-09.md`, the single pricing reference for the whole paper. Clears the pre-registered $0.10 threshold by roughly 133×, and consumes 0.0125% of the UN SDG 10.c budget of $6.00 on a $200 transfer.
+
+Note that 270 Gwei is high against Polygon's historical 30-50 Gwei range, so this figure is **conservative** — a long-run average would be cheaper. Stated as a limitation rather than silently smoothed.
 
 **RESOLVED 8 Aug 2026 — the warm-recipient figure is the correct one to report.**
 
