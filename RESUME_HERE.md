@@ -10,7 +10,7 @@
 |---|---|
 | 1 — Pipeline validation | ✅ Complete |
 | 2 — Realism techniques on Polygon | ✅ **Complete — 140/140 configurations** |
-| 2b — Adversarial arm (Polygon) | 🔄 **RUNNING NOW** — see §2 |
+| 2b — Adversarial arm (Polygon) | ✅ **Complete — 15/15 runs** |
 | 3 — Lightning | ❌ Not started |
 | 4 — NEAR sharding | ❌ Not started |
 | 5 — Calibration + confidence intervals | ❌ Not started |
@@ -27,39 +27,17 @@
 | 3 | Competing background traffic | ✅ | ✅ |
 | 4 | Hardware matched to real validators | ✅ | ✅ (`n2-standard-8`) |
 | 5 | Lightning liquidity topology | — | Phase 3 only |
-| 6 | Adversarial nodes | ✅ | 🔄 full arm running now |
-| 7 | Calibration against mainnet | ❌ | Phase 5 |
+| 6 | Adversarial nodes | ✅ | ✅ full arm, 15/15 |
+| 7 | Calibration against mainnet | ✅ | Pricing + topology pulled 9 Aug; ratios pending |
 | 8 | Five repeats | ✅ | ✅ |
 
 ---
 
-## 2. What is running right now
+## 2. Nothing is running
 
-A cluster is **live and billing at ~$0.43/hour on SPOT**: 4 validators (Virginia, Mumbai, Singapore, London) + 1 generator, all `n2-standard-8`.
+**Cloud fully destroyed and verified: 0 instances, 0 disks, 0 addresses, 0 of 96 processors.** Nothing is billing.
 
-**Adversarial arm**: 15 runs — 100, 200, 300 per sec × 5 repeats at $200, 300-second windows, `phase=phase-2-adversarial`, `arm=adversarial`. Background traffic and network impairment both active, so conditions match the clean baseline exactly except for node failures.
-
-Node outages are driven from the **operator's laptop** by `scripts/adversarial_nodes.sh` (6000s duration), writing to `data/working/node_events_*.log`. At most one validator down at a time (the Byzantine limit for four nodes); never validator 0, which is the generator's submission endpoint.
-
-**Deviation from the locked plan, deliberate and flagged:** `ANALYSIS_PLAN.md` §5 specifies the adversarial arm at 100/sec only. Three levels are being run. Running *more* than pre-registered is not a violation; the 100/sec comparison remains the pre-registered result and 200/300 are secondary. Rationale: the knee sits between 200 and 300, so testing only the comfortable level would miss whether node failure hurts more under stress.
-
-### When it finishes
-
-`/opt/benchmark/ADV_DONE` appears on the generator. Then:
-
-```bash
-# 1. Consistent DB copy on the remote -- VACUUM INTO, never a plain copy
-#    (WAL files make a raw copy "malformed"). It is ~1.7GB; gzip first
-#    or the transfer exceeds the 10-minute command timeout.
-# 2. Merge into data/working/runs.sqlite
-python -m analysis.backfill --node-events      # import outage timestamps
-python -m analysis.reevaluate_saturation       # one criterion, all runs
-python -m analysis.export                      # regenerate both parquet files
-# 3. Commit + push, then:
-cd terraform/phase2 && tofu destroy -auto-approve
-```
-
-**Verify instances, disks AND addresses are all zero afterwards.** Disks bill even when machines are stopped.
+**Polygon is finished.** Main matrix (140/140) and adversarial arm (15/15) both complete. Next work is Phase 3 (Lightning) — see §7.
 
 ---
 
@@ -82,6 +60,18 @@ Polygon Edge, 4 validators across 4 continents, production-spec hardware, inject
 **The knee is between 200 and 300/sec.** Flat from 10 through 200, then settlement triples and failures appear for the first time.
 
 **Size does not affect failure**, as pre-registered in §12. At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship. This flat result is the contrast that will make Lightning's expected *inverse* size/success relationship meaningful.
+
+### Adversarial arm (node failures), same conditions plus validators dropping offline
+
+| Offered/sec | Clean | With node failures | Lost |
+|---|---|---|---|
+| 100 | 100.1/s, 0.00% fail | 99.4/s [99–100], 0.8% fail | **0.8%** |
+| 200 | 200.8/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
+| 300 | 270.5/s, 9.97% fail | 156.2/s [93–203], 48.0% fail | **42.2%** |
+
+Damage scales with existing load: negligible with headroom, severe without. Note the 93–203 spread at 300/sec — outage timing is random, and a single run could have reported either extreme.
+
+⚠️ **The injection is ~130× more hostile than real Polygon** (1 of 4 validators = 25% of the network vs ~1% on mainnet; offline 51% of the time vs a 99.9% uptime target). This measures *sensitivity to validator loss*, not mainnet behaviour. See `METHODOLOGY_LOG.md` §4 technique #6.
 
 **Context:** global remittances average ~140-150/sec. Polygon clears steady-state global demand comfortably, but breaks in the middle of the 200-300/sec peak range the scope defines.
 

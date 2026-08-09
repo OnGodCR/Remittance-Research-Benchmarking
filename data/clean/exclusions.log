@@ -1,14 +1,14 @@
 ========================================================================
-Exclusion log -- generated 2026-08-09 18:37:45 UTC
+Exclusion log -- generated 2026-08-09 21:32:02 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 7,019,566 across 196 runs
-Payments in clean : 6,410,725 across 162 runs
-Excluded          : 608,841 payments
+Payments in raw   : 7,921,652 across 211 runs
+Payments in clean : 7,282,858 across 177 runs
+Excluded          : 638,794 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
@@ -62,6 +62,6 @@ Excluded          : 608,841 payments
 [warm-up period]
   scope   : transaction
   target  : all runs
-  affected: 220,251
+  affected: 250,204
   reason  : first 10s of each run, to exclude cold-start effects
 
