@@ -1,5 +1,5 @@
 ========================================================================
-Exclusion log -- generated 2026-08-09 21:32:02 UTC
+Exclusion log -- generated 2026-08-09 21:55:42 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
@@ -7,8 +7,8 @@ existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
 Payments in raw   : 7,921,652 across 211 runs
-Payments in clean : 7,282,858 across 177 runs
-Excluded          : 638,794 payments
+Payments in clean : 5,717,593 across 155 runs
+Excluded          : 2,204,059 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
@@ -59,9 +59,141 @@ Excluded          : 638,794 payments
   affected: 1
   reason  : step4-adversarial validates the pipeline; its numbers are not findings
 
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r0-e155907a
+  affected: 1
+  reason  : $10 at 200/sec repeat 0 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r1-af626d78
+  affected: 1
+  reason  : $10 at 200/sec repeat 1 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r2-ae2f4ee4
+  affected: 1
+  reason  : $10 at 200/sec repeat 2 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r3-6501c709
+  affected: 1
+  reason  : $10 at 200/sec repeat 3 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r4-dae8db24
+  affected: 1
+  reason  : $10 at 200/sec repeat 4 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r0-c015a5c9
+  affected: 1
+  reason  : $10 at 300/sec repeat 0 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r1-653f36ba
+  affected: 1
+  reason  : $10 at 300/sec repeat 1 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r2-74115708
+  affected: 1
+  reason  : $10 at 300/sec repeat 2 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r3-d1bf7196
+  affected: 1
+  reason  : $10 at 300/sec repeat 3 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r4-3853c43a
+  affected: 1
+  reason  : $10 at 300/sec repeat 4 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r0-4ec92748
+  affected: 1
+  reason  : $50 at 200/sec repeat 0 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r1-fb61598f
+  affected: 1
+  reason  : $50 at 200/sec repeat 1 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r2-7df48f1a
+  affected: 1
+  reason  : $50 at 200/sec repeat 2 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r3-9bbd6fe9
+  affected: 1
+  reason  : $50 at 200/sec repeat 3 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r4-73fe4e41
+  affected: 1
+  reason  : $50 at 200/sec repeat 4 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r0-4770bf2d
+  affected: 1
+  reason  : $50 at 300/sec repeat 0 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r1-9532e6ba
+  affected: 1
+  reason  : $50 at 300/sec repeat 1 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r2-c51f43ec
+  affected: 1
+  reason  : $50 at 300/sec repeat 2 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r3-c748492e
+  affected: 1
+  reason  : $50 at 300/sec repeat 3 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r4-7e11289d
+  affected: 1
+  reason  : $50 at 300/sec repeat 4 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd200-tps200-r0-0fb02283
+  affected: 1
+  reason  : $200 at 200/sec repeat 0 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
+[re-execution of a completed configuration]
+  scope   : run
+  target  : polygon-baseline-usd200-tps200-r1-1d4bcfe8
+  affected: 1
+  reason  : $200 at 200/sec repeat 1 was already measured; identical arrival seed, so this replays the same schedule rather than adding a repeat
+
 [warm-up period]
   scope   : transaction
   target  : all runs
-  affected: 250,204
+  affected: 196,402
   reason  : first 10s of each run, to exclude cold-start effects
 

@@ -168,7 +168,48 @@ def clean(raw: pd.DataFrame, events: pd.DataFrame) -> tuple[pd.DataFrame, list[E
             ))
         df = df[~df["run_id"].isin(contaminated)]
 
-    # Rule 5 -- warm-up. Applied last, and per transaction rather than per run.
+    # Rule 5 -- re-executions of an already-completed configuration.
+    #
+    # Spot preemption interrupted the main sweep twice. On resume, the sweep
+    # restarted from the beginning of the load ladder rather than from the exact
+    # point of interruption, so 22 configurations were measured twice, 3.9-8.1
+    # hours apart.
+    #
+    # These are NOT extra repeats. Every pair reuses the same arrival seed, so
+    # the second execution replays the identical Poisson schedule -- at load
+    # levels with no failures the two runs are transaction-for-transaction
+    # identical. Counting both would double the weight of those cells and, worse,
+    # inflate n for the confidence intervals technique #8 requires: the pair
+    # carries no independent information about arrival variability, so intervals
+    # computed from it would be narrower than the evidence supports.
+    #
+    # The first completed execution stands. That rule is mechanical and fixes
+    # the choice before the numbers are seen -- the alternative, keeping the
+    # later run, would mean selecting among measurements after observing them.
+    # It is also the less flattering direction here: the second pass ran on a
+    # chain carrying several more hours of accumulated state and performed
+    # slightly worse, so keeping the first raises the reported failure spread at
+    # 300/sec rather than lowering it.
+    order = ["tx_size_usd", "target_tps", "repeat_index"]
+    if not df.empty and all(c in df.columns for c in order):
+        per_run = (df.groupby("run_id", observed=True)
+                     .agg(**{c: (c, "first") for c in order}, t0=("t0_wall", "first"),
+                          phase=("phase", "first"), arm=("arm", "first"))
+                     .reset_index())
+        per_run["rank"] = (per_run.sort_values("t0")
+                                  .groupby(order + ["phase", "arm"], observed=True)
+                                  .cumcount())
+        repeated = per_run[per_run["rank"] > 0]
+        for _, r in repeated.sort_values(["tx_size_usd", "target_tps", "repeat_index"]).iterrows():
+            log.append(Exclusion(
+                "run", str(r["run_id"]), "re-execution of a completed configuration",
+                f"${r['tx_size_usd']:.0f} at {r['target_tps']:.0f}/sec repeat "
+                f"{r['repeat_index']:.0f} was already measured; identical arrival "
+                f"seed, so this replays the same schedule rather than adding a repeat",
+            ))
+        df = df[~df["run_id"].isin(set(repeated["run_id"]))]
+
+    # Rule 6 -- warm-up. Applied last, and per transaction rather than per run.
     before = len(df)
     df = df[df["scheduled_offset"] >= WARMUP_SECONDS]
     dropped = before - len(df)

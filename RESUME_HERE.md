@@ -16,7 +16,7 @@
 | 5 — Calibration + confidence intervals | ❌ Not started |
 | 6 — Cross-architecture comparison | ❌ Not started |
 
-**Dataset: 7,019,566 payments across 196 runs**, committed and pushed via Git LFS.
+**Dataset: 5,717,593 payments across 155 runs** (140 main matrix + 15 adversarial), committed and pushed via Git LFS. 211 runs collected in total; 56 excluded under the pre-registered rules.
 
 ### Realism techniques
 
@@ -52,21 +52,21 @@ Polygon Edge, 4 validators across 4 continents, production-spec hardware, inject
 | 50 | 50.0 | 0.00% | 3.20s | 4.22s | 4.46s |
 | 100 | 100.1 | 0.00% | 3.23s | 4.25s | 4.52s |
 | 150 | 150.3 | 0.00% | 3.31s | 4.38s | 4.70s |
-| **200** | **200.8** | **0.00%** | 3.43s | 4.76s | 6.48s |
+| **200** | **200.9** | **0.00%** | 3.43s | 4.77s | 6.35s |
 | 300 | 270.5 | 9.97% | 10.61s | 24.26s | 30.49s |
 
 **Sustainable throughput at $200 = 200/sec** (pre-registered metric: achieved ≥90% of offered AND failures <5%).
 
 **The knee is between 200 and 300/sec.** Flat from 10 through 200, then settlement triples and failures appear for the first time.
 
-**Size does not affect failure**, as pre-registered in §12. At 300/sec: $10 10.86%, $50 10.83%, $200 9.97%, $500 12.85% — no monotonic relationship. This flat result is the contrast that will make Lightning's expected *inverse* size/success relationship meaningful.
+**Size does not affect failure**, as pre-registered in §12. At 300/sec: $10 9.79%, $50 8.51%, $200 9.97%, $500 12.85% — no monotonic relationship. Within a storage tier, gas varies by 12 across all four amounts (0.044%). This flat result is the contrast that will make Lightning's expected *inverse* size/success relationship meaningful.
 
 ### Adversarial arm (node failures), same conditions plus validators dropping offline
 
 | Offered/sec | Clean | With node failures | Lost |
 |---|---|---|---|
 | 100 | 100.1/s, 0.00% fail | 99.4/s [99–100], 0.8% fail | **0.8%** |
-| 200 | 200.8/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
+| 200 | 200.9/s, 0.00% fail | 148.4/s [122–173], 26.1% fail | **26.1%** |
 | 300 | 270.5/s, 9.97% fail | 156.2/s [93–203], 48.0% fail | **42.2%** |
 
 Damage scales with existing load: negligible with headroom, severe without. Note the 93–203 spread at 300/sec — outage timing is random, and a single run could have reported either extreme.
@@ -74,6 +74,8 @@ Damage scales with existing load: negligible with headroom, severe without. Note
 ⚠️ **The injection is ~130× more hostile than real Polygon** (1 of 4 validators = 25% of the network vs ~1% on mainnet; offline 51% of the time vs a 99.9% uptime target). This measures *sensitivity to validator loss*, not mainnet behaviour. See `METHODOLOGY_LOG.md` §4 technique #6.
 
 **Context:** global remittances average ~140-150/sec. Polygon clears steady-state global demand comfortably, but breaks in the middle of the 200-300/sec peak range the scope defines.
+
+**Every failure was a submission rejection, not a lost payment.** All were `txpool is full` at the point of submission — no transaction hash, no gas consumed. Nothing the chain accepted ever failed to settle, and the 60s timeout never fired in the entire study. The 9.97% at 300/sec is an overflow rate at Polygon Edge's *default* queue size, which we did not tune. The ~270/sec committed ceiling is architectural; the exact percentage is queue-dependent and must be quoted with that caveat.
 
 **Superseded finding:** an exploratory pilot suggested Polygon sustained 300/sec with zero failures. It came from 60-second windows on a quieter chain. Under the full protocol it does not hold — short windows measured the burst, not the steady state.
 
@@ -88,7 +90,7 @@ The rule changed twice; **only the current one is in force anywhere**:
 
 Growth, not magnitude, because a constant offset distorts nothing — offered load still matches intended load — whereas climbing lag means the delivered arrival pattern drifted from the scheduled Poisson process.
 
-**Validated** against 7 independently-known-broken runs; detects all 7, including a subtle 9.7ms→294.9ms case. **Applied uniformly to all 196 runs** via `analysis/reevaluate_saturation.py`.
+**Validated** against 7 independently-known-broken runs; detects all 7, including a subtle 9.7ms→294.9ms case. Every run it flags sits inside a non-result phase — it excluded **nothing** from the 155 results runs. **Applied uniformly to all 211 runs** via `analysis/reevaluate_saturation.py`.
 
 **Stated limitation:** re-judging moved runs from excluded to included and none the other way. That asymmetry is the signature of a criterion devised after seeing data. Recorded in `ANALYSIS_PLAN.md` §13 and `METHODOLOGY_LOG.md` §7.2 rather than hidden.
 
@@ -98,6 +100,7 @@ Growth, not magnitude, because a constant offset distorts nothing — offered lo
 
 Every one cost real time or money.
 
+0. **The sweep's resume restarts from the beginning of the load ladder, not the point of interruption.** After two preemptions this silently produced 22 duplicate runs with *identical arrival seeds*, filling four matrix cells with 10 runs instead of 5. Caught 9 Aug by auditing repeat counts, not by any error. `analysis/export.py` now excludes re-executions automatically, but **check `groupby(size, tps, repeat).nunique()` after any resumed sweep.**
 1. **Spot preemption wipes the generator's `.venv` and database.** Validators and the chain survive. Recovery: `./scripts/deploy_harness.sh --phase phase2`, then re-run `deploy_and_fund`.
 2. **Startup scripts re-run on EVERY boot**, not just creation. This reset `/opt/benchmark` ownership to `ubuntu` (breaking writes for the SSH user), and `polygon-edge secrets init` correctly refuses to overwrite existing validator keys, so all four validators' startup scripts exited 1 on a reboot. **Both now fixed** — `validator_setup.sh` has an idempotency guard, apt-lock timeout and download retries; `generator_setup.sh` has the apt-lock timeout. The running cluster was unaffected because `edge.service` is separately enabled and restarts on boot regardless.
 3. **The hard-shutdown timer re-arms from each boot**, not from creation. A reboot silently extends the deadline.
