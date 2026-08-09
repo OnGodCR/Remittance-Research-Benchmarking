@@ -18,9 +18,14 @@ set -euo pipefail
 exec >>/var/log/generator-setup.log 2>&1
 echo "=== generator setup starting at $(date -u) ==="
 
+# -o DPkg::Lock::Timeout=60: waits for the dpkg lock instead of failing if
+# GCE's own apt-news/esm-cache services are holding it in the first seconds
+# after boot. See validator_setup.sh for the reboot failure this was found
+# alongside (9 Aug 2026) -- this script runs on every boot too, and was one
+# lucky race away from the same failure.
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -yqq python3.11 python3.11-venv python3-pip git curl jq \
+apt-get -o DPkg::Lock::Timeout=60 update -qq
+apt-get -o DPkg::Lock::Timeout=60 install -yqq python3.11 python3.11-venv python3-pip git curl jq \
   iproute2 chrony build-essential
 
 systemctl enable --now chrony
