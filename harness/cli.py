@@ -183,45 +183,61 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
     timer is the safety net if it dies partway.
     """
     store = Store(args.db)
-    total = len(AMOUNTS) * len(LOAD_STEPS) * REPEATS
+
+    # Which configurations already have a completed run for this phase.
+    #
+    # A 12-hour sweep is long enough that something will interrupt it -- a
+    # preempted machine, a crash, a stopped session. Without this, resuming
+    # means either repeating 97 runs of finished work or hand-picking what to
+    # re-run, and hand-picking is how configurations get silently skipped.
+    already: set = set()
+    if args.resume:
+        rows = store.conn.execute(
+            "SELECT tx_size_usd, target_tps, repeat_index FROM runs "
+            "WHERE phase = ? AND invalidated = 0", (args.phase,)
+        ).fetchall()
+        already = {(round(r[0], 2), round(r[1], 2), r[2]) for r in rows}
+        print(f"resuming: {len(already)} configurations already complete")
+
+    todo = [(a, t, r) for a in AMOUNTS for t in LOAD_STEPS for r in range(REPEATS)
+            if (round(a, 2), round(float(t), 2), r) not in already]
+    total = len(todo)
     done = failed = 0
 
-    print(f"Full sweep: {total} runs, ~{total * WINDOW / 3600:.1f} hours of "
+    print(f"Sweep: {total} runs to go, ~{total * WINDOW / 3600:.1f} hours of "
           f"measurement.\n")
 
-    for amount in AMOUNTS:
-        for tps in LOAD_STEPS:
-            for repeat in range(REPEATS):
-                done += 1
-                cfg = RunConfig(
-                    architecture="polygon", adapter="polygon-edge",
-                    tx_size_usd=amount, target_tps=float(tps),
-                    window_seconds=WINDOW, repeat_index=repeat,
-                    arrival_seed=seed_for(BASE_SEED, tps, amount, repeat),
-                    phase=args.phase, arm=args.arm,
-                )
-                print(f"[{done}/{total}] ${amount:g} @ {tps}/sec, repeat {repeat}")
-                try:
-                    if args.workers > 1:
-                        summary = await run_parallel_benchmark(
-                            cfg, store, _adapter_spec(Path(args.config)),
-                            workers=args.workers, verbose=False)
-                    else:
-                        summary = await run_benchmark(
-                            load_polygon_adapter(Path(args.config)), cfg, store,
-                            verbose=False)
-                    print(f"    achieved {summary['achieved_tps']:.1f}/sec | "
-                          f"ok {summary['confirmed']} fail {summary['failed']}")
-                    if summary["generator_saturated"]:
-                        print("    ^ flagged invalid: harness saturated")
-                except Exception as exc:
-                    failed += 1
-                    print(f"    RUN FAILED: {type(exc).__name__}: {exc}")
-                    if failed > 5:
-                        print("\nAborting: too many failures. Fix the cluster "
-                              "before burning more time.")
-                        store.close()
-                        return 1
+    for amount, tps, repeat in todo:
+        done += 1
+        cfg = RunConfig(
+            architecture="polygon", adapter="polygon-edge",
+            tx_size_usd=amount, target_tps=float(tps),
+            window_seconds=WINDOW, repeat_index=repeat,
+            arrival_seed=seed_for(BASE_SEED, tps, amount, repeat),
+            phase=args.phase, arm=args.arm,
+        )
+        print(f"[{done}/{total}] ${amount:g} @ {tps}/sec, repeat {repeat}")
+        try:
+            if args.workers > 1:
+                summary = await run_parallel_benchmark(
+                    cfg, store, _adapter_spec(Path(args.config)),
+                    workers=args.workers, verbose=False)
+            else:
+                summary = await run_benchmark(
+                    load_polygon_adapter(Path(args.config)), cfg, store,
+                    verbose=False)
+            print(f"    achieved {summary['achieved_tps']:.1f}/sec | "
+                  f"ok {summary['confirmed']} fail {summary['failed']}")
+            if summary["generator_saturated"]:
+                print("    ^ flagged invalid: harness saturated")
+        except Exception as exc:
+            failed += 1
+            print(f"    RUN FAILED: {type(exc).__name__}: {exc}")
+            if failed > 5:
+                print("\nAborting: too many failures. Fix the cluster "
+                      "before burning more time.")
+                store.close()
+                return 1
 
     print(f"\nSweep complete. {done - failed}/{total} runs recorded.")
     store.close()
@@ -260,6 +276,10 @@ def main() -> int:
     p_sweep.add_argument("--config", required=True)
     p_sweep.add_argument("--phase", required=True)
     p_sweep.add_argument("--arm", default="baseline", choices=["baseline", "adversarial"])
+    p_sweep.add_argument("--resume", action="store_true",
+                         help="skip configurations that already have a valid "
+                              "completed run in this phase. Essential for a "
+                              "12-hour sweep -- something will interrupt it.")
     p_sweep.add_argument("--workers", type=int, default=8,
                          help="processes to split load across. Defaults to 8: a "
                               "single process caps out near 150/sec, and the sweep "
