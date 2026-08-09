@@ -1,14 +1,14 @@
 ========================================================================
-Exclusion log -- generated 2026-08-08 19:25:57 UTC
+Exclusion log -- generated 2026-08-09 05:32:22 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 320,464 across 32 runs
-Payments in clean : 0 across 0 runs
-Excluded          : 320,464 payments
+Payments in raw   : 3,516,117 across 131 runs
+Payments in clean : 1,458,420 across 75 runs
+Excluded          : 2,057,697 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
@@ -26,7 +26,7 @@ Excluded          : 320,464 payments
 [non-result phase]
   scope   : run
   target  : phase-2-exploratory-ceiling
-  affected: 3
+  affected: 5
   reason  : phase-2-exploratory-ceiling validates the pipeline; its numbers are not findings
 
 [non-result phase]
@@ -58,4 +58,142 @@ Excluded          : 320,464 payments
   target  : step4-adversarial
   affected: 1
   reason  : step4-adversarial validates the pipeline; its numbers are not findings
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r0-59a2a32f
+  affected: 1
+  reason  : generator saturated: p95 lag 0.060s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r1-73c1b7c7
+  affected: 1
+  reason  : generator saturated: p95 lag 0.069s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r2-e8d4652a
+  affected: 1
+  reason  : generator saturated: p95 lag 0.056s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r3-3737f88b
+  affected: 1
+  reason  : generator saturated: p95 lag 0.065s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps200-r4-8d62a02a
+  affected: 1
+  reason  : generator saturated: p95 lag 0.063s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r0-d6a26d96
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.585s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r1-eb452983
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.588s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r2-f8693831
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.559s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r3-b2af1c45
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.557s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd10-tps300-r4-1ca0e883
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.572s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd200-tps200-r0-3622a345
+  affected: 1
+  reason  : generator saturated: p95 lag 0.069s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd200-tps200-r1-0fb2d7f0
+  affected: 1
+  reason  : generator saturated: p95 lag 0.053s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r0-cd35fa4f
+  affected: 1
+  reason  : generator saturated: p95 lag 0.055s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r1-e7f53c00
+  affected: 1
+  reason  : generator saturated: p95 lag 0.052s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r2-3a29b266
+  affected: 1
+  reason  : generator saturated: p95 lag 0.069s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r3-10bf4c41
+  affected: 1
+  reason  : generator saturated: p95 lag 0.057s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps200-r4-ea5f69cb
+  affected: 1
+  reason  : generator saturated: p95 lag 0.053s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r0-16c862d4
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.620s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r1-2542bb20
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.653s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r2-519ea462
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.586s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r3-c369f436
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.604s
+
+[harness flagged invalid]
+  scope   : run
+  target  : polygon-baseline-usd50-tps300-r4-4cf7fc46
+  affected: 1
+  reason  : generator saturated across 8 workers: worst p95 lag 0.598s
+
+[warm-up period]
+  scope   : transaction
+  target  : all runs
+  affected: 50,040
+  reason  : first 10s of each run, to exclude cold-start effects
 
