@@ -182,6 +182,34 @@ def clean(raw: pd.DataFrame, events: pd.DataFrame) -> tuple[pd.DataFrame, list[E
     return df, log
 
 
+#: Columns holding very few distinct values repeated across millions of rows.
+#: Stored as plain strings they dominate the file: `run_id` alone is 173 MB in
+#: memory for 3.5M rows despite having only 131 distinct values. Written as
+#: categories, parquet stores the 131 values once plus a small integer per row.
+_LOW_CARDINALITY = [
+    "run_id", "phase", "status", "adapter", "architecture", "arm",
+    "invalidation_reason", "error", "amount_native", "fee_native",
+]
+
+
+def _write_parquet(df: pd.DataFrame, path: Path) -> None:
+    """Write compactly enough to fit in a git repository.
+
+    GitHub rejects any file over 100 MB outright, and the uncompressed export
+    reached 242 MB. Rather than downsample -- which would throw away the
+    per-payment detail that makes future questions answerable without
+    re-running experiments -- the repetitive columns are dictionary-encoded.
+
+    Nothing is lost: category is a storage representation, and the values read
+    back identically.
+    """
+    out = df.copy()
+    for col in _LOW_CARDINALITY:
+        if col in out.columns:
+            out[col] = out[col].astype("category")
+    out.to_parquet(path, compression="zstd", compression_level=9, index=False)
+
+
 def write_log(log: list[Exclusion], raw: pd.DataFrame, cleaned: pd.DataFrame) -> None:
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -225,8 +253,8 @@ def main() -> int:
 
     RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
     CLEAN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    raw.to_parquet(RAW_PATH, compression="zstd", index=False)
-    cleaned.to_parquet(CLEAN_PATH, compression="zstd", index=False)
+    _write_parquet(raw, RAW_PATH)
+    _write_parquet(cleaned, CLEAN_PATH)
     write_log(log, raw, cleaned)
 
     raw_mb = RAW_PATH.stat().st_size / 1e6

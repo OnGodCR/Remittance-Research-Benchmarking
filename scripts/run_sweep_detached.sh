@@ -26,11 +26,13 @@ WORKERS="${2:-8}"
 
 rm -f SWEEP_DONE sweep.log
 
+RESUME="${3:-}"
+
 setsid nohup bash -c "
   ./.venv/bin/python -m harness.cli sweep \
     --config config/phase1.json \
     --phase ${PHASE} \
-    --workers ${WORKERS} > sweep.log 2>&1
+    --workers ${WORKERS} ${RESUME} > sweep.log 2>&1
   echo \$? > SWEEP_DONE
 " > /dev/null 2>&1 < /dev/null &
 
