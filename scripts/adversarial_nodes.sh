@@ -84,7 +84,11 @@ ssh_node() {
     --command "$2" -- -o StrictHostKeyChecking=no -o LogLevel=ERROR 2>/dev/null
 }
 
-stamp() { date -u +%Y-%m-%dT%H:%M:%S.%3NZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ; }
+# Second precision, no fractional part. `%3N` is a GNU extension that the
+# remote `date` does not implement, and it silently emitted the literal
+# characters "3N" instead -- producing timestamps no parser accepts. Outages
+# last 15-45 seconds, so seconds are ample.
+stamp() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 record() {
   # node_id, event, source -- matching the node_events table so this merges

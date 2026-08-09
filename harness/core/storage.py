@@ -121,6 +121,19 @@ class RunConfig:
     harness_version: str = "0.1.0"
     extra: dict[str, Any] = field(default_factory=dict)
 
+    #: WHICH REALISM TECHNIQUES WERE ACTIVE FOR THIS RUN.
+    #:
+    #: Without this, the only record of the test conditions is the phase name
+    #: -- which is a label someone chose, not evidence. A year from now,
+    #: "phase-2-full-stack" does not tell a reader whether packet loss was
+    #: injected, at what rate background traffic ran, or how many validators
+    #: there were. Results become uninterpretable exactly when the paper needs
+    #: to describe them.
+    #:
+    #: Recorded per run rather than per phase because techniques are added one
+    #: at a time, so two runs in the same phase can differ.
+    realism: dict[str, Any] = field(default_factory=dict)
+
     def run_id(self) -> str:
         return (
             f"{self.architecture}-{self.arm}-usd{self.tx_size_usd:g}"
@@ -171,7 +184,8 @@ class Store:
                 scheduled_count,
                 t0_wall if t0_wall is not None else time.time(),
                 cfg.harness_version,
-                json.dumps(cfg.extra, sort_keys=True),
+                json.dumps({"extra": cfg.extra, "realism": cfg.realism},
+                           sort_keys=True),
             ),
         )
         return run_id

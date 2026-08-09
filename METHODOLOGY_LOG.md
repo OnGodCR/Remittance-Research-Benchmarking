@@ -281,4 +281,7 @@ As of 8 Aug 2026: **207,065 payments across 23 runs**, of which 9 are flagged in
 | 8 Aug 2026 | Receipt fetching made concurrent | Was serial, one round trip per transaction per block — the likely cause of generator saturation above 300/sec |
 | 8 Aug 2026 | Impairment retargeted to consensus traffic only | Interface-wide application was degrading the measurement instrument, not just the system under test |
 | 8 Aug 2026 | HTTP connection pool raised 100 → 256 | Default was below our concurrent demand; excess requests queued silently and would have been recorded as chain latency |
+| 9 Aug 2026 | Realism configuration now recorded per run | `config_json` was empty; test conditions were only inferable from the phase name, which is a label rather than evidence. Backfilled onto 106 existing runs from this document, marked `backfilled: true`. |
+| 9 Aug 2026 | Node outage events imported into the database | The adversarial script logged them to a text file the transaction data could not be joined to, defeating the point of logging them. |
+| 9 Aug 2026 | Outage timestamp format corrected | The script used `%3N`, unsupported by the remote `date`, which emitted the literal characters "3N" and produced timestamps no parser accepts. |
 | 8 Aug 2026 | Quota requested 64 → 96 | Two concurrent clusters halve sweep wall-clock at identical cost. Requests that DOUBLE the limit have been denied twice (32→128, 64→128); 50% steps were approved twice (32→48, 48→64). |
