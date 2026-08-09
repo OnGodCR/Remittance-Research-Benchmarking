@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Runs ON THE GENERATOR. Starts background traffic and the 15 adversarial-arm
-# measurements, fully detached.
+# Runs ON THE GENERATOR. Background traffic plus the adversarial-arm
+# measurements, fully detached, and RESUMABLE.
 #
-# A script file rather than an inline `gcloud ssh --command`: backgrounding
-# through SSH held the session open indefinitely, so the caller never reached
-# the step that starts the node outages -- and the runs executed against a
-# healthy cluster while being labelled adversarial. Those runs were discarded.
+# WHY RESUMABLE
+#
+# Spot preemption took the entire cluster twice on 9 Aug -- once mid-setup,
+# once after 3 of 15 runs. Without resume, each preemption means either
+# repeating finished work or hand-picking what to re-run, and hand-picking is
+# how configurations get silently skipped. The database is the source of
+# truth: a configuration with a valid completed run is not repeated.
+#
+# WHY A SCRIPT FILE RATHER THAN AN INLINE SSH COMMAND
+#
+# Backgrounding through `gcloud ssh --command` holds the session open
+# indefinitely, so the caller never reaches whatever comes next. That failure
+# left the first attempt measuring a healthy cluster while labelling the runs
+# adversarial -- they were discarded.
 #
 # Writes ADV_DONE with the exit code when finished.
 # ---------------------------------------------------------------------------
@@ -30,10 +40,27 @@ if ! pgrep -f "harness.noise" > /dev/null; then
 fi
 echo "background traffic RUNNING"
 
-# 3 load levels x 5 repeats at the $200 benchmark size.
 setsid nohup bash -c '
   for tps in 100 200 300; do
     for r in 0 1 2 3 4; do
+      # Skip configurations already completed and valid. Checked per run
+      # rather than once at the start, so a preemption mid-arm resumes
+      # exactly where it stopped.
+      done_already=$(./.venv/bin/python - "$tps" "$r" <<PYEOF
+import sqlite3, sys
+tps, r = float(sys.argv[1]), int(sys.argv[2])
+c = sqlite3.connect("data/working/runs.sqlite")
+n = c.execute(
+    "SELECT COUNT(*) FROM runs WHERE phase=? AND arm=? AND target_tps=? "
+    "AND repeat_index=? AND tx_size_usd=200 AND invalidated=0",
+    ("phase-2-adversarial", "adversarial", tps, r)).fetchone()[0]
+print(n)
+PYEOF
+)
+      if [ "$done_already" -gt 0 ]; then
+        echo "### ${tps}/sec repeat ${r} -- already complete, skipping ###"
+        continue
+      fi
       echo "### ${tps}/sec repeat ${r} ###"
       ./.venv/bin/python -m harness.cli run --config config/phase1.json \
         --tps ${tps} --window 300 --amount 200 --workers 8 \
@@ -44,10 +71,10 @@ setsid nohup bash -c '
   echo $? > ADV_DONE
 ' > adv.log 2>&1 < /dev/null &
 
-sleep 15
-if pgrep -f "harness.cli run" > /dev/null; then
-  echo "measurements RUNNING (15 runs, ~80 minutes)"
-  head -2 adv.log 2>/dev/null || true
+sleep 20
+if pgrep -f "harness.cli run" > /dev/null || grep -q "skipping" adv.log 2>/dev/null; then
+  echo "measurements RUNNING"
+  grep -E "^###" adv.log | tail -3 || true
 else
   echo "ERROR: measurements did not start"
   tail -10 adv.log 2>/dev/null || true

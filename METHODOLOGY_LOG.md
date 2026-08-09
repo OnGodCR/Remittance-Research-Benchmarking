@@ -134,7 +134,29 @@ Validators run **n2-standard-8 (8 vCPU / 32 GB)**, matching Polygon's published 
 
 ### #5 Lightning liquidity topology — Phase 3, not applicable to Polygon
 
-### #6 Adversarial / unreliable nodes — **applied and validated 8 Aug 2026**
+### #6 Adversarial / unreliable nodes — **applied and validated; full arm run 9 Aug 2026**
+
+⚠️ **THE MOST IMPORTANT LIMITATION IN THIS STUDY. State it in the paper before a reviewer states it for you.**
+
+**Our failure injection is roughly 130× more hostile than real Polygon mainnet.** Measured from the actual event log across a 43-minute window: 33 complete outages, with a validator offline **51% of the time**, meaning about **13% of network capacity missing on average, continuously**.
+
+Real conditions are nothing like that:
+
+| | This study | Real Polygon PoS |
+|---|---|---|
+| Validators | 4 | ~100 |
+| One validator down removes | **25%** of the network | ~1% |
+| Typical availability | offline 51% of the time | 99.9%+ uptime target |
+| Average capacity missing | ~13% | ~0.1% |
+| Penalty for downtime | none | jailing and stake slashing |
+
+**Two structural reasons, both unavoidable at this cluster size.** First, with only four validators the smallest possible failure unit is 25% of the network — already above the 10-20% the technique specifies, and impossible to reduce without more nodes. Second, real validators are run by professionals on redundant infrastructure and are *financially penalised* for downtime; ours are not, and fail every few seconds rather than every few months.
+
+**What the arm therefore does and does not measure.** It does **not** predict mainnet behaviour under node failure, and no result from it should be phrased that way. It measures **sensitivity to validator loss** — how gracefully the architecture degrades when a substantial share of consensus disappears.
+
+That reframing keeps the finding genuinely useful, because the answer turned out to depend entirely on load headroom (see §9.2). A defensible sentence for the paper: *"Under sustained validator unavailability far exceeding realistic mainnet conditions, Polygon Edge degrades negligibly where load headroom exists and severely where it does not."*
+
+**Configuration:**
 
 | Parameter | Value |
 |---|---|
