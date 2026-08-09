@@ -171,6 +171,7 @@ Work required:
 
 | File | Contents |
 |---|---|
+| `POLYGON_ANALYSIS.md` | **Complete Polygon results in one place** — throughput, cost, adversarial arm, limitations, corrections |
 | `METHODOLOGY_LOG.md` | Every decision, parameter, correction, dated. **The paper is written from this.** |
 | `ANALYSIS_PLAN.md` | Locked pre-registered analysis. §13 is the amendment log. |
 | `HANDOFF.md` | Self-contained brief for the writing agent, including claims the paper must NOT make |

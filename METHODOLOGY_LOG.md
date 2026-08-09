@@ -217,9 +217,11 @@ Five repeats per configuration, each with a **different arrival seed** derived d
 ### Cost methodology
 Fees on a private chain are an artifact of our own configuration and would be circular to report. Instead: measure **gas consumed** (deterministic, architecture-determined, genuinely real), then convert using **real mainnet prices from public explorers on a single stated date**, cited once for the whole paper.
 
-**Measured: 35,865 gas per stablecoin transfer.**
+**Measured: 28,467 gas per stablecoin transfer** (mean over the results dataset; median 27,465).
 
-**Converted to dollars: $0.00075 per remittance.** Using PolygonScan's Standard gas price of 270.927 Gwei and POL at $0.0774, both pulled 9 August 2026 — see `data/reference/calibration_2026-08-09.md`, the single pricing reference for the whole paper. Clears the pre-registered $0.10 threshold by roughly 133×, and consumes 0.0125% of the UN SDG 10.c budget of $6.00 on a $200 transfer.
+The distribution is tiered by EVM storage-access cost: 27,465 gas where both balance slots are warm (55.3% of transfers), 31,665 with one cold access (9.8%), 35,865 fully cold (3.6%).
+
+**Converted to dollars: $0.0006 per remittance.** Using PolygonScan's Standard gas price of 270.927 Gwei and POL at $0.0774, both pulled 9 August 2026 — see `data/reference/calibration_2026-08-09.md`, the single pricing reference for the whole paper. Clears the pre-registered $0.10 threshold by roughly 168×, and consumes 0.01% of the UN SDG 10.c budget of $6.00 on a $200 transfer.
 
 Note that 270 Gwei is high against Polygon's historical 30-50 Gwei range, so this figure is **conservative** — a long-run average would be cheaper. Stated as a limitation rather than silently smoothed.
 

@@ -29,21 +29,23 @@ Anything in the paper that converts our measured resource consumption into dolla
 Our measured gas consumption is real and architecture-determined. The dollar conversion uses the figures above.
 
 ```
-measured gas per stablecoin transfer   =  35,865 gas
+measured gas per stablecoin transfer   =  28,467 gas  (mean, results data)
 gas price (Standard)                   =  270.927 Gwei
                                        =  270.927 × 10⁻⁹ POL
 
-  35,865 × 270.927 × 10⁻⁹             =  0.0097163 POL
-  0.0097163 POL × $0.0774              =  $0.000752
+  28,467 × 270.927 × 10⁻⁹             =  0.0077125 POL
+  0.0077125 POL × $0.0774              =  $0.000597
 ```
 
-### **Cost per remittance transaction: $0.00075**
+### **Cost per remittance transaction: $0.0006**
 
-Against the pre-registered architecture-selection threshold of **$0.10 per transaction** (`ANALYSIS_PLAN.md` §10), Polygon clears it by a factor of roughly **133×**.
+> ⚠️ **Corrected 9 Aug 2026.** The earlier $0.00075 was computed from **Phase 1**, which the pre-registered rules exclude from results. Phase 1 was a small run with all storage slots cold, showing a uniform 35,865 gas — a value occurring in only 3.6% of the actual results data. Using it overstated cost by 26%.
 
-For context against the UN SDG 10.c target of total remittance cost under 3% of value — $6.00 on a $200 transfer — the settlement layer consumes **0.0125%** of that budget. The fiat conversion at each end, which this study does not measure, dominates the real cost entirely.
+Against the pre-registered architecture-selection threshold of **$0.10 per transaction** (`ANALYSIS_PLAN.md` §10), Polygon clears it by a factor of roughly **168×**.
 
-**What is real and what is derived:** the 35,865 gas figure is measured on our own network and would be identical on Polygon mainnet, because gas consumption is a deterministic function of the operations performed. The dollar figure is that real quantity priced at one moment in time.
+For context against the UN SDG 10.c target of total remittance cost under 3% of value — $6.00 on a $200 transfer — the settlement layer consumes **0.01%** of that budget. The fiat conversion at each end, which this study does not measure, dominates the real cost entirely.
+
+**What is real and what is derived:** the 28,467 gas figure is measured on our own network and would be identical on Polygon mainnet, because gas consumption is a deterministic function of the operations performed. The dollar figure is that real quantity priced at one moment in time.
 
 ---
 
