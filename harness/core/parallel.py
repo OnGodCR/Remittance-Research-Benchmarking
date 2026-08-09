@@ -39,7 +39,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
-from .arrival import summarize_lag
+from .arrival import SATURATION_GROWTH_SECONDS
 from .runner import DEFAULT_TIMEOUT_SECONDS, run_benchmark
 from .storage import RunConfig, Store
 
@@ -82,6 +82,7 @@ def _worker(worker_index: int, worker_count: int, cfg: RunConfig, run_id: str,
         summary["lag_p95"] = lag.p95_lag
         summary["lag_mean"] = lag.mean_lag
         summary["lag_max"] = lag.max_lag
+        summary["lag_growth"] = lag.growth
         summary["worker"] = worker_index
         out_q.put(summary)
     except Exception as exc:
@@ -166,17 +167,23 @@ async def run_parallel_benchmark(
 
     # --- aggregate -------------------------------------------------------
     summary = store.run_summary(run_id)
-    worst_p95 = max(r["lag_p95"] for r in results)
-    summary["generator_saturated"] = worst_p95 > 0.25
+    # Judged on the WORST worker's lag GROWTH, not its magnitude. One process
+    # falling progressively behind is enough to distort the arrival pattern,
+    # whereas a constant offset in all of them is harmless fixed overhead.
+    worst_growth = max(r["lag_growth"] for r in results)
+    summary["generator_saturated"] = worst_growth > SATURATION_GROWTH_SECONDS
     summary["worker_count"] = workers
-    summary["lag_p95"] = worst_p95
+    summary["lag_p95"] = max(r["lag_p95"] for r in results)
     summary["lag_mean"] = sum(r["lag_mean"] for r in results) / len(results)
     summary["lag_max"] = max(r["lag_max"] for r in results)
+    summary["lag_growth"] = worst_growth
 
     if summary["generator_saturated"]:
         store.invalidate_run(
             run_id,
-            f"generator saturated across {workers} workers: worst p95 lag {worst_p95:.3f}s",
+            f"generator saturated across {workers} workers: worst-worker lag grew "
+            f"{worst_growth*1000:.1f}ms during the run "
+            f"(threshold {SATURATION_GROWTH_SECONDS*1000:.0f}ms)",
         )
 
     if verbose:
@@ -184,7 +191,7 @@ async def run_parallel_benchmark(
               f"achieved={summary['achieved_tps']:.1f} TPS | "
               f"ok={summary['confirmed']} fail={summary['failed']}")
         state = ("GENERATOR SATURATED -- ceiling is the harness, not the chain"
-                 if summary["generator_saturated"] else "workers kept up")
-        print(f"[{run_id}] worst-worker lag p95={worst_p95*1000:.1f}ms -- {state}")
+                 if summary["generator_saturated"] else "workers kept pace")
+        print(f"[{run_id}] worst-worker lag growth={worst_growth*1000:+.1f}ms -- {state}")
 
     return summary

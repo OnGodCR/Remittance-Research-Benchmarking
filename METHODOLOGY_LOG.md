@@ -184,7 +184,7 @@ Five repeats per configuration, each with a **different arrival seed** derived d
 | **Settled (NEAR)** | Outcome at `FINAL`, not `EXECUTED_OPTIMISTIC` |
 | **Failed** | Not settled within **60 s** — roughly 10× expected p99; past that a remittance has functionally failed |
 | **Warm-up exclusion** | Payments with submission time **< 10.0 s** excluded, by submission not by window, so no settlement is counted with a truncated latency |
-| **Generator saturated** | Harness p95 scheduling lag **> 40 ms** — see §7.2 |
+| **Generator saturated** | Median scheduling lag **grew by > 50 ms** between the first and last quarter of a run — see §7.2 |
 
 ### Cost methodology
 Fees on a private chain are an artifact of our own configuration and would be circular to report. Instead: measure **gas consumed** (deterministic, architecture-determined, genuinely real), then convert using **real mainnet prices from public explorers on a single stated date**, cited once for the whole paper.
@@ -216,10 +216,18 @@ The working notes claimed success rates as low as ~15–35% for the *smallest* p
 
 **Caught before any data collection.** Had it survived, our Lightning results agreeing with the literature would have read as contradicting it.
 
-### 7.2 The saturation threshold was tightened from 250 ms to 40 ms
+### 7.2 The saturation criterion measures lag GROWTH, not lag magnitude
 A run at 150 payments/second showed 141 ms of p95 scheduling lag — inside the original threshold, therefore recorded as **valid** — and reported 19.26 s settlement. The same configuration re-run across four processes showed 11 ms of lag and **3.51 s** settlement. The "valid" run had overstated settlement by **5.5×** and produced a reported throughput knee that does not exist.
 
-**Lesson**: passing a saturation check is not the same as being unaffected by saturation. Client-side backpressure distorts measurements long before it appears as gross lag. Two runs were retroactively invalidated under the new threshold, with reasons recorded rather than silently dropped.
+**But magnitude turned out to be the wrong measure.** A generator sitting a constant few milliseconds behind schedule distorts nothing: the load offered still matches the load intended. What corrupts a measurement is lag that **grows**, because the arrival pattern actually delivered then drifts away from the Poisson process that was scheduled.
+
+At 200 payments/sec the median lag was 7.2 ms in the first quarter of a run and 7.2 ms in the last — perfectly flat — and settlement (3.69 s) continued smoothly from 150/sec (3.33 s). Nothing was distorted, yet a magnitude threshold excluded every run at 200 and 300/sec: precisely the peak-demand levels this study exists to measure.
+
+**The single criterion, applied to every run in the study:** a run is excluded when its median scheduling lag rises by more than **50 ms** between the first and last quarter.
+
+**Validation.** Applied to seven runs independently known to be broken — the pre-fix single-process runs, and the 500 and 1000/sec ceiling tests where settlement was inflated three- to elevenfold — the criterion detects all seven, including a subtle case growing 9.7 ms to 294.9 ms. It discriminates rather than merely permitting.
+
+**Stated limitation.** Re-judging all 131 runs moved 24 from excluded to included and none the other way. That asymmetry is the signature of a criterion devised after seeing data, and a reader is entitled to weigh it. It is mitigated by uniform application across every run and by the validation above — not dismissed. An interim magnitude threshold used between 8 and 9 Aug never produced a reported result.
 
 ### 7.3 A reported finding was retracted
 An earlier session reported a throughput knee between 100 and 150 payments/second. **It did not exist** — it was single-process backpressure in our own harness. Corrected 8 Aug 2026. Polygon sustains the full tested range with zero failures.

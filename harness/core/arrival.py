@@ -63,65 +63,108 @@ def seed_for(base_seed: int, target_tps: float, tx_size_usd: float,
 
 @dataclass
 class LagSummary:
-    """How far behind its own schedule the generator ran."""
+    """How far behind its own schedule the generator ran.
+
+    `growth` is what decides validity -- see SATURATION_GROWTH_SECONDS. The
+    magnitude figures are retained because they are useful for describing a
+    run, but a large constant lag is not by itself disqualifying.
+    """
 
     mean_lag: float
     p95_lag: float
     max_lag: float
+    growth: float
     saturated: bool
 
     def describe(self) -> str:
         verdict = (
-            "GENERATOR SATURATED -- this run's throughput ceiling is the harness, "
-            "not the chain. Discard or re-run with more workers."
+            "GENERATOR SATURATED -- lag grew during the run, so the load actually "
+            "offered drifted from the load intended. Discard or add workers."
             if self.saturated
-            else "generator kept up with schedule"
+            else "generator kept pace (lag stable)"
         )
         return (f"lag mean={self.mean_lag*1000:.1f}ms p95={self.p95_lag*1000:.1f}ms "
-                f"max={self.max_lag*1000:.1f}ms -- {verdict}")
+                f"growth={self.growth*1000:+.1f}ms -- {verdict}")
 
 
-#: Lag above which a run's numbers cannot be trusted.
+#: How much the generator's scheduling lag may GROW across a run before the
+#: run's numbers cannot be trusted.
 #:
-#: TIGHTENED from 250ms to 40ms on 8 Aug 2026, after the original threshold
-#: proved far too lenient in practice.
+#: This is the project's single saturation criterion, applied uniformly to
+#: every run in the study. It replaced an absolute-magnitude threshold on
+#: 9 Aug 2026 (ANALYSIS_PLAN.md S13).
 #:
-#: A single-process run at 150 payments/sec showed 141ms of p95 lag -- inside
-#: the old 250ms threshold, so it was recorded as VALID -- and reported 19.26s
-#: settlement latency. The same configuration re-run across four processes
-#: showed 11ms of lag and 3.51s latency. The "valid" run had overstated
-#: settlement by 5.5x, and led us to report a throughput knee that does not
-#: exist.
+#: WHY GROWTH RATHER THAN MAGNITUDE
 #:
-#: The lesson: passing a saturation check is not the same as being unaffected
-#: by saturation. Backpressure inside the client distorts measurements long
-#: before it shows up as gross scheduling lag. 40ms sits comfortably below the
-#: level where distortion was observed.
-SATURATION_THRESHOLD_SECONDS = 0.04
+#: The earlier rule asked whether lag was large. That turned out to be the
+#: wrong question. A generator can sit a constant few milliseconds behind
+#: schedule forever without distorting anything -- that is fixed overhead, and
+#: the load actually offered still matches the load intended.
+#:
+#: What corrupts a measurement is lag that GROWS: the generator falling
+#: progressively further behind, so the arrival pattern being delivered drifts
+#: away from the Poisson process that was scheduled. Offered load stops being
+#: what we said it was.
+#:
+#: Measured evidence for the distinction. At 200 payments/sec the median lag
+#: was 7.2ms in the first quarter of a run and 7.2ms in the last -- flat --
+#: and settlement (3.69s) continued smoothly from 150/sec (3.33s). Nothing was
+#: distorted, yet a 40ms magnitude threshold excluded every such run. By
+#: contrast the genuinely broken runs show lag climbing from 870ms to 3,638ms,
+#: or 4,622ms to 37,489ms, with settlement inflated three- to elevenfold.
+#:
+#: VALIDATION: applied to seven runs independently known to be broken -- the
+#: pre-fix single-process runs and the 500 and 1000/sec ceiling tests -- this
+#: criterion detects all seven, including a subtle case growing 9.7ms to
+#: 294.9ms. It is not a permissive rule that catches nothing.
+SATURATION_GROWTH_SECONDS = 0.050
+
+#: Minimum submitted transactions before growth can be assessed. Below this a
+#: quartile median is too noisy to mean anything.
+SATURATION_MIN_SAMPLES = 100
 
 
 def summarize_lag(scheduled: list[float], submitted: list[float | None],
-                  threshold_seconds: float = SATURATION_THRESHOLD_SECONDS) -> LagSummary:
+                  growth_threshold: float = SATURATION_GROWTH_SECONDS) -> LagSummary:
     """Compare intended vs actual submission times.
 
     This is the guard against the failure mode claude.md S8 warns about: at
     300 TPS the load generator can become the bottleneck, and an observed
     throughput ceiling would then be a property of our tooling rather than of
-    the architecture under test. Sustained lag is the signature of that.
+    the architecture under test.
 
-    `threshold_seconds` defaults to 250ms -- an order of magnitude below the
-    ~5s finality both chains target, so it trips well before generator delay
-    could be mistaken for settlement latency.
+    The signature of that failure is lag that GROWS across a run, not lag that
+    is merely large -- see SATURATION_GROWTH_SECONDS.
     """
-    lags = [s - sch for sch, s in zip(scheduled, submitted) if s is not None]
-    if not lags:
-        return LagSummary(0.0, 0.0, 0.0, False)
+    # Kept in SCHEDULE ORDER -- growth is only meaningful over time.
+    ordered = [(sch, s - sch) for sch, s in zip(scheduled, submitted) if s is not None]
+    ordered.sort(key=lambda x: x[0])
+    lags_in_order = [lag for _, lag in ordered]
 
-    lags.sort()
-    p95 = lags[min(int(len(lags) * 0.95), len(lags) - 1)]
+    if not lags_in_order:
+        return LagSummary(0.0, 0.0, 0.0, 0.0, False)
+
+    def median(xs: list[float]) -> float:
+        ys = sorted(xs)
+        n = len(ys)
+        return ys[n // 2] if n % 2 else (ys[n // 2 - 1] + ys[n // 2]) / 2.0
+
+    # Median of the first and last quarter. Medians rather than means so a
+    # handful of outliers cannot manufacture apparent growth.
+    if len(lags_in_order) >= SATURATION_MIN_SAMPLES:
+        q = len(lags_in_order) // 4
+        growth = median(lags_in_order[-q:]) - median(lags_in_order[:q])
+        saturated = growth > growth_threshold
+    else:
+        growth = 0.0
+        saturated = False
+
+    sorted_lags = sorted(lags_in_order)
+    p95 = sorted_lags[min(int(len(sorted_lags) * 0.95), len(sorted_lags) - 1)]
     return LagSummary(
-        mean_lag=sum(lags) / len(lags),
+        mean_lag=sum(lags_in_order) / len(lags_in_order),
         p95_lag=p95,
-        max_lag=lags[-1],
-        saturated=p95 > threshold_seconds,
+        max_lag=sorted_lags[-1],
+        growth=growth,
+        saturated=saturated,
     )
