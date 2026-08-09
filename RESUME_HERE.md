@@ -75,7 +75,9 @@ Damage scales with existing load: negligible with headroom, severe without. Note
 
 **Context:** global remittances average ~140-150/sec. Polygon clears steady-state global demand comfortably, but breaks in the middle of the 200-300/sec peak range the scope defines.
 
-**Every failure was a submission rejection, not a lost payment.** All were `txpool is full` at the point of submission — no transaction hash, no gas consumed. Nothing the chain accepted ever failed to settle, and the 60s timeout never fired in the entire study. The 9.97% at 300/sec is an overflow rate at Polygon Edge's *default* queue size, which we did not tune. The ~270/sec committed ceiling is architectural; the exact percentage is queue-dependent and must be quoted with that caveat.
+**Failures come in two kinds, and only one appears in the clean data.** Across all 140 clean runs every failure was a *submission rejection* (`txpool is full`) — no transaction hash, no gas, never entered the chain, retryable by the sender. Zero accepted payments failed to settle. The 9.97% at 300/sec is an overflow rate at Polygon Edge's *default* queue size, which we did not tune: the ~270/sec committed ceiling is architectural, the exact percentage is queue-dependent.
+
+**The adversarial arm is where it gets serious:** 7,944 payments (0.91%) were accepted, given a transaction hash, and never settled — at 200 and 300/sec only. That is the "money left one side and never arrived" case, and it exists *only* under node failure. Never merge the two arms' failure rates.
 
 **Superseded finding:** an exploratory pilot suggested Polygon sustained 300/sec with zero failures. It came from 60-second windows on a quieter chain. Under the full protocol it does not hold — short windows measured the burst, not the steady state.
 
