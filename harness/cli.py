@@ -49,6 +49,42 @@ WINDOW = 300.0
 #: reproducible while keeping repeats independent of each other.
 BASE_SEED = 20260807
 
+#: The realism techniques active during phase-2-full-stack, recorded with
+#: every run so the conditions are evidence rather than an inference from a
+#: phase name. Values match METHODOLOGY_LOG.md S4 exactly.
+FULL_STACK_REALISM = {
+    "multi_region": {
+        "enabled": True,
+        "regions": ["us-east4", "asia-south1", "asia-southeast1", "europe-west2"],
+        "validators": 4,
+    },
+    "injected_impairment": {
+        "enabled": True,
+        "scope": "validator-to-validator only; measurement path unimpaired",
+        "per_validator": [
+            {"region": "us-east4", "delay_ms": 20, "jitter_ms": 4, "loss_pct": 0.10},
+            {"region": "asia-south1", "delay_ms": 45, "jitter_ms": 12, "loss_pct": 0.40},
+            {"region": "asia-southeast1", "delay_ms": 40, "jitter_ms": 10, "loss_pct": 0.30},
+            {"region": "europe-west2", "delay_ms": 25, "jitter_ms": 6, "loss_pct": 0.15},
+        ],
+    },
+    "background_traffic": {
+        "enabled": True,
+        "base_tps": 60, "peak_tps": 115, "mean_tps": 88,
+        "tx_type": "native transfer, 21000 gas",
+        "calibrated_to": "Polygon mainnet ~87 tx/sec (7.5M/day)",
+    },
+    "hardware_matched": {
+        "enabled": True,
+        "machine_type": "n2-standard-8",
+        "vcpu": 8, "ram_gb": 32,
+        "note": "CPU/RAM matched to published Polygon validator specs; "
+                "storage deliberately not matched",
+    },
+    "adversarial_nodes": {"enabled": False, "note": "separate arm"},
+    "repeats": REPEATS,
+}
+
 
 def load_polygon_adapter(config_path: Path) -> PolygonAdapter:
     config = json.loads(config_path.read_text())
@@ -215,6 +251,7 @@ async def cmd_sweep(args: argparse.Namespace) -> int:
             window_seconds=WINDOW, repeat_index=repeat,
             arrival_seed=seed_for(BASE_SEED, tps, amount, repeat),
             phase=args.phase, arm=args.arm,
+            realism=FULL_STACK_REALISM if "full-stack" in (args.phase or "") else {},
         )
         print(f"[{done}/{total}] ${amount:g} @ {tps}/sec, repeat {repeat}")
         try:

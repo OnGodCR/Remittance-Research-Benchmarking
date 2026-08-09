@@ -27,6 +27,29 @@ WORKERS="${2:-8}"
 rm -f SWEEP_DONE sweep.log
 
 RESUME="${3:-}"
+NOISE_SECONDS="${4:-20000}"
+
+# Background traffic starts here rather than as a separate SSH command.
+#
+# Launching the two separately kept failing: backgrounding the first with `&`
+# put the second in the wrong working directory, and a `pkill` pattern meant
+# to clean up matched the SSH session's own command line and killed the
+# connection. One script, one place, no quoting across three shells.
+rm -f noise.log
+setsid nohup ./.venv/bin/python -m harness.noise \
+  --config config/phase1.json \
+  --duration "${NOISE_SECONDS}" \
+  --keys keys/noise_senders.json > noise.log 2>&1 < /dev/null &
+
+sleep 8
+if pgrep -f "harness.noise" > /dev/null; then
+  echo "background traffic RUNNING"
+else
+  echo "WARNING: background traffic did not start -- the sweep would run"
+  echo "against an idle chain, which is not the full realism stack."
+  tail -5 noise.log 2>/dev/null || true
+  exit 1
+fi
 
 setsid nohup bash -c "
   ./.venv/bin/python -m harness.cli sweep \
