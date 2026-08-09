@@ -258,11 +258,13 @@ Read this before writing any results prose.
 
 6. **Do not present the calibration figure as a capability comparison without qualification.** Real networks currently run well below capacity because of **demand**, not limits. Our measured ceiling divided by their current activity is not a statement about capability. Two separate figures are reported: a *demand ratio* (showing our test loads are realistic) and a *capability gap* (against the busiest the real network has ever been). **Observed mainnet throughput is a floor on capacity, never a measurement of it.**
 
-7. **Do not benchmark measured results against the ~3,800 TPS Polygon figure** as though it were empirical. See Section 8.
+7. **Do not describe the adversarial-node results as a prediction of mainnet behaviour.** The failure injection is roughly **130× more hostile than real Polygon**: one of four validators is 25% of the network (mainnet has ~100, so one is 1%), and it is offline 51% of the time against a real-world 99.9%+ uptime target backed by financial penalties. The arm measures **sensitivity to validator loss**, not expected mainnet performance. The correct framing: *"under sustained validator unavailability far exceeding realistic conditions, Polygon degrades negligibly with load headroom and severely without it."* Full detail in `METHODOLOGY_LOG.md` §4 technique #6.
+
+8. **Do not benchmark measured results against the ~3,800 TPS Polygon figure** as though it were empirical. See Section 8.
 
    An early observation supporting this: at the block parameters used here, gas arithmetic caps throughput near **418 per second** for stablecoin transfers, or about **714** even for the simplest possible native transfer. Reaching 3,800 would require assumptions the vendor does not publish. This is not proof the figure is wrong, but it strengthens the case for treating it as a marketing claim rather than a benchmark.
 
-8. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
+9. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
 
 ---
 
