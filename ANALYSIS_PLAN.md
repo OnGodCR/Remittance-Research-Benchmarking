@@ -218,3 +218,71 @@ Stated now so it's later possible to distinguish "matched expectations" from "ge
 **Why first rather than last.** The rule is mechanical and fixes the choice without reference to the numbers. It is also the less flattering direction: the second pass ran on a chain carrying several more hours of accumulated state and performed slightly worse, so keeping the first *widens* the reported failure spread at 300/sec (2.9 to 4.3 percentage points) rather than narrowing it.
 
 **Applied uniformly** to all runs by `analysis/export.py`. Effect on published results: the $200 curve moved 200.8 to 200.9/sec at one load step. The ceiling, knee, cost and adversarial findings are unchanged, and size-independence remains non-monotonic under either choice of rule.
+
+### Amendment 5 — 10 Aug 2026: Lightning reliability and throughput come from published measurement, not our simulation
+
+**Sections affected:** 2, 5, 6, 12 (all Lightning-related metrics).
+
+**Change.** Lightning's reliability and throughput data is sourced from **Waugh & Holz (2020)**, an empirical measurement of the real production Lightning Network, rather than from our own private testbed.
+
+**Why.** A structural scale limitation, not a bug. The real network has 6,010 nodes and 19,644 channels; ours has 20 and 51 — roughly **385× fewer channels**. Lightning's success rate depends on how many routing paths exist between sender and receiver, so a network with 385× fewer paths does not behave like the real one no matter how well the rig is built. More hardware, more debugging or a larger cluster within budget does not close this; it is a property of deployed capital, not of the protocol.
+
+This differs in kind from the Polygon faults. Those were genuine mistakes that, once fixed, produced trustworthy numbers, because Polygon is a replicated state machine: throughput is set by the block gas limit and consensus timing, not by validator count, so a 4-validator measurement transfers to a 100-validator mainnet. Lightning capacity is *additive across channels*, so ours does not transfer.
+
+**What is retained from our Lightning runs.** Two figures, labelled "small-scale, illustrative" wherever they appear, and never presented as the same class of evidence as the Polygon or NEAR measurements:
+- settlement time under clean, no-load conditions
+- observed route length (which feeds the cost metric below)
+
+All Lightning runs remain in `data/raw/all_runs_raw.parquet`; none contribute to a reliability or throughput claim.
+
+**Numerical correction to how this plan cited Waugh & Holz.** An earlier draft stated "~35% success for the smallest payments", conflating two distinct statistics. Verified against the source (arXiv:2006.14358):
+
+| Payment size | Payment success rate | Nodes reachable |
+|---|---|---|
+| $0.01 | 71.9% | 35.2% |
+| $1 | 57.8% | 35.2% |
+| $5 | 44.1% | 25.7% |
+| $10 | 44.2% | 33.7% |
+| $50 | 30.9% | 9.2% |
+| $100 | 17.3% | 4.8% |
+
+**Success rate** falls sharply with payment size — the inverse relationship the paper's abstract describes, and the figure relevant to remittance-sized transfers. **Node reachability** is a separate, roughly flat statistic (~25-35%) and is where the stray "~35%" came from. It must not be described as a size-specific success rate.
+
+**Scope limit to state in the paper.** Waugh & Holz tested only up to $100. Our $200 and $500 benchmark sizes are above anything they measured. Extending their declining trend to those amounts is a reasonable extrapolation and must be labelled as one, not presented as measured data.
+
+---
+
+### Amendment 6 — 10 Aug 2026: Lightning cost per transaction is priced from mainnet fee policy, not our own
+
+**Section affected:** 6.3 (cost per transaction).
+
+**Change.** Lightning's cost per transaction is computed as **measured route length × real mainnet per-hop fee rates** from 1ML, pulled 10 Aug 2026. Our own nodes' routing fees are not reported.
+
+**Why.** Identical in principle to the trap §6.3 already identifies for Polygon's gas price. Our LND nodes ran the stock fee policy (1,000 msat base, 1 ppm). At the 2.53-hop routes measured, that yields ~2,530 msat — and the observed mean was 2,016 msat, confirming the "measured" fee was essentially our own configuration. Pricing a number we chose ourselves would be circular.
+
+What *is* architecture-determined is **route length**. That is measured; the price comes from the real network:
+
+```
+per hop = median_base_fee + (median_fee_rate x amount)
+        = 0.449584 sat + 0.000165 x amount_sat
+fee     = per_hop x (hops - 1)          # forwarding nodes charge, the destination does not
+```
+
+**Result at $200: $0.0509**, against Polygon's measured $0.0006 — a factor of 85.
+
+**This resolves the §12 crossover objective.** Polygon charges for computational work, so cost is flat with amount. Lightning charges 165 ppm, so cost is proportional. At **$500 the Lightning routing fee alone is $0.1267, exceeding the $0.10 architecture-selection threshold in §10** — before amortised channel-open cost or the cost of locked capital. The crossover lies below $500.
+
+**Limitation.** Route length of 2.53 hops was measured on a 20-node network; a 6,010-node network generally requires longer paths, so this likely *understates* mainnet Lightning cost. The bias flatters Lightning rather than its competitors, and is stated rather than corrected.
+
+**Channel-open cost** is cited from literature rather than measured — the cluster was destroyed before that measurement was taken, and re-provisioning for one figure was not judged worth the budget.
+
+---
+
+### Amendment 7 — 10 Aug 2026: Lightning testing scope closed
+
+No further Lightning testing is scheduled. Four candidates were assessed against two bars — effort-to-insight ratio, and whether the question is specifically about remittances rather than generic protocol mechanics:
+
+- **Reproducing insufficient-funds failures on our network — rejected.** Waugh & Holz already measured this at real scale (31.58% of observed errors). A weaker version of a solid finding adds nothing, and it is not remittance-specific.
+- **Hop-count versus latency — rejected.** A real protocol property, but it feeds no comparison the paper makes.
+- **Fee structure / channel-open cost — not new work.** Already required by §6.3; handled in amendment 6.
+- **Liquidity topology comparison (even versus hub-and-spoke funding) — parked, not rejected.** The one candidate with a genuine remittance tie: real providers concentrate liquidity along the corridors they serve. It roughly doubles the Lightning matrix and competes with NEAR and Phases 5-6, which are under real constraint from the GCP quota and the 6 November credit expiry. Revisit only if those finish with time and budget to spare.

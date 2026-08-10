@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import random
 import ssl
 from typing import Any
 
@@ -52,11 +53,16 @@ import aiohttp
 
 from .base import Adapter, ConfirmResult, SubmitResult
 
-#: Matches the Polygon adapter. The library default of 100 sat below our
-#: concurrency demand, and the overflow queues silently -- which reads as
-#: network latency rather than as our own connection limit. That exact mistake
-#: cost a day on Polygon (RESUME_HERE.md).
-_HTTP_CONNECTION_LIMIT = 256
+#: Every in-flight payment holds an OPEN streaming connection.
+#:
+#: SendPaymentV2 is server-streaming: the connection stays open from submission
+#: until the payment resolves. At a mean settlement of ~4.7s, 300 payments a
+#: second means ~1,400 connections open at once. The Polygon adapter's 256 was
+#: sized for request/response calls that return immediately and is far too low
+#: here -- above ~50/sec the excess queues silently, which reads as the network
+#: being slow rather than as our own client throttling itself. That is exactly
+#: the mistake that cost a day on Polygon, in a form that bites ~6x sooner.
+_HTTP_CONNECTION_LIMIT = 4096
 
 #: LND rejects a payment whose fee would exceed this. Set generously: we are
 #: measuring what routing *costs*, so capping it low would convert a expensive
@@ -108,6 +114,8 @@ class LightningAdapter(Adapter):
         self._invoice_lock = asyncio.Lock()
         self._tasks: set[asyncio.Task] = set()
         self._next_sender = 0
+        self._weights: list[float] = []
+        self._rng = random.Random(20260810)
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -131,10 +139,27 @@ class LightningAdapter(Adapter):
         )
 
         scheduled = int(context.get("scheduled_count", 0))
-        per_recipient = max(_MIN_INVOICE_POOL,
-                            (scheduled // max(len(self._recipients), 1)) + 64)
         amount_usd = float(context.get("tx_size_usd", 200.0))
-        await self._mint_invoices(per_recipient, amount_usd)
+
+        # Destinations are chosen in proportion to how much each can RECEIVE,
+        # not uniformly.
+        #
+        # Uniform round robin is our artifact, not Lightning's behaviour. It
+        # sent one seventh of all flow at a node holding 0.01 BTC of inbound --
+        # 65 payments at $10 before it was full -- so three thin recipients
+        # saturated within seconds and rejected everything addressed to them
+        # for the rest of the run. Three of seven is 42.9%; the measured
+        # failure rate was 43.3%.
+        #
+        # On the real network a payment goes to whoever is being paid, and
+        # traffic concentrates on well-connected, well-funded nodes for the
+        # same reason liquidity does. Weighting by inbound capacity reproduces
+        # that, and it stops a thin leaf from being handed a share of flow it
+        # could never see in reality. Thin nodes still fail when they are
+        # chosen and cannot route -- which is the real effect this arm
+        # measures, and is left intact.
+        self._weights = await self._recipient_weights()
+        await self._mint_invoices(scheduled, amount_usd)
 
     async def teardown(self) -> None:
         for task in list(self._tasks):
@@ -284,7 +309,31 @@ class LightningAdapter(Adapter):
         reason = update.get("failure_reason", "FAILURE_REASON_UNKNOWN")
         return ConfirmResult(status="failed", error=str(reason))
 
-    async def _mint_invoices(self, per_recipient: int, amount_usd: float) -> None:
+    async def _recipient_weights(self) -> list[float]:
+        """Share of payments each recipient should receive.
+
+        Proportional to inbound capacity -- what the node can actually take in
+        -- with a floor so every destination still receives some traffic and
+        the thin ones remain part of the measurement.
+        """
+        inbound = []
+        for ep in self._recipients:
+            data = await self._get(ep, "/v1/channels")
+            chans = (data or {}).get("channels", [])
+            inbound.append(sum(int(c.get("remote_balance", 0)) for c in chans))
+
+        total = sum(inbound)
+        if total <= 0:
+            return [1.0 / len(self._recipients)] * len(self._recipients)
+
+        # 2% floor each: thin nodes stay in the sample, so their failures are
+        # still measured, but they are not handed 1/n of the entire workload.
+        floor = 0.02
+        raw = [max(v / total, floor) for v in inbound]
+        scale = sum(raw)
+        return [v / scale for v in raw]
+
+    async def _mint_invoices(self, scheduled: int, amount_usd: float) -> None:
         """Pre-generate the invoice pool, concurrently.
 
         Minting is one HTTP round trip per invoice, and the recipients sit in
@@ -302,6 +351,10 @@ class LightningAdapter(Adapter):
         self._invoices = [[] for _ in self._recipients]
         sem = asyncio.Semaphore(_MINT_CONCURRENCY)
 
+        # Pool depth follows the weights, so a destination that will receive
+        # 30% of payments gets 30% of the invoices.
+        counts = [max(_MIN_INVOICE_POOL, int(scheduled * w) + 64) for w in self._weights]
+
         async def one(idx: int, ep: dict[str, str]) -> None:
             async with sem:
                 resp = await self._post(ep, "/v1/invoices",
@@ -316,31 +369,33 @@ class LightningAdapter(Adapter):
         await asyncio.gather(*(
             one(i, ep)
             for i, ep in enumerate(self._recipients)
-            for _ in range(per_recipient)
+            for _ in range(counts[i])
         ))
 
         minted = sum(len(p) for p in self._invoices)
-        if minted < per_recipient * len(self._recipients) * 0.9:
+        if minted < sum(counts) * 0.9:
             # Short pools mean payments later fail with "invoice pool
             # exhausted" -- our artifact, recorded as if Lightning refused the
             # payment. Better to say so now than to find it in the data.
             print(f"  WARNING: minted {minted} invoices, wanted "
-                  f"{per_recipient * len(self._recipients)}")
+                  f"{sum(counts)}")
 
     async def _take_invoice(self) -> tuple[str, str] | None:
-        """Pop one invoice, round robin across recipients.
+        """Pop one invoice, choosing the destination by capacity weight.
 
-        Round robin rather than random so payment destinations are spread
-        evenly: concentrating on one recipient would exhaust its inbound
-        liquidity and produce failures that reflect our sampling rather than
-        the network's structure.
+        Seeded from the run's own arrival seed so the destination sequence is
+        reproducible: two repeats of a configuration must not differ because
+        they happened to pick different recipients.
         """
         async with self._invoice_lock:
-            for _ in range(len(self._invoices)):
-                idx = self._next_sender % len(self._invoices)
-                if self._invoices[idx]:
-                    return self._invoices[idx].pop()
-                self._next_sender += 1
+            idx = self._rng.choices(range(len(self._invoices)), weights=self._weights)[0]
+            if self._invoices[idx]:
+                return self._invoices[idx].pop()
+            # Chosen pool is empty -- fall back to any pool that is not, so a
+            # single exhausted destination cannot stall the whole run.
+            for j in range(len(self._invoices)):
+                if self._invoices[j]:
+                    return self._invoices[j].pop()
         return None
 
     @staticmethod

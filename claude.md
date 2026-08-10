@@ -8,11 +8,11 @@
 > 2. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
 > 3. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
 >
-> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations, 7.02M payments). Adversarial arm running as of 9 Aug. Phases 3-6 not started.
+> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations + 15/15 adversarial). **Phase 3 (Lightning) closed 10 Aug** — reliability and throughput now sourced from Waugh & Holz (2020) rather than self-measured, because our testbed has ~385x fewer channels than the real network and Lightning capacity is additive across channels. Cost per transaction and an illustrative settlement time were retained. See `LIGHTNING_ANALYSIS.md`. **Next: Phase 4 (NEAR)**, capped at 8 validators by a 96 vCPU quota ceiling.
 >
 > **Headline result:** Polygon Edge sustains **200 payments/second** at $200 under the full realism stack, with the knee between 200 and 300/sec. Details in `RESUME_HERE.md` §3.
 >
-> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The test matrix is 465 runs, not the trimmed alternative. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet.
+> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), leaving 155 Polygon runs plus NEAR's 155 still to come.
 
 **Purpose of this document**: This is a full context handoff for Claude Code, which will handle the scripting, infrastructure deployment, and technical debugging for the simulation portion of this research project. Read this whole document before starting any work. It explains not just *what* to build, but *why*, so you can make good judgment calls when something isn't explicitly specified.
 

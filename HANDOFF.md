@@ -240,6 +240,18 @@ Four validators in Virginia, Mumbai, Singapore and London. 60-second windows, on
 
 ---
 
+## 10b. Lightning — where its evidence comes from
+
+**Lightning's reliability and throughput data is from Waugh & Holz (2020), not from our simulation.** See `LIGHTNING_ANALYSIS.md`. Our testbed had 51 channels against the real network's 19,644, and Lightning capacity is additive across channels, so our numbers would have measured the fixture rather than the architecture.
+
+**Their finding, verified against the source:** payment success falls from **71.9% at $0.01 to 17.3% at $100**. Node reachability is a *separate* statistic, roughly flat at 25-35%, and must never be described as a size-specific success rate — an earlier draft of this project's documents made exactly that error.
+
+**What is ours:** cost per transaction (**$0.0509 at $200**, from measured route length priced at 1ML mainnet rates), and settlement time under clean conditions (**p50 1.501s**, small-scale illustrative). Channel-open cost is cited.
+
+**The comparison it enables:** Polygon $0.0006 flat with amount; Lightning $0.0509 at $200 and proportional. At $500 Lightning's fee alone exceeds the $0.10 threshold — the pre-registered crossover, resolved.
+
+---
+
 ## 11. What the paper must NOT claim
 
 Read this before writing any results prose.
@@ -266,7 +278,15 @@ Read this before writing any results prose.
 
 9. **Do not call the clean failure rate a settlement failure rate.** Failures come in two kinds and they mean opposite things. A *submission rejection* means the queue was full and the payment never entered the chain — retryable, no transaction hash, no gas. An *accepted-then-lost* payment received a transaction hash and was never included in a block — the reconciliation problem a remittance system must avoid. **In all 140 clean runs, every failure was the first kind and there were zero of the second.** Write *"the network committed roughly 270 payments per second and rejected the surplus at submission"*, not *"10% of payments failed"*. **In the adversarial arm the second kind does appear**: 7,944 payments, 0.91%, at 200 and 300/sec only. Report the arms separately; merging them destroys the finding. The queue was left at Edge's default, so the ceiling is architectural while the rejection percentage is queue-dependent.
 
-10. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
+10. **Do not present our Lightning throughput or reliability numbers as findings.** They are excluded from the clean dataset deliberately. Lightning reliability comes from Waugh & Holz.
+
+11. **Do not describe Lightning node reachability (~35%) as a payment success rate.** Different statistics; conflating them reverses the direction of the central Lightning finding.
+
+12. **Do not present Lightning success rates at $200 or $500 as measured.** Waugh & Holz stop at $100. Anything above is extrapolation and must be labelled as such.
+
+13. **Do not compare Lightning's throughput ceiling with Polygon's as like-for-like.** Polygon's is protocol-determined and transfers from 4 validators to 100. Lightning's is capital-determined and does not transfer from 51 channels to 19,644.
+
+14. **Do not describe the harness-saturated runs as architecture failures.** Two runs (200 and 300 per second) recorded mass failures caused entirely by our own measurement tool running out of processor capacity. They are flagged invalid in the data and must never be cited. The lesson generalises: a plausible-sounding failure result deserves the same scrutiny as a surprising success.
 
 ---
 

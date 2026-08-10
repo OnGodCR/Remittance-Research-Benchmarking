@@ -89,6 +89,20 @@ NON_RESULT_PHASES = {
     "phase-3-smoke",
     "phase-3-mctest",
     "phase-3-sizetest",
+    # The full Lightning matrix is excluded from RESULTS, not deleted.
+    #
+    # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
+    # reliability and throughput data comes from Waugh & Holz (2020), a
+    # measurement of the real production network, not from our own simulation.
+    # Our test network has ~385x fewer channels than mainnet, and Lightning's
+    # success behaviour depends on having enough routing paths -- a structural
+    # scale limit no amount of debugging or budget fixes.
+    #
+    # The runs remain in the raw file so the work is inspectable, and two
+    # small figures drawn from them (clean-condition settlement time, observed
+    # route length) are reported as explicitly illustrative. Nothing here
+    # contributes to a reliability or throughput claim.
+    "phase-3-full-stack",
 }
 
 

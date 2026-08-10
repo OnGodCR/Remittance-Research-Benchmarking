@@ -11,12 +11,12 @@
 | 1 — Pipeline validation | ✅ Complete |
 | 2 — Realism techniques on Polygon | ✅ **Complete — 140/140 configurations** |
 | 2b — Adversarial arm (Polygon) | ✅ **Complete — 15/15 runs** |
-| 3 — Lightning | ❌ Not started |
-| 4 — NEAR sharding | ❌ Not started |
+| 3 — Lightning | ✅ **Closed 10 Aug** — data source switched to Waugh & Holz (2020); cost + illustrative settlement time retained |
+| 4 — NEAR sharding | ⏭️ **NEXT** — capped at 8 validators by the 96 vCPU quota |
 | 5 — Calibration + confidence intervals | ❌ Not started |
 | 6 — Cross-architecture comparison | ❌ Not started |
 
-**Dataset: 5,717,593 payments across 155 runs** (140 main matrix + 15 adversarial), committed and pushed via Git LFS. 211 runs collected in total; 56 excluded under the pre-registered rules.
+**Dataset: 5,717,593 payments across 155 runs (Polygon only)** (140 main matrix + 15 adversarial), committed and pushed via Git LFS. 211 runs collected in total; 56 excluded under the pre-registered rules.
 
 ### Realism techniques
 
@@ -128,31 +128,35 @@ The avoidable part was an estimation error: after switching spot→on-demand, th
 
 ---
 
-## 7. Next: Phase 3 (Lightning)
+## 7. Phase 3 (Lightning) — closed, and why
 
-**Built and committed, nothing deployed:** `harness/topology.py` (realism #5, verified against 1ML), `harness/adapters/lightning.py`, `terraform/phase3/`, `scripts/lightning_bootstrap.py`, CLI wiring. BTC rate pinned and cited at **$64,803** (`harness.topology.BTC_USD_PINNED`). Next action costs money — see below.
+**Read `LIGHTNING_ANALYSIS.md` for the full account.** Summary:
 
+**Lightning's reliability and throughput data comes from Waugh & Holz (2020), not from our simulation.** Lightning capacity is additive across channels; our testbed had 51 against the real network's 19,644 — ~385x fewer. Success depends on how many routing paths exist, so a 51-channel network does not behave like the real one. Structural, not a bug.
 
-A substantial build, not a configuration change.
+**Polygon did not have this problem** because it is a replicated state machine: throughput is set by the block gas limit and consensus timing, not validator count, so 4 validators measure the same ceiling as 100. That asymmetry is a finding, not an inconsistency — state it in the paper.
 
-**Transfers unchanged:** the measurement core (`harness/core/`) — arrival timing, concurrency, storage, saturation criterion. Deliberately architecture-agnostic.
+**What Lightning still contributes:**
+- **Cost per transaction: $0.0509 at $200** — measured route length (2.53 hops) priced at 1ML mainnet rates. Polygon is $0.0006. **85x.**
+- **The §12 crossover, resolved:** Polygon flat, Lightning proportional at 165 ppm. At $500 Lightning's routing fee alone ($0.1267) breaches the $0.10 threshold.
+- **Settlement time p50 1.501s** — small-scale illustrative only.
+- Channel-open cost — **cited, not measured** (cluster destroyed first).
 
-**Does not transfer:**
+**All Lightning runs are in the raw parquet, none in the clean one.** No further Lightning testing is scheduled (`ANALYSIS_PLAN.md` §13 amendment 7).
 
-| | Polygon | Lightning |
-|---|---|---|
-| Moves | Transactions in blocks | Payments through pre-funded channels |
-| Settled when | In a committed block | Sender receives the preimage |
-| Fails because | Out of gas | No route with enough liquidity |
-| Needs | Funded wallets | A funded channel *topology* |
+---
 
-Work required:
-1. New adapter implementing `harness/adapters/base.py` for LND
-2. Infrastructure: bitcoind + ~20 LND nodes on `regtest`
-3. **Realism technique #5**: pull real channel/capacity data from 1ML.com, fund channels to match real-world concentration (few well-funded hubs, many thin leaves) rather than evenly
-4. Record route length and liquidity failures
+## 7b. Next: Phase 4 (NEAR)
 
-**Why it matters most:** the only architecture where payment size genuinely changes behaviour — both success rate and cost. Direct test against Waugh & Holz (2020); pre-registered expectation is an *inverse* size/success relationship (~72% at smallest, ~15% at largest). Also the cheapest cluster to run.
+**Quota constraint decided the design.** The project-wide ceiling is 96 vCPU. 12 validators (104) does not fit; a request for 144 was **denied**, 120 is pending. **8 validators + generator = 72 fits.**
+
+Eight satisfies the scope's ≥4 shards × ≥2 validators, but leaves no margin — losing one node drops a shard to a single validator, making NEAR's adversarial arm harsher than Polygon's. Say so when comparing them.
+
+Two hard requirements:
+1. **Pin the NEAR shard count to 4**, or 8 validators cannot cover every shard.
+2. **The Lightning cluster is already destroyed**, so the ceiling is clear.
+
+Work required: a NEAR adapter implementing `harness/adapters/base.py`, NEP-141 token transfers, settlement at `FINAL` (not `EXECUTED_OPTIMISTIC`), and NEAR mainnet gas pricing pulled at Phase 4 with its own stated date.
 
 ---
 
