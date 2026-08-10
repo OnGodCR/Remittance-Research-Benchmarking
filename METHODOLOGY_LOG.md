@@ -395,3 +395,17 @@ Full re-verification of every published Polygon figure against the dataset, at A
 **Four smaller corrections.** The gas tier table accounted for only 68.7% of transactions (the ±12 gas calldata variants were listed as separate tiers rather than grouped); mean gas refined to 28,538 and cost to 167× under threshold, still $0.0006. Size-independence restated within storage tier, isolating amount from storage warmth: 12 gas, 0.044%. Exclusion counts corrected — the 9 saturation/defect runs sit inside the 34 non-result phases rather than adding to them. Node-event import had 2 exact duplicates and one orphaned run.
 
 **Confirmed unchanged:** the whole $200 curve, the 200/sec ceiling, the knee, every adversarial figure, background traffic at mean 87.5/sec, the warm-up rule, the 290s throughput denominator, and the matrix's completeness at 28 of 28 cells.
+
+## Exchange rate pinned — 9/10 Aug 2026
+
+Lightning is the only architecture needing a currency conversion. Polygon and NEAR carry stablecoins, so $200 is exactly 200 tokens; Lightning carries native BTC, so a rate is unavoidable.
+
+**Pinned: $64,803.00 BTC/USD**, CoinGecko `simple/price`, observed 2026-08-10 00:45:20 UTC. Cross-checked against Coinbase spot ($64,817.29) in the same session — the two agree to 0.022%. Recorded in `data/reference/calibration_2026-08-09.md` §4.
+
+**Why cross-checked.** This single number multiplies into every Lightning cost and success figure in the paper. One API can be stale; two independent sources agreeing to 0.022% makes a bad quote unlikely.
+
+**Superseded value.** The Lightning code first used $65,163, *inferred* from 1ML's capacity figures ($172.4M ÷ 2,645.64 BTC) rather than quoted. Only 0.55% out, but an inferred rate is not citable. Replaced before any Lightning run was measured, so no result was ever computed from it.
+
+**Held constant across every run** (`claude.md` §6), as a single constant `harness.topology.BTC_USD_PINNED` that the adapter and the funding script both import — they cannot drift apart.
+
+**What it means for the arm.** At this rate a $200 remittance is 15.2% of a median Lightning channel and **99.3% of a median node's entire capacity**; $500 is 248%. That relationship is the structural reason payment size drives success on Lightning and not on Polygon, and it is why the topology keeps capacities at true mainnet scale rather than scaling down — shrinking the network would destroy the one ratio that decides every routing outcome.

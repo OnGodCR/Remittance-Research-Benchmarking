@@ -65,7 +65,7 @@ For context against the UN SDG 10.c target of total remittance cost under 3% of 
 | Median node capacity | **0.003107 BTC** |
 | Average channels per node | **6.54** |
 
-**Implied BTC price:** ≈ $65,163 (derived from $172.4M ÷ 2,645.64 BTC). Derived, not quoted — if the paper needs a BTC price it should cite a price source directly rather than infer one.
+**Implied BTC price:** ≈ $65,163 (derived from $172.4M ÷ 2,645.64 BTC). **Derived, not quoted — do not cite this figure.** The rate the study actually uses is quoted from a price source in §4 below.
 
 ### The number that matters for realism technique #5
 
@@ -89,7 +89,41 @@ Target average ≈ **6.5 channels per node**, matching the observed 6.54, with h
 
 ---
 
-## 4. Still outstanding
+## 4. Bitcoin price — the study's pinned exchange rate
+
+**Source:** [CoinGecko `simple/price` API](https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd)
+**Observed:** 2026-08-10 00:45:20 UTC (the API returns its own observation timestamp, recorded here rather than the time we happened to read it)
+
+| Figure | Value |
+|---|---|
+| **BTC/USD — the pinned rate** | **$64,803.00** |
+| Cross-check: Coinbase spot, same session | $64,817.29 |
+| Agreement between the two | **0.022%** |
+
+**Why a cross-check.** A single API can be stale or wrong, and this one number multiplies into every Lightning cost and success figure in the paper. Two independent sources agreeing to 0.022% makes a bad quote unlikely. CoinGecko is the citation; Coinbase is the check.
+
+**One rate, held constant across every run** (`claude.md` §6). Lightning is the only architecture that needs an exchange rate at all — the stablecoin chains make $200 exactly 200 tokens, which is a second independent reason the ERC-20 / NEP-141 choice was right. The rate lives as a single constant, `harness.topology.BTC_USD_PINNED`, which the adapter and the funding script both import so they cannot drift apart.
+
+> ⚠️ **Superseded value.** Lightning code initially used **$65,163**, inferred from 1ML's own capacity figures rather than quoted from a price source. It was only 0.55% out — the $200 test payment moves from 306,923 to 308,628 satoshis — but an inferred rate is not citable, and this figure appears throughout the Lightning results. Replaced before any Lightning run was measured, so no result was ever computed from it.
+
+**Note on dates.** The PolygonScan and 1ML figures above were pulled 9 Aug 2026 19:42 UTC; this quote is roughly five hours later and therefore falls on 10 Aug in UTC. Recorded honestly rather than rounded into the same calendar day. All three are from one calibration session and are cited together.
+
+### What this rate means for the Lightning arm
+
+At $64,803, the test amounts sit in this relationship to real network capacity:
+
+| Amount | Satoshis | Share of a median channel | Share of a median **node's entire capacity** |
+|---|---|---|---|
+| $10 | 15,431 | 0.8% | 5.0% |
+| $50 | 77,157 | 3.8% | 24.8% |
+| $200 | 308,628 | 15.2% | **99.3%** |
+| $500 | 771,569 | 38.1% | **248.3%** |
+
+**The median Lightning node's entire capacity is almost exactly one $200 remittance.** This is the structural reason payment size drives success on Lightning and not on Polygon, and it is the mechanism behind the Waugh & Holz gradient the study sets out to replicate. It is also why `harness/topology.py` keeps channel capacities at true mainnet scale instead of scaling them down: shrink the network and this relationship — the one that decides every routing outcome — is destroyed.
+
+---
+
+## 5. Still outstanding
 
 - **NEAR mainnet gas prices and NEAR token price** — pull at Phase 4, and record here with its own date rather than assuming this one still holds.
 - **Mainnet throughput figures for the calibration gap** (`ANALYSIS_PLAN.md` §11) — both the demand ratio and the capability gap need observed and peak mainnet throughput. Polygon's ~87 tx/sec average is already recorded in `METHODOLOGY_LOG.md` §4 (technique #3); the observed *peak* still needs pulling.

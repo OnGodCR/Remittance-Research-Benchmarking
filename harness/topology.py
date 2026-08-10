@@ -58,6 +58,24 @@ OBSERVED_CAPACITY_SKEW = OBSERVED_MEAN_NODE_CAPACITY_BTC / OBSERVED_MEDIAN_NODE_
 
 SATS_PER_BTC = 100_000_000
 
+#: The single BTC/USD rate for the entire study, pinned and cited.
+#:
+#: claude.md S6 requires one exchange rate fixed at project start and held
+#: constant across every run, so results stay reproducible. Lightning is the
+#: only architecture that needs one at all -- the stablecoin chains make $200
+#: exactly 200 tokens, which is a second independent reason the ERC-20/NEP-141
+#: choice was right.
+#:
+#: Source: CoinGecko simple/price API, observed 2026-08-10 00:45:20 UTC.
+#: Cross-checked against Coinbase spot ($64,817.29) in the same session; the
+#: two agree to 0.022%. Full record in data/reference/calibration_2026-08-09.md.
+#:
+#: An earlier value of $65,163 was INFERRED from 1ML's own capacity figures
+#: ($172.4M / 2,645.64 BTC) rather than quoted from a price source. It was only
+#: 0.55% out, but an inferred rate is not citable, and this number appears in
+#: every Lightning cost and success figure in the paper.
+BTC_USD_PINNED = 64803.0
+
 # --- Why capacities are sampled, not assigned ---------------------------------
 # The first version of this module split capacity into fixed tier shares
 # (55/30/15) and divided evenly inside each tier. `verify()` rejected it: the
@@ -376,7 +394,7 @@ if __name__ == "__main__":  # pragma: no cover
     print()
     print("Can a recipient leaf actually receive each test amount?")
     print("  (inbound liquidity = what the upstream side of its channels holds)")
-    btc_usd = 65163.0
+    btc_usd = BTC_USD_PINNED
     # Channel(source=A, target=B, capacity, push): A holds capacity-push,
     # B holds push. So A can RECEIVE at most `push` (what sits on B's side),
     # and B can receive at most `capacity - push`.
