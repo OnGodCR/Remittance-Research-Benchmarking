@@ -423,3 +423,43 @@ Lightning is the only architecture needing a currency conversion. Polygon and NE
 **A configuration requirement this creates.** The NEAR chain config must pin the shard count to 4. If it produces more shards than that, 8 validators cannot give every shard 2, and the deployment would silently violate the sizing rule the cluster was built to satisfy.
 
 **Sequencing.** 8 validators plus generator is 72 vCPU; the Lightning cluster is 24. Together that is exactly 96, with no margin, so **Lightning must be destroyed before NEAR is deployed**.
+
+## Phase 3 (Lightning) — decision and closure, 10 Aug 2026
+
+### The decision
+
+**Lightning's reliability and throughput data comes from Waugh & Holz (2020), not from our simulation.** Full reasoning in `LIGHTNING_ANALYSIS.md` §1 and `ANALYSIS_PLAN.md` §13 amendment 5.
+
+The short version: Lightning capacity is **additive across channels**, and our testbed has 51 against the real network's 19,644 — roughly 385× fewer. Success behaviour depends on how many routing paths exist, so a network with 385× fewer paths does not behave like the real one. This is structural, not a bug, and no amount of debugging or budget within this project closes it.
+
+**Why Polygon did not have the same problem, and why that is not inconsistency.** Polygon is a replicated state machine: every validator processes every transaction, so throughput is set by the block gas limit and consensus timing rather than by validator count. Four validators and a hundred share the same ceiling. Our 4-validator measurement therefore transfers to mainnet; a 51-channel Lightning measurement does not.
+
+### What Lightning still contributes
+
+- **Cost per transaction**, built the same way as Polygon's: measure the architecture-determined quantity (route length, 2.53 hops), price it with real mainnet rates (1ML, 10 Aug 2026). **$0.0509 at $200, against Polygon's $0.0006 — a factor of 85.**
+- **The §12 cost crossover, resolved.** Polygon's cost is flat with amount; Lightning's is proportional at 165 ppm. At $500 the Lightning routing fee alone is $0.1267, above the $0.10 selection threshold. The crossover lies below $500.
+- **Settlement time under clean conditions** — p50 1.501s — labelled small-scale illustrative.
+- **The scale limitation itself**, as a methodological finding: Lightning's capacity is a property of deployed capital, not of the protocol.
+
+### Faults found and fixed during Phase 3
+
+Each produced a plausible number that was wrong. Recorded because the pattern matters more than any individual bug.
+
+1. **Uniform destination selection.** Round-robin sent 1/7 of all flow at a node holding 0.01 BTC of inbound — 65 payments at $10 before it was full. Three thin recipients saturated, giving a hard 3/7 = 42.9% floor; observed was 43.3%. Replaced with capacity-weighted selection (2% floor so thin nodes stay in the sample). Ceiling went from 25/sec to 47/sec at 50 offered, failure 43% → 5.4%.
+2. **A rebalancer that never ran.** It checked whether any payment had succeeded one second after firing them asynchronously, so the answer was always no and it quit after 40 attempts — restoring 0.006 BTC per gap instead of ~5. Sender liquidity fell from 38.6 to 25.3 BTC and failures reached 71%, which read as Lightning degrading under load.
+3. **Round-robin draining.** Even after (2), the rebalancer treated a recipient with 28 BTC of headroom the same as one with none. Now drains worst-first, re-ranking every 20s.
+4. **Sequential invoice minting.** One HTTP round trip each to nodes in Mumbai and Singapore at 315ms — 81 minutes of setup per 300/sec run. Now concurrent: 3 minutes.
+5. **A connection limit sized for the wrong API.** Every in-flight Lightning payment holds an *open streaming connection* until it resolves; at 300/sec that is ~1,400 at once against a limit of 256 inherited from Polygon's request/response calls. Raised to 4,096.
+6. **Mission control reset — tried and reverted.** On the theory that carrying learned routing state made repeats non-independent. **Measured it making things far worse:** 3–17% failure became 71%. LND's learned routing state is what makes a topology navigable, and real senders accumulate it too. Kept, with the mild drift across repeats reported as a limitation instead.
+7. **Resume logic that ignored completion.** The sweep's skip check tested `invalidated=0` but not whether a run had finished, so an interrupted run counted as complete and its configuration was silently skipped.
+8. **Exploratory phases missing from the exclusion list**, which would have let smoke and diagnostic runs flow into the clean results file.
+
+Infrastructure faults, recorded in `RESUME_HERE.md` §5: bitcoind requiring network options under `[regtest]`; ZMQ ports never opened; an empty chain blocking LND startup; the Polygon idle watcher shipping onto Lightning hosts and shutting the cluster down five times; funding by mining instead of transfer, which mined 25,000 blocks while funding nobody; channel-size caps refused by the peer; and `pkill` matching its own SSH command line.
+
+### Cost methodology — why our own fees were not reported
+
+Our LND nodes ran the stock policy: 1,000 msat base per hop plus 1 ppm. At 2.53 hops that predicts ~2,530 msat and the measured mean was 2,016 — i.e. the "measured" fee was essentially our own configuration. Reporting it would repeat the exact circularity §6.3 identifies for Polygon's gas price. Route length is measured; the price comes from 1ML.
+
+### Scope closure
+
+No further Lightning testing is scheduled. Four candidates were assessed and recorded in `ANALYSIS_PLAN.md` §13 amendment 7. One — even versus hub-and-spoke liquidity funding — is **parked rather than rejected**, since real providers concentrate liquidity along the corridors they serve; revisit only if NEAR and Phases 5-6 finish with time and budget to spare.

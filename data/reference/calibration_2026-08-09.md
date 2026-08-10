@@ -123,7 +123,52 @@ At $64,803, the test amounts sit in this relationship to real network capacity:
 
 ---
 
-## 5. Still outstanding
+## 5. Lightning fee policy — the cost basis for Phase 3
+
+**Source:** [1ML Lightning Network Statistics](https://1ml.com/statistics)
+**Pulled:** 10 August 2026 (a day after §3; see the drift note below)
+
+| Figure | Value |
+|---|---|
+| **Median base fee** | **0.449584 sat** (449.584 msat) per hop |
+| **Median fee rate** | **0.000165 sat/sat** = **165 ppm** |
+| Average channel capacity | 0.133 BTC |
+| Average node capacity | 0.439 BTC |
+
+**Why these and not our own fees.** Our LND nodes ran the stock policy — 1,000 msat base plus 1 ppm. At the 2.53-hop routes we measured that produces ~2,016 msat, and observation confirmed it: the "measured" fee was almost entirely our own base-fee setting. Reporting it would repeat exactly the error `ANALYSIS_PLAN.md` §6.3 warns about for Polygon's gas price — pricing a number we chose ourselves. What is genuinely measured is **route length**; the price comes from the real network.
+
+### Cost per remittance
+
+Fees on Lightning are charged by *forwarding* nodes, so a route of N hops has N−1 chargers. Our measured mean route was **2.53 hops → 1.53 fee-charging hops**.
+
+```
+per hop  =  base_fee + (fee_rate x amount)
+         =  0.449584 sat + 0.000165 x amount_sat
+fee      =  per_hop x 1.53
+```
+
+| Amount | Satoshis | Fee (sat) | **Fee (USD)** | % of value |
+|---|---|---|---|---|
+| $10 | 15,431 | 4.6 | **$0.0030** | 0.030% |
+| $50 | 77,157 | 20.2 | **$0.0131** | 0.026% |
+| **$200** | 308,628 | 78.6 | **$0.0509** | 0.025% |
+| $500 | 771,569 | 195.5 | **$0.1267** | 0.025% |
+
+### The comparison this enables
+
+**Lightning routing costs $0.0509 to move $200; Polygon costs $0.0006 — a factor of 85.**
+
+And the structure differs, not just the level. Polygon charges for computational work, so cost is **flat**: $500 costs the same as $10. Lightning charges 165 ppm of the amount, so cost is **proportional**: at $500 the fee reaches $0.1267, which alone **exceeds the $0.10 architecture-selection threshold** in `ANALYSIS_PLAN.md` §10.
+
+That is the crossover predicted as a secondary objective in §12 — and it lands below $500, before the amortised channel-open cost or the cost of locked capital are counted, both of which push Lightning higher still.
+
+> ⚠️ **Route length is topology-dependent.** 2.53 hops was measured on a 20-node network. A 6,010-node network generally needs longer paths, so this figure likely **understates** mainnet cost. The bias is conservative — it flatters Lightning, not its competitors — and must be stated.
+
+> ⚠️ **Drift note.** §3 recorded average channel capacity 0.134 BTC and node capacity 0.440 BTC on 9 Aug; this pull a day later gives 0.133 and 0.439. A 0.2-0.7% change, consistent with ordinary network movement, and small enough not to affect the topology calibration built on the earlier figures.
+
+---
+
+## 6. Still outstanding
 
 - **NEAR mainnet gas prices and NEAR token price** — pull at Phase 4, and record here with its own date rather than assuming this one still holds.
 - **Mainnet throughput figures for the calibration gap** (`ANALYSIS_PLAN.md` §11) — both the demand ratio and the capability gap need observed and peak mainnet throughput. Polygon's ~87 tx/sec average is already recorded in `METHODOLOGY_LOG.md` §4 (technique #3); the observed *peak* still needs pulling.
