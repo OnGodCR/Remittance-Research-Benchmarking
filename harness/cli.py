@@ -22,6 +22,7 @@ import json
 import sys
 from pathlib import Path
 
+from .adapters.lightning import LightningAdapter
 from .adapters.null import NullAdapter
 from .adapters.polygon import PolygonAdapter
 from .core.arrival import seed_for
@@ -110,6 +111,42 @@ def load_polygon_adapter(config_path: Path) -> PolygonAdapter:
     )
 
 
+def load_lightning_adapter(config_path: Path) -> LightningAdapter:
+    """Build the LND adapter from the config lightning_bootstrap.py wrote.
+
+    That script only writes the config after verifying every planned channel is
+    active, so a config existing here means the topology is complete. Failing
+    loudly on a missing file is better than running against a half-funded
+    network, which would still produce numbers -- biased against Lightning, and
+    for a reason that is ours rather than the architecture's.
+    """
+    config = json.loads(config_path.read_text())
+    for key in ("senders", "recipients", "btc_usd_rate"):
+        if key not in config:
+            raise SystemExit(
+                f"{config_path} has no '{key}'. Run scripts/lightning_bootstrap.py "
+                f"first -- it funds the topology and writes this file."
+            )
+    return LightningAdapter(
+        sender_endpoints=config["senders"],
+        recipient_endpoints=config["recipients"],
+        btc_usd_rate=config["btc_usd_rate"],
+    )
+
+
+def _architecture_of(config_path: Path) -> str:
+    """Pick the adapter from the config, not from a flag.
+
+    A flag could disagree with the config and mislabel a run's architecture in
+    the database -- the kind of quiet error that only surfaces in phase 6, when
+    the cross-architecture comparison is being written.
+    """
+    try:
+        return json.loads(config_path.read_text()).get("architecture", "polygon")
+    except Exception:
+        return "polygon"
+
+
 def _adapter_spec(config_path: Path) -> dict:
     """Everything a worker process needs to build its own adapter.
 
@@ -132,6 +169,9 @@ def _adapter_spec(config_path: Path) -> dict:
 
 
 async def cmd_run(args: argparse.Namespace) -> int:
+    if _architecture_of(Path(args.config)) == "lightning":
+        return await _run_lightning(args)
+
     if args.workers > 1:
         spec = _adapter_spec(Path(args.config))
         store = Store(args.db)
@@ -163,6 +203,41 @@ async def cmd_run(args: argparse.Namespace) -> int:
         window_seconds=args.window, repeat_index=args.repeat,
         arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
         phase=args.phase, arm=args.arm,
+    )
+    summary = await run_benchmark(adapter, cfg, store)
+    store.close()
+    return 0 if not summary["generator_saturated"] else 2
+
+
+async def _run_lightning(args: argparse.Namespace) -> int:
+    """One Lightning run.
+
+    Single-process by design, unlike Polygon's multi-worker path. Polygon
+    needed workers because signing and nonce management were CPU-bound in our
+    client; a Lightning send is one HTTP call and the work happens on the LND
+    nodes. Adding workers here would add complexity and a second place for the
+    generator to become the bottleneck, with nothing gained. If the harness
+    ever does saturate, `capacity` will show it -- the same check that caught
+    Polygon's phantom knee.
+    """
+    adapter = load_lightning_adapter(Path(args.config))
+    store = Store(args.db)
+    cfg = RunConfig(
+        architecture="lightning", adapter=adapter.name,
+        tx_size_usd=args.amount, target_tps=args.tps,
+        window_seconds=args.window, repeat_index=args.repeat,
+        arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
+        phase=args.phase, arm=args.arm,
+        # The adapter mints its invoice pool during setup and needs to know how
+        # many payments are coming and at what amount. Passed through the
+        # existing `extra` channel rather than by changing the shared runner:
+        # Polygon's 155 measured runs used the core as it stands, and altering
+        # it now would mean the two architectures were measured by different
+        # versions of the one instrument the whole design depends on.
+        extra={
+            "scheduled_count": int(args.tps * args.window * 1.2),  # Poisson headroom
+            "tx_size_usd": args.amount,
+        },
     )
     summary = await run_benchmark(adapter, cfg, store)
     store.close()

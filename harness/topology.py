@@ -179,18 +179,41 @@ def build(seed: int = 20260809) -> Topology:
     secondaries = [f"hub-secondary-{i}" for i in range(SECONDARY_HUBS)]
     leaves = [f"leaf-{i:02d}" for i in range(LEAF_NODES)]
 
-    # Spread across 4 instances. Hubs get their own so their traffic is not
-    # competing for one machine's CPU -- a hub bottlenecked by our hardware
-    # would look like a routing failure.
-    for i, nid in enumerate(majors):
-        topo.nodes.append(Node(nid, "major_hub", host_index=i, role="router"))
-    for i, nid in enumerate(secondaries):
+    # --- Placement: senders and recipients sit in real corridor regions ------
+    #
+    # An earlier version put every leaf on one host. That balanced badly (14
+    # nodes on one machine) but the real fault was worse: with payer and payee
+    # in the same region, every payment would have been settled inside one
+    # datacentre and the arm would have measured almost no internet latency at
+    # all. Realism technique #1 would have been present in the deployment and
+    # absent from the measurement.
+    #
+    # Placement now follows the corridors the regions were chosen for, so
+    # every measured payment crosses an ocean the way a real remittance does:
+    #
+    #   host 0  us-east4        Virginia   sending   -- major hub + senders
+    #   host 1  asia-south1     Mumbai     receiving -- major hub + recipients
+    #   host 2  asia-southeast1 Singapore  receiving -- secondaries + recipients
+    #   host 3  europe-west2    London     sending   -- secondaries + senders
+    #
+    # Five nodes per host, matching terraform/phase3 `nodes_per_host`.
+    senders = leaves[: LEAF_NODES // 2]
+    recipients = leaves[LEAF_NODES // 2:]
+
+    topo.nodes.append(Node(majors[0], "major_hub", host_index=0, role="router"))
+    topo.nodes.append(Node(majors[1], "major_hub", host_index=1, role="router"))
+    for nid in secondaries[:2]:
+        topo.nodes.append(Node(nid, "secondary_hub", host_index=3, role="router"))
+    for nid in secondaries[2:]:
         topo.nodes.append(Node(nid, "secondary_hub", host_index=2, role="router"))
-    # Leaves split evenly into senders and recipients: a remittance has a
-    # distinct payer and payee, and a node paying itself tests nothing.
-    for i, nid in enumerate(leaves):
-        role = "sender" if i < LEAF_NODES // 2 else "recipient"
-        topo.nodes.append(Node(nid, "leaf", host_index=3, role=role))
+
+    # Senders split across the two sending regions, recipients across the two
+    # receiving regions. A node paying itself tests nothing, so the roles are
+    # disjoint.
+    for i, nid in enumerate(senders):
+        topo.nodes.append(Node(nid, "leaf", host_index=0 if i < 4 else 3, role="sender"))
+    for i, nid in enumerate(recipients):
+        topo.nodes.append(Node(nid, "leaf", host_index=1 if i < 4 else 2, role="recipient"))
 
     # --- Structure first: who connects to whom -------------------------------
     #
@@ -314,6 +337,11 @@ def verify(topo: Topology) -> dict[str, Any]:
         "total_capacity_sat": sum(ch_caps),
         "senders": len(topo.senders()),
         "recipients": len(topo.recipients()),
+        "nodes_per_host": {h: sum(1 for n in topo.nodes if n.host_index == h)
+                           for h in sorted({n.host_index for n in topo.nodes})},
+        "cross_region_payment_paths": all(
+            s.host_index != r.host_index
+            for s in topo.senders() for r in topo.recipients()),
     }
 
 
@@ -343,6 +371,8 @@ if __name__ == "__main__":  # pragma: no cover
           f"median {report['channel_capacity_median_btc']} BTC "
           f"(mainnet {report['channel_capacity_median_target']})")
     print(f"senders {report['senders']}  recipients {report['recipients']}")
+    print(f"nodes per host  {report['nodes_per_host']}  "
+          f"every payment crosses regions: {report['cross_region_payment_paths']}")
     print()
     print("Can a recipient leaf actually receive each test amount?")
     print("  (inbound liquidity = what the upstream side of its channels holds)")

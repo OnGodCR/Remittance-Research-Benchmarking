@@ -38,3 +38,7 @@ artifacts/
 # OS noise
 .DS_Store
 terraform.tfvars
+
+terraform/phase3/terraform.tfvars
+terraform/phase3/*.tfstate*
+terraform/phase3/.terraform/
