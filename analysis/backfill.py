@@ -101,7 +101,22 @@ SESSION_A = {
 
 def backfill_realism(conn: sqlite3.Connection) -> int:
     updated = 0
-    for phase, realism in [("phase-2-full-stack", FULL_STACK_REALISM)] + [
+    # The adversarial arm ran the identical stack with node failures ON. It is
+    # listed separately rather than folded in because `adversarial_nodes` is
+    # exactly the variable that distinguishes the two arms -- the whole reason
+    # claude.md S5 #6 keeps them apart is so "degrades under load" can be told
+    # from "degrades under node failure".
+    adversarial = dict(FULL_STACK_REALISM)
+    adversarial["adversarial_nodes"] = {
+        "enabled": True,
+        "nodes_affected": 1,
+        "of_total": 4,
+        "note": "one validator at a time cycled offline; ~130x more hostile "
+                "than real Polygon -- see METHODOLOGY_LOG.md S4 technique #6",
+    }
+
+    for phase, realism in [("phase-2-full-stack", FULL_STACK_REALISM),
+                           ("phase-2-adversarial", adversarial)] + [
         (p, {**v, "backfilled": True, "backfill_source": "METHODOLOGY_LOG.md S4",
              "backfill_date": "2026-08-09"})
         for p, v in SESSION_A.items()

@@ -106,6 +106,20 @@ def load(db_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     if runs.empty:
         raise SystemExit("Database has no runs yet.")
 
+    # Columns that hold one repeated value per RUN are categorised BEFORE the
+    # merge, not after.
+    #
+    # This is a memory correctness issue, not a tidiness one. The merge fans
+    # run metadata across every payment row -- 7.9M of them. Once each run
+    # began recording its full realism configuration, `config_json` grew to
+    # roughly 1.5 KB, and 7.9M copies of it is over 10 GB: the export was
+    # killed by the OS on an 8 GB machine. As a category, pandas stores the
+    # ~200 distinct values once and an integer per row.
+    for col in ("config_json", "phase", "arm", "architecture", "adapter",
+                "harness_version", "invalidation_reason"):
+        if col in runs.columns:
+            runs[col] = runs[col].astype("category")
+
     # One wide table per payment, carrying its run's settings. Denormalised on
     # purpose: the analysis is always "payments grouped by configuration", and
     # this removes a join from every single query.
@@ -230,6 +244,11 @@ def clean(raw: pd.DataFrame, events: pd.DataFrame) -> tuple[pd.DataFrame, list[E
 _LOW_CARDINALITY = [
     "run_id", "phase", "status", "adapter", "architecture", "arm",
     "invalidation_reason", "error", "amount_native", "fee_native",
+    # config_json carries each run's full realism configuration. One distinct
+    # value per run, repeated across every payment in it -- exactly the shape
+    # categories exist for, and without this the file would be gigabytes of
+    # duplicated JSON.
+    "config_json", "harness_version",
 ]
 
 
