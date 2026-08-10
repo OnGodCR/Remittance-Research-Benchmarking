@@ -227,7 +227,7 @@ async def main() -> int:
 
         cfg = {
             "architecture": "lightning",
-            "btc_usd_rate": 65163.0,
+            "btc_usd_rate": topo_mod.BTC_USD_PINNED,
             "senders": [{"url": nodes[n.node_id].url, "macaroon": nodes[n.node_id].macaroon}
                         for n in plan.senders()],
             "recipients": [{"url": nodes[n.node_id].url, "macaroon": nodes[n.node_id].macaroon}

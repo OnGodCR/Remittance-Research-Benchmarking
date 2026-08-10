@@ -130,6 +130,9 @@ The avoidable part was an estimation error: after switching spot→on-demand, th
 
 ## 7. Next: Phase 3 (Lightning)
 
+**Built and committed, nothing deployed:** `harness/topology.py` (realism #5, verified against 1ML), `harness/adapters/lightning.py`, `terraform/phase3/`, `scripts/lightning_bootstrap.py`, CLI wiring. BTC rate pinned and cited at **$64,803** (`harness.topology.BTC_USD_PINNED`). Next action costs money — see below.
+
+
 A substantial build, not a configuration change.
 
 **Transfers unchanged:** the measurement core (`harness/core/`) — arrival timing, concurrency, storage, saturation criterion. Deliberately architecture-agnostic.
