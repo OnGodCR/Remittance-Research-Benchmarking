@@ -74,9 +74,10 @@ async def rest(session, node: Node, method: str, path: str, body: dict | None = 
         return json.loads(text) if text else {}, None
 
 
-async def bitcoin_rpc(session, host: str, method: str, params: list):
+async def bitcoin_rpc(session, host: str, method: str, params: list, wallet: str = ""):
     auth = aiohttp.BasicAuth("bench", "bench")
-    async with session.post(f"http://{host}:18443/", auth=auth,
+    path = f"/wallet/{wallet}" if wallet else "/"
+    async with session.post(f"http://{host}:18443{path}", auth=auth,
                             json={"jsonrpc": "1.0", "id": "bootstrap",
                                   "method": method, "params": params}) as resp:
         payload = await resp.json()
@@ -92,10 +93,17 @@ async def wait_synced(session, nodes: list[Node], timeout: float = 300.0) -> boo
     and the retry loop that would follow is far harder to debug than waiting
     here.
     """
+    # Agreement on block height is the substantive condition, not the
+    # `synced_to_chain` flag. That flag flaps: a node momentarily reports false
+    # right after a block even while sitting at the tip, and one node in Mumbai
+    # doing so was enough to fail the whole run. What actually matters for
+    # opening channels is that every node sees the same chain.
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
         info = await asyncio.gather(*(rest(session, n, "GET", "/v1/getinfo") for n in nodes))
-        if all(r is not None and r.get("synced_to_chain") for r, _ in info):
+        heights = {r.get("block_height") for r, _ in info if r}
+        got_all = len([1 for r, _ in info if r]) == len(nodes)
+        if got_all and len(heights) == 1 and None not in heights:
             return True
         await asyncio.sleep(5)
     return False
@@ -107,9 +115,11 @@ async def main() -> int:
                     help="JSON: {node_id: {url, macaroon}} written by deploy_lightning.sh")
     ap.add_argument("--bitcoind-host", default="10.30.0.10")
     ap.add_argument("--out", default="config/phase3.json")
+    ap.add_argument("--scale", type=int, default=1,
+                    help="capacity multiplier; topo_mod.WELL_CAPITALISED_SCALE for the main arm")
     args = ap.parse_args()
 
-    plan = topo_mod.build()
+    plan = topo_mod.build(scale=args.scale)
     report = topo_mod.verify(plan)
     print(f"topology: {report['nodes']} nodes, {report['channels']} channels, "
           f"skew {report['capacity_skew']}x, {report['channels_per_node']} channels/node")
@@ -146,23 +156,122 @@ async def main() -> int:
 
         # 2. Fund every node that opens a channel. Openers need on-chain coins;
         #    a node that only receives channels needs none.
-        openers = sorted({c.source for c in plan.channels})
-        print(f"\n[2/6] funding {len(openers)} channel openers")
+        # Openers are funded by TRANSFER from the mining wallet, not by mining
+        # to each of them.
+        #
+        # The first version mined blocks directly to every opener until its
+        # balance was sufficient. That works only while the block subsidy is
+        # large. regtest halves the subsidy every 150 blocks, so by the time the
+        # chain had grown past 25,000 blocks each block was worth nothing and
+        # the loop mined tens of thousands of blocks while funding nobody.
+        #
+        # The mining wallet already holds the early, large subsidies. Sending
+        # from it is one transaction per opener and is independent of height.
+        # Which channels already exist must be known BEFORE funding, not after.
+        # Funding was sized from the whole plan, but a re-run's openers have
+        # already spent their coins into the channels they opened -- so the
+        # script saw them as broke and demanded 1,900 BTC that was not missing
+        # at all, it was simply already inside channels. Need is therefore
+        # computed only over channels still to open.
+        existing: set[tuple[str, str]] = set()
+        for node in nodes.values():
+            for path in ("/v1/channels", "/v1/channels/pending"):
+                data, _ = await rest(session, node, "GET", path)
+                if not data:
+                    continue
+                blobs = (data.get("channels") or []) + \
+                        [q.get("channel", {}) for q in data.get("pending_open_channels") or []]
+                for c in blobs:
+                    peer = c.get("remote_pubkey") or c.get("remote_node_pub")
+                    if peer:
+                        existing.add(tuple(sorted((node.pubkey or "", peer))))
+
+        remaining = [ch for ch in plan.channels
+                     if tuple(sorted((nodes[ch.source].pubkey or "",
+                                      nodes[ch.target].pubkey or ""))) not in existing]
+        print(f"  {len(existing)} channels already open, {len(remaining)} to go")
+
+        need: dict[str, int] = {}
+        for ch in remaining:
+            need[ch.source] = need.get(ch.source, 0) + ch.capacity_sat
+
+        openers = sorted(need)
+        total_btc = sum(need.values()) / 1e8
+        print(f"\n[2/6] funding {len(openers)} openers for {len(remaining)} channels "
+              f"({total_btc:,.1f} BTC)")
+
+        # Send only the SHORTFALL. A re-run must not re-send what an opener
+        # already holds: the first attempt moved most of the mining wallet's
+        # balance out, and topping every node up from zero again would demand
+        # far more than exists -- the run would refuse to start even though the
+        # coins were already sitting exactly where they belonged.
+        shortfall: dict[str, float] = {}
         for node_id in openers:
-            node = nodes[node_id]
-            addr, err = await rest(session, node, "POST", "/v1/newaddress",
-                                   {"type": "WITNESS_PUBKEY_HASH"})
-            if err:
-                print(f"  {node_id}: address failed ({err})")
+            b, _ = await rest(session, nodes[node_id], "GET", "/v1/balance/blockchain")
+            have = int((b or {}).get("confirmed_balance", 0) or 0)
+            want = int(need[node_id] * 1.5)     # headroom for fees and reserve
+            if have < want:
+                shortfall[node_id] = round((want - have) / 1e8, 8)
+
+        if not shortfall:
+            print("  every opener already funded")
+        else:
+            required = sum(shortfall.values())
+            bal = await bitcoin_rpc(session, args.bitcoind_host, "getbalance", [], wallet="bench")
+            print(f"  {len(shortfall)} openers short by {required:,.1f} BTC; wallet holds {bal:,.1f}")
+            if bal < required * 1.02:
+                print("  INSUFFICIENT: mine more early-subsidy blocks or lower --scale")
                 return 1
+            for node_id, amount in shortfall.items():
+                addr, err = await rest(session, nodes[node_id], "GET",
+                                       "/v1/newaddress?type=WITNESS_PUBKEY_HASH")
+                if err:
+                    print(f"  {node_id}: address failed ({err})")
+                    return 1
+                await bitcoin_rpc(session, args.bitcoind_host, "sendtoaddress",
+                                  [addr["address"], amount], wallet="bench")
+                print(f"  {node_id}: topped up {amount:,.2f} BTC")
+
+        burn, _ = await rest(session, nodes[openers[0]], "GET",
+                             "/v1/newaddress?type=WITNESS_PUBKEY_HASH")
+        # Mine until the mempool is empty, not a fixed number of blocks. A
+        # fixed count confirmed only the transfers that had propagated by then;
+        # the rest sat unconfirmed, and every channel open failed with "not
+        # enough witness outputs ... only have 0 BTC available" -- an error that
+        # points at the opener rather than at the funding that never confirmed.
+        for _ in range(20):
+            info = await bitcoin_rpc(session, args.bitcoind_host, "getmempoolinfo", [])
+            if int(info.get("size", 0)) == 0:
+                break
             await bitcoin_rpc(session, args.bitcoind_host, "generatetoaddress",
-                              [10, addr["address"]])
-        # Coinbase maturity: without these blocks the funds exist but cannot
-        # be spent, and every channel open fails with an opaque error.
-        burn, _ = await rest(session, nodes[openers[0]], "POST", "/v1/newaddress",
-                             {"type": "WITNESS_PUBKEY_HASH"})
+                              [3, burn["address"]])
+            await asyncio.sleep(2)
         await bitcoin_rpc(session, args.bitcoind_host, "generatetoaddress",
-                          [COINBASE_MATURITY, burn["address"]])
+                          [3, burn["address"]])
+        # Wait for the coins to actually appear in each opener's wallet.
+        #
+        # Mining until the mempool empties confirms the transfers on the chain,
+        # but LND still has to scan those blocks and credit its own wallet.
+        # Opening a channel in that gap fails with "not enough witness outputs
+        # ... only have 0 BTC available" -- which reads as a funding failure
+        # when the funding is already on chain and simply not yet noticed.
+        print("  waiting for openers to see their funds")
+        deadline_funds = asyncio.get_event_loop().time() + 300
+        while asyncio.get_event_loop().time() < deadline_funds:
+            short = []
+            for node_id in openers:
+                b, _ = await rest(session, nodes[node_id], "GET", "/v1/balance/blockchain")
+                have = int((b or {}).get("confirmed_balance", 0) or 0)
+                if have < need[node_id]:
+                    short.append(node_id)
+            if not short:
+                break
+            await bitcoin_rpc(session, args.bitcoind_host, "generatetoaddress",
+                              [2, burn["address"]])
+            await asyncio.sleep(10)
+        else:
+            print(f"  WARNING: {len(short)} openers still short after 300s")
+
         if not await wait_synced(session, list(nodes.values())):
             print("  nodes did not reach chain tip")
             return 1
@@ -183,24 +292,53 @@ async def main() -> int:
 
         # 4. Open channels exactly as planned.
         print(f"\n[4/6] opening {len(plan.channels)} channels")
-        failures = []
-        for ch in plan.channels:
-            src, dst = nodes[ch.source], nodes[ch.target]
-            body = {
-                "node_pubkey_string": dst.pubkey,
-                "local_funding_amount": str(ch.capacity_sat),
-                "push_sat": str(ch.push_sat),
-                "private": False,
-                "sat_per_vbyte": "1",
-            }
-            res, err = await rest(session, src, "POST", "/v1/channels", body)
-            if err:
-                failures.append(f"{ch.source}->{ch.target} ({ch.capacity_sat} sat): {err}")
-        if failures:
-            print(f"  {len(failures)} channel opens failed:")
-            for f in failures[:10]:
-                print(f"    {f}")
+
+        # Reuses the `existing` set computed before funding -- opens are
+        # on-chain and irreversible, so repeating one would burn coins and
+        # build a topology that no longer matches the verified plan.
+        if existing:
+            print(f"  {len(existing)} channels already present, skipping those")
+
+        # Opens are retried in rounds, mining between them.
+        #
+        # An opener funds several channels. The first open spends its UTXO and
+        # returns the remainder as CHANGE, which is unconfirmed -- so the second
+        # open from the same node fails with "only have 0 BTC available" even
+        # though the node holds plenty. Mining between rounds confirms the
+        # change and lets the next open proceed. Repeating until no further
+        # progress converges without guessing how many rounds are needed.
+        pending = list(remaining)
+        for round_no in range(1, 13):
+            failures = []
+            for ch in pending:
+                src, dst = nodes[ch.source], nodes[ch.target]
+                body = {
+                    "node_pubkey_string": dst.pubkey,
+                    "local_funding_amount": str(ch.capacity_sat),
+                    "push_sat": str(ch.push_sat),
+                    "private": False,
+                    "sat_per_vbyte": "1",
+                }
+                res, err = await rest(session, src, "POST", "/v1/channels", body)
+                if err:
+                    failures.append(ch)
+            opened = len(pending) - len(failures)
+            print(f"  round {round_no}: opened {opened}, {len(failures)} remaining")
+            if not failures:
+                break
+            if opened == 0 and round_no > 2:
+                print("  no progress -- these cannot be funded:")
+                for ch in failures[:5]:
+                    print(f"    {ch.source}->{ch.target} ({ch.capacity_sat/1e8:.2f} BTC)")
+                return 1
+            pending = failures
+            await bitcoin_rpc(session, args.bitcoind_host, "generatetoaddress",
+                              [3, burn["address"]])
+            await asyncio.sleep(12)
+        else:
+            print(f"  {len(pending)} channels never opened")
             return 1
+
         print("  all opens accepted")
 
         # 5. Confirm.
@@ -211,14 +349,27 @@ async def main() -> int:
         await wait_synced(session, list(nodes.values()))
 
         # 6. Verify -- the step that decides whether the arm is measurable.
+        # A channel becomes active only once both ends are connected and the
+        # funding is confirmed, and peers three continents apart take longer to
+        # get there than local ones. Judging once, immediately, mistakes "not
+        # yet" for "never" -- so poll.
         print("\n[6/6] verifying")
+        deadline = asyncio.get_event_loop().time() + 900
         active = 0
-        for node in nodes.values():
-            chans, err = await rest(session, node, "GET", "/v1/channels")
-            if err:
-                continue
-            active += sum(1 for c in chans.get("channels", []) if c.get("active"))
-        active //= 2   # each channel is reported by both ends
+        while True:
+            active = 0
+            for node in nodes.values():
+                chans, err = await rest(session, node, "GET", "/v1/channels")
+                if err:
+                    continue
+                active += sum(1 for c in chans.get("channels", []) if c.get("active"))
+            active //= 2   # each channel is reported by both ends
+            if active >= len(plan.channels) or asyncio.get_event_loop().time() > deadline:
+                break
+            print(f"  {active}/{len(plan.channels)} active, waiting...")
+            await bitcoin_rpc(session, args.bitcoind_host, "generatetoaddress",
+                              [1, burn["address"]])
+            await asyncio.sleep(20)
         print(f"  active channels {active} / {len(plan.channels)}")
         if active < len(plan.channels):
             print("  REFUSING: topology incomplete. A partially funded network still")

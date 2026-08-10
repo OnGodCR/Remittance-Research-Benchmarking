@@ -112,7 +112,10 @@ resource "google_compute_firewall" "internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["9735-9739", "8080-8084", "10009-10013", "18443-18444"]
+    # 28332-28333 are bitcoind's ZMQ block/tx feeds. LND on hosts 1-3 subscribes
+    # to them for chain notifications; without these open those nodes never see a
+    # block and every channel stays pending forever.
+    ports    = ["9735-9739", "8080-8084", "10009-10013", "18443-18444", "28332-28333"]
   }
   allow { protocol = "udp" }
   allow { protocol = "icmp" }
@@ -213,12 +216,23 @@ resource "google_compute_instance" "generator" {
     access_config {}
   }
 
+  # The generator is deliberately NOT spot, unlike the four LND hosts.
+  #
+  # It was preempted at 21:31 on 9 Aug, mid-deployment. Losing an LND host
+  # costs one region's nodes and the auto-unlock service brings them back;
+  # losing the generator stops all data collection and nothing restarts it,
+  # because a reclaimed spot instance stays STOPPED. That makes it the single
+  # point of failure for an unattended overnight sweep.
+  #
+  # One n2-standard-8 on demand is about $0.27/hr more than spot -- roughly $6
+  # across the whole Lightning phase, against a sweep that otherwise stalls
+  # silently until a human notices. The hosts stay on spot, where preemption is
+  # cheap and self-healing.
   scheduling {
-    provisioning_model          = local.spot.provisioning_model
-    preemptible                 = local.spot.preemptible
-    automatic_restart           = local.spot.automatic_restart
-    on_host_maintenance         = local.spot.on_host_maintenance
-    instance_termination_action = local.spot.instance_termination_action
+    provisioning_model  = "STANDARD"
+    preemptible         = false
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
   }
 
   metadata_startup_script = local.generator_startup

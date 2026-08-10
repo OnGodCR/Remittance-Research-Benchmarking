@@ -409,3 +409,17 @@ Lightning is the only architecture needing a currency conversion. Polygon and NE
 **Held constant across every run** (`claude.md` §6), as a single constant `harness.topology.BTC_USD_PINNED` that the adapter and the funding script both import — they cannot drift apart.
 
 **What it means for the arm.** At this rate a $200 remittance is 15.2% of a median Lightning channel and **99.3% of a median node's entire capacity**; $500 is 248%. That relationship is the structural reason payment size drives success on Lightning and not on Polygon, and it is why the topology keeps capacities at true mainnet scale rather than scaling down — shrinking the network would destroy the one ratio that decides every routing outcome.
+
+## NEAR cluster size is quota-constrained — 10 Aug 2026
+
+**Phase 4 will run 8 NEAR validators, not 12.** This is a constraint, and the paper should say so rather than present 8 as a free choice.
+
+**What happened.** The project-wide vCPU ceiling is 96. A 12-validator cluster needs 104 (12 × 8 vCPU plus an 8 vCPU generator), so an increase to 144 was requested and **denied**. A reduced request to 120 is pending.
+
+**Why 8 is still sufficient.** `claude.md` §4 sizes the cluster by NEAR's sharding structure: at least 4 shards with at least 2 validators each. Eight validators satisfies that exactly. Twelve was headroom, not a requirement.
+
+**What is genuinely lost.** With 8 validators over 4 shards there are exactly 2 validators per shard and no margin: losing one node takes a shard to a single validator. That makes the adversarial arm harsher on NEAR than it was on Polygon, where losing one of four validators still left three. **State this when reporting NEAR's adversarial results** — the comparison is not like-for-like.
+
+**A configuration requirement this creates.** The NEAR chain config must pin the shard count to 4. If it produces more shards than that, 8 validators cannot give every shard 2, and the deployment would silently violate the sizing rule the cluster was built to satisfy.
+
+**Sequencing.** 8 validators plus generator is 72 vCPU; the Lightning cluster is 24. Together that is exactly 96, with no margin, so **Lightning must be destroyed before NEAR is deployed**.
