@@ -160,7 +160,7 @@ Work required:
 
 - **Cost crossover (pre-registered, §12).** Polygon/NEAR charge flat fees; Lightning charges partly by percentage. A crossover should exist where Lightning stops being cheapest as amounts rise. Locating it is a pre-registered secondary objective.
 - **Phase 5 calibration not started.** Needs mainnet gas prices from Polygonscan and NEAR Explorer, pulled on one stated date, cited once. Plus the two-figure calibration gap (demand ratio and capability gap) per `ANALYSIS_PLAN.md` §11.
-- **NEAR will need more quota.** 8-12 validators at 8 vCPU ≈ 96-100 processors. Limit is 96 — request early, in ~50% steps.
+- **NEAR is capped at 8 validators by quota.** The ceiling is 96 vCPU project-wide. 12 validators (104) does not fit; a request for 144 was **denied** on 10 Aug, and 120 is pending. 8 validators + generator = 72 and fits. Eight satisfies the scope's ≥4 shards × ≥2 validators, but leaves no margin — losing one node drops a shard to a single validator, which makes NEAR's adversarial arm harsher than Polygon's. Pin the NEAR shard count to 4, and destroy Lightning before deploying NEAR (24 + 72 = 96 exactly).
 
 ---
 

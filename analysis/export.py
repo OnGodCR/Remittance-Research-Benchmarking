@@ -79,6 +79,16 @@ NON_RESULT_PHASES = {
     "step1-impairment",
     "step3-background",
     "step4-adversarial",
+    # Phase 3 (Lightning) shake-out. Same reasoning as the Polygon steps
+    # above: these validated the pipeline, measured whether a fix worked, or
+    # probed the size gradient with short windows and a single repeat. They
+    # are genuinely informative and are precisely why they must not be
+    # reported -- an unreplicated 90-second run cannot separate a real effect
+    # from a lucky draw, and phase-3-mctest in particular captured the network
+    # while it was degraded by the rebalancer bug.
+    "phase-3-smoke",
+    "phase-3-mctest",
+    "phase-3-sizetest",
 }
 
 

@@ -24,7 +24,15 @@ from pathlib import Path
 
 from .adapters.lightning import LightningAdapter
 from .adapters.null import NullAdapter
-from .adapters.polygon import PolygonAdapter
+
+# PolygonAdapter is imported lazily, inside the functions that use it.
+#
+# It pulls in web3 and eth_account, which the Lightning generator has no reason
+# to install -- and a missing Polygon dependency must never stop a Lightning
+# run. Importing it at module scope meant every `harness run` on the Lightning
+# cluster died before reaching the adapter it actually needed.
+#
+# This changes nothing about measurement: the import moves, the code does not.
 from .core.arrival import seed_for
 from .core.parallel import run_parallel_benchmark
 from .core.runner import run_benchmark
@@ -87,7 +95,9 @@ FULL_STACK_REALISM = {
 }
 
 
-def load_polygon_adapter(config_path: Path) -> PolygonAdapter:
+def load_polygon_adapter(config_path: Path):
+    from .adapters.polygon import PolygonAdapter
+
     config = json.loads(config_path.read_text())
     keys_path = REPO / "keys" / "senders.json"
     if not keys_path.exists():
@@ -185,6 +195,8 @@ async def cmd_run(args: argparse.Namespace) -> int:
         summary = await run_parallel_benchmark(cfg, store, spec, workers=args.workers)
         store.close()
         return 0 if not summary["generator_saturated"] else 2
+
+    from .adapters.polygon import PolygonAdapter
 
     adapter = load_polygon_adapter(Path(args.config))
 

@@ -183,7 +183,39 @@ class Topology:
         return [n for n in self.nodes if n.role == "recipient"]
 
 
-def build(seed: int = 20260809) -> Topology:
+#: Capacity multiplier for the well-capitalised arm.
+#:
+#: The measured verification run made the problem concrete: at real 1ML
+#: capacities a $200 payment is 15% of a median channel, so a channel carries
+#: about three payments before its directional liquidity is spent. Sender
+#: liquidity across the whole network covered 46 payments; the gentlest load
+#: step of the pre-registered protocol needs 2,900.
+#:
+#: Scaling is legitimate rather than a workaround. Lightning capacity is not
+#: fixed -- capital follows demand, and 2,646 BTC against a $905B/year
+#: remittance market reflects today's adoption, not a protocol limit. A serious
+#: remittance operator would provision generously, and this arm models that.
+#:
+#: The SHAPE is preserved exactly: every capacity is drawn from the same fitted
+#: lognormal and multiplied by one constant, so concentration, channels per
+#: node and the hub/leaf structure are untouched. Only the payment-to-capacity
+#: ratio changes -- which is the variable this arm deliberately relaxes and the
+#: liquidity arm deliberately keeps.
+#: 500x, sized so a single worst-case run cannot exhaust the network.
+#:
+#: Drain is set by the WORKLOAD, not by channel size: 300/sec for 290s at $500
+#: moves 671 BTC one way whatever the channels hold. Scaling capacity does not
+#: reduce that -- it decides whether the network can absorb it without hitting
+#: empty mid-run, which is when failures stop measuring Lightning and start
+#: measuring our fixture running dry.
+#:
+#: At 500x the network holds ~3,655 BTC, so the heaviest run is 18% of
+#: capacity. Restoring the drain is the rebalancer's job, and the sweep now
+#: sizes each gap to the run it follows. Funding needs ~5,483 BTC against
+#: 7,232 mined, so no further mining is required.
+WELL_CAPITALISED_SCALE = 500
+
+def build(seed: int = 20260809, scale: int = 1) -> Topology:
     """Generate the channel plan.
 
     Seeded and deterministic: the same topology must come back on every
@@ -283,7 +315,7 @@ def build(seed: int = 20260809) -> Topology:
     # without distorting the distribution we just fitted.
     total_channels = len(backbone) + len(mesh) + len(leaf_links)
     caps = sorted(
-        (max(int(rng.lognormvariate(LOGNORMAL_MU, LOGNORMAL_SIGMA) * SATS_PER_BTC), 20_000)
+        (max(int(rng.lognormvariate(LOGNORMAL_MU, LOGNORMAL_SIGMA) * SATS_PER_BTC), 20_000) * scale
          for _ in range(total_channels)),
         reverse=True,
     )

@@ -42,3 +42,5 @@ terraform.tfvars
 terraform/phase3/terraform.tfvars
 terraform/phase3/*.tfstate*
 terraform/phase3/.terraform/
+
+keys/lightning_endpoints.json

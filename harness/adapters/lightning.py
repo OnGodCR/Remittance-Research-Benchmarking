@@ -67,6 +67,11 @@ _FEE_LIMIT_FRACTION = 0.05
 #: the run's scheduled payment count in `setup()`; this is only the floor.
 _MIN_INVOICE_POOL = 256
 
+#: How many invoice requests are in flight at once while filling the pool.
+#: High enough to hide a 315 ms intercontinental round trip, bounded so that
+#: minting cannot starve the connection pool the measured run needs.
+_MINT_CONCURRENCY = 100
+
 SATS_PER_BTC = 100_000_000
 
 
@@ -151,8 +156,19 @@ class LightningAdapter(Adapter):
         """
         for ep in self._senders + self._recipients:
             info = await self._get(ep, "/v1/getinfo")
-            if info is None or not info.get("synced_to_chain"):
+            if info is None:
                 return False
+            # `synced_to_chain` is deliberately NOT required.
+            #
+            # LND reports false whenever the chain tip looks stale, and a
+            # regtest chain only produces blocks when we mine them -- so a few
+            # hours into a sweep every node declares itself out of sync while
+            # routing payments perfectly well. Requiring it aborted a run on a
+            # network whose channels were all active and all routable.
+            #
+            # What actually determines whether a payment can be made is having
+            # a live channel, so that is what is checked. A separate block
+            # ticker keeps the chain moving for the sake of realism.
             if int(info.get("num_active_channels", 0)) < 1:
                 return False
         return True
@@ -269,24 +285,47 @@ class LightningAdapter(Adapter):
         return ConfirmResult(status="failed", error=str(reason))
 
     async def _mint_invoices(self, per_recipient: int, amount_usd: float) -> None:
-        """Pre-generate the invoice pool, in parallel across recipients."""
+        """Pre-generate the invoice pool, concurrently.
+
+        Minting is one HTTP round trip per invoice, and the recipients sit in
+        Mumbai and Singapore -- 315 ms each from the generator in Virginia.
+        Issued one at a time that is 81 MINUTES of setup before a single
+        300/sec run, and roughly 27 hours across the high-load steps: setup
+        would have cost more than the measurements.
+
+        Issued concurrently the same work takes about 12 ms each, a 27x
+        difference that is entirely latency hiding, not extra load on the
+        nodes. The semaphore keeps a lid on it so minting cannot itself
+        saturate the connection pool the measured run depends on.
+        """
         sats = self.usd_to_sat(amount_usd)
         self._invoices = [[] for _ in self._recipients]
+        sem = asyncio.Semaphore(_MINT_CONCURRENCY)
 
-        async def mint(idx: int, ep: dict[str, str]) -> None:
-            batch: list[tuple[str, str]] = []
-            for _ in range(per_recipient):
+        async def one(idx: int, ep: dict[str, str]) -> None:
+            async with sem:
                 resp = await self._post(ep, "/v1/invoices",
                                         {"value": str(sats), "expiry": "7200"})
-                if resp is None:
-                    continue
-                # LND returns r_hash base64; the payment hash we key on is its
-                # hex form, which is what appears in logs and lncli output.
-                r_hash = base64.b64decode(resp["r_hash"]).hex()
-                batch.append((resp["payment_request"], r_hash))
-            self._invoices[idx] = batch
+            if resp is None:
+                return
+            # LND returns r_hash base64; the payment hash we key on is its hex
+            # form, which is what appears in logs and lncli output.
+            r_hash = base64.b64decode(resp["r_hash"]).hex()
+            self._invoices[idx].append((resp["payment_request"], r_hash))
 
-        await asyncio.gather(*(mint(i, ep) for i, ep in enumerate(self._recipients)))
+        await asyncio.gather(*(
+            one(i, ep)
+            for i, ep in enumerate(self._recipients)
+            for _ in range(per_recipient)
+        ))
+
+        minted = sum(len(p) for p in self._invoices)
+        if minted < per_recipient * len(self._recipients) * 0.9:
+            # Short pools mean payments later fail with "invoice pool
+            # exhausted" -- our artifact, recorded as if Lightning refused the
+            # payment. Better to say so now than to find it in the data.
+            print(f"  WARNING: minted {minted} invoices, wanted "
+                  f"{per_recipient * len(self._recipients)}")
 
     async def _take_invoice(self) -> tuple[str, str] | None:
         """Pop one invoice, round robin across recipients.

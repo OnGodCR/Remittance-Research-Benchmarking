@@ -73,12 +73,25 @@ if [ "$RUN_BITCOIND" = "yes" ]; then
   # These must never be reused anywhere real.
   if [ ! -f "$BASE/bitcoind/bitcoin.conf" ]; then
     cat > "$BASE/bitcoind/bitcoin.conf" <<'CONF'
+# Network-specific options MUST sit under [regtest]. Bitcoin Core refuses to
+# start otherwise -- "Config setting for -rpcbind only applied on regtest
+# network when in [regtest] section" -- and systemd then restart-loops the
+# service forever, which surfaces as every LND node stuck LOCKED rather than
+# as an obvious bitcoind failure.
 regtest=1
 server=1
 txindex=1
+# Load the funding wallet at startup. bitcoind does not auto-load wallets, so
+# after any restart of this host every RPC against it failed with "Requested
+# wallet does not exist or is not loaded" -- which reads as a missing wallet
+# rather than an unloaded one.
+wallet=bench
 rpcuser=bench
 rpcpassword=bench
+
+[regtest]
 rpcbind=0.0.0.0
+rpcport=18443
 rpcallowip=10.30.0.0/16
 zmqpubrawblock=tcp://0.0.0.0:28332
 zmqpubrawtx=tcp://0.0.0.0:28333
@@ -130,6 +143,13 @@ externalip=$PRIVATE_IP:$((9735 + i))
 alias=h$HOST_INDEX-n$i
 accept-keysend=true
 maxpendingchannels=25
+# LND caps channel capacity even with wumbo enabled -- the default is around
+# 10 BTC. The well-capitalised arm uses larger channels, and the cap must be
+# lifted on BOTH ends: an over-sized request is refused by the receiver, and
+# surfaces as "received funding error from <pubkey>" rather than as a local
+# error, which points at the wrong node entirely.
+maxchansize=500000000000
+minchansize=20000
 # Routing nodes on the real network do not sit idle waiting for perfect
 # routes. These keep failed-payment behaviour realistic rather than letting
 # LND retry indefinitely, which would turn routing failures into latency and
