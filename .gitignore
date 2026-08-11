@@ -44,3 +44,8 @@ terraform/phase3/*.tfstate*
 terraform/phase3/.terraform/
 
 keys/lightning_endpoints.json
+
+terraform/phase4/terraform.tfvars
+terraform/phase4/*.tfstate*
+terraform/phase4/.terraform/
+keys/near_senders.json
