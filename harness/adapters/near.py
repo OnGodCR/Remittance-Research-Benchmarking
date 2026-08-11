@@ -94,11 +94,21 @@ class NearAdapter(Adapter):
         #: 2 per shard and no margin.
         self.expected_shards = 4
 
+        #: Validators that must be in the CURRENT epoch. Chunk count alone does
+        #: not prove work is divided -- see health_check step 1b.
+        self.expected_validators = 8
+
         self._accounts: list[Account] = []
         self._next_sender = 0
         self._next_recipient = 0
         #: tx hash -> (signing account, shard boundaries crossed)
         self._signers: dict[str, tuple[str, int]] = {}
+
+        #: Seeded so the shard mix is reproducible across repeats of a
+        #: configuration -- two repeats must not differ because one happened to
+        #: draw more cross-shard transfers than the other.
+        import random as _random
+        self._rng = _random.Random(20260811)
 
         #: Genesis shard boundary accounts, read once in setup(). NEAR assigns
         #: an account to a shard by where its name falls between these.
@@ -159,14 +169,42 @@ class NearAdapter(Adapter):
 
         # 1. Sharded? One chunk per shard in every block.
         try:
-            block = await provider.get_block(finality="final")
-            shards = len(block.get("chunks") or [])
-        except Exception:                          # noqa: BLE001
+            # Called through json_rpc rather than py-near's get_block(), whose
+            # signature in this version takes no finality argument -- passing
+            # one raises TypeError, which this check swallowed, so the run
+            # aborted with no indication of which condition had failed.
+            block = await provider.json_rpc("block", {"finality": "final"})
+            shards = len((block or {}).get("chunks") or [])
+        except Exception as exc:                   # noqa: BLE001
+            print(f"  HEALTH CHECK FAILED: could not read a block ({exc})")
             return False
         if shards < self.expected_shards:
             print(f"  HEALTH CHECK FAILED: chain has {shards} shard(s), "
                   f"expected {self.expected_shards}. A single-shard chain would "
                   f"measure sharding that is not happening.")
+            return False
+
+        # 1b. Are the shards actually being served by DIFFERENT validators?
+        #
+        # Counting chunks is not enough, and this nearly cost the whole arm.
+        # After a restart the chain kept advancing with ONE validator producing
+        # chunks for all four shards -- 4 chunks per block, health check
+        # satisfied, and completely meaningless: one machine doing all the work
+        # split four ways is not sharding. Validators are chosen per epoch and
+        # nodes that miss blocks get dropped, so this can happen at any time,
+        # not just at startup.
+        try:
+            vs = await provider.json_rpc("validators", [None])
+            current = (vs or {}).get("current_validators") or []
+        except Exception:                          # noqa: BLE001
+            return False
+        if len(current) < self.expected_validators:
+            print(f"  HEALTH CHECK FAILED: {len(current)} validator(s) in the "
+                  f"current epoch, expected {self.expected_validators}. Work is "
+                  f"not divided across the cluster, so any 'sharding' result "
+                  f"would describe one machine chunking its own output.")
+            for v in current:
+                print(f"    {v.get('account_id')} serving shards {v.get('shards')}")
             return False
 
         # 2. Shard boundaries were read. Without them every transfer would be
@@ -208,7 +246,27 @@ class NearAdapter(Adapter):
     async def submit(self, seq: int, amount_usd: float) -> SubmitResult:
         acct = self._accounts[self._next_sender % len(self._accounts)]
         self._next_sender += 1
-        recipient = self._recipients[self._next_recipient % len(self._recipients)]
+
+        # Destination selection targets the SHARD MIX, not just a round robin.
+        #
+        # Senders and recipients are both laid out across shards in the same
+        # rotation, so pairing sender i with recipient i put both on the SAME
+        # shard every time: 100% same-shard traffic, and the cross-shard
+        # finding -- the whole reason this arm exists -- would have been zero
+        # in the data while everything looked healthy.
+        #
+        # Payments are drawn to match the mix a real S-shard network sees: a
+        # randomly addressed transfer is cross-shard with probability
+        # (S-1)/S, so with 4 shards 75% should cross. Choosing the recipient
+        # by shard rather than by index reproduces that, and every payment
+        # still records which case it was (see await_confirmation).
+        sender_shard = self._shard_of(acct.account_id)
+        want_cross = self._rng.random() < (self.expected_shards - 1) / self.expected_shards
+        pool = [r for r in self._recipients
+                if (self._shard_of(r) != sender_shard) == want_cross]
+        if not pool:
+            pool = self._recipients
+        recipient = pool[self._next_recipient % len(pool)]
         self._next_recipient += 1
 
         amount = self.to_token_units(amount_usd)
