@@ -144,6 +144,35 @@ def load_lightning_adapter(config_path: Path) -> LightningAdapter:
     )
 
 
+def load_near_adapter(config_path: Path):
+    """Build the NEAR adapter from the config the deploy script writes.
+
+    Imported lazily for the same reason PolygonAdapter is: py-near is a NEAR
+    dependency and a Lightning or Polygon generator has no reason to install
+    it. A missing dependency for one architecture must never stop a run of
+    another.
+    """
+    from .adapters.near import NearAdapter
+
+    config = json.loads(config_path.read_text())
+    for key in ("rpc_url", "token_contract", "recipients"):
+        if key not in config:
+            raise SystemExit(
+                f"{config_path} has no '{key}'. Run the NEAR deploy script "
+                f"first -- it creates the accounts, deploys the NEP-141 token "
+                f"and writes this file."
+            )
+    keys_path = REPO / "keys" / "near_senders.json"
+    if not keys_path.exists():
+        raise SystemExit(f"missing {keys_path}. Run the NEAR deploy script first.")
+    return NearAdapter(
+        rpc_url=config["rpc_url"],
+        token_contract=config["token_contract"],
+        sender_keys=json.loads(keys_path.read_text()),
+        recipients=config["recipients"],
+    )
+
+
 def _architecture_of(config_path: Path) -> str:
     """Pick the adapter from the config, not from a flag.
 
@@ -179,8 +208,11 @@ def _adapter_spec(config_path: Path) -> dict:
 
 
 async def cmd_run(args: argparse.Namespace) -> int:
-    if _architecture_of(Path(args.config)) == "lightning":
+    arch = _architecture_of(Path(args.config))
+    if arch == "lightning":
         return await _run_lightning(args)
+    if arch == "near":
+        return await _run_near(args)
 
     if args.workers > 1:
         spec = _adapter_spec(Path(args.config))
@@ -250,6 +282,39 @@ async def _run_lightning(args: argparse.Namespace) -> int:
             "scheduled_count": int(args.tps * args.window * 1.2),  # Poisson headroom
             "tx_size_usd": args.amount,
         },
+    )
+    summary = await run_benchmark(adapter, cfg, store)
+    store.close()
+    return 0 if not summary["generator_saturated"] else 2
+
+
+async def _run_near(args: argparse.Namespace) -> int:
+    """One NEAR run.
+
+    Single-process, like Lightning and unlike Polygon's multi-worker path.
+    Polygon needed workers because signing and nonce management were CPU-bound
+    in our client; a NEAR submission is one RPC call and the work happens on
+    the validators. If the harness ever does saturate, `capacity` shows it.
+    """
+    from .adapters.near import NearAdapter
+
+    adapter = load_near_adapter(Path(args.config))
+
+    needed = NearAdapter.required_pool_size(args.tps)
+    have = len(adapter._sender_keys)
+    if have < needed:
+        print(f"WARNING: {args.tps:g}/sec wants ~{needed} sender accounts, only "
+              f"{have} available. NEAR orders transactions per access key by "
+              f"nonce, so sends will queue behind each other and the result "
+              f"will measure our own client rather than the chain.")
+
+    store = Store(args.db)
+    cfg = RunConfig(
+        architecture="near", adapter=adapter.name,
+        tx_size_usd=args.amount, target_tps=args.tps,
+        window_seconds=args.window, repeat_index=args.repeat,
+        arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
+        phase=args.phase, arm=args.arm,
     )
     summary = await run_benchmark(adapter, cfg, store)
     store.close()
