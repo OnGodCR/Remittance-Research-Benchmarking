@@ -54,7 +54,11 @@ locals {
     ]
   ])
 
-  shutdown_guard = templatefile("${path.module}/../phase1/scripts/shutdown_guard.sh", {
+  # phase 4's OWN guard, not phase 1's. The phase 1 guard polls eth_blockNumber,
+  # which does not exist on NEAR: it reads zero forever, decides the cluster is
+  # idle and shuts it down. It killed the Lightning cluster five times and six
+  # of eight NEAR validators within an hour of boot.
+  shutdown_guard = templatefile("${path.module}/scripts/shutdown_guard.sh", {
     max_lifetime_minutes  = var.max_lifetime_minutes
     idle_shutdown_minutes = var.idle_shutdown_minutes
   })
@@ -76,6 +80,8 @@ locals {
     local.shutdown_guard,
     file("${path.module}/../phase1/scripts/generator_setup.sh"),
   ])
+  # generator_setup.sh is reused deliberately: it only installs python and a
+  # venv, with no chain-specific logic, so it is architecture neutral.
 
   spot = var.use_spot ? {
     provisioning_model          = "SPOT"
