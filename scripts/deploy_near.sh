@@ -31,7 +31,13 @@ NUM_SHARDS="${1:-4}"
 SSH="gcloud compute ssh --strict-host-key-checking=no --project $PROJECT"
 SCP="gcloud compute scp --strict-host-key-checking=no --quiet --project $PROJECT"
 
-mapfile -t VALIDATORS < <(tofu -chdir=terraform/phase4 output -json validators \
+# NOT mapfile: macOS ships bash 3.2, which does not have it. The same class of
+# trap as macOS pgrep lacking -c (RESUME_HERE.md S5 trap 7) -- the script runs
+# from the laptop, so it must stay bash 3.2 compatible.
+VALIDATORS=()
+while IFS= read -r line; do
+  VALIDATORS+=("$line")
+done < <(tofu -chdir=terraform/phase4 output -json validators \
   | .venv/bin/python -c "import sys,json; [print(v['name'], v['zone'], v['private_ip']) for v in json.load(sys.stdin)]")
 NUM_VALIDATORS=${#VALIDATORS[@]}
 BOOT_NAME=$(echo "${VALIDATORS[0]}" | cut -d' ' -f1)

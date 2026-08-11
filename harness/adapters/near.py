@@ -97,8 +97,12 @@ class NearAdapter(Adapter):
         self._accounts: list[Account] = []
         self._next_sender = 0
         self._next_recipient = 0
-        #: tx hash -> the account that signed it, needed to query its status
-        self._signers: dict[str, str] = {}
+        #: tx hash -> (signing account, shard boundaries crossed)
+        self._signers: dict[str, tuple[str, int]] = {}
+
+        #: Genesis shard boundary accounts, read once in setup(). NEAR assigns
+        #: an account to a shard by where its name falls between these.
+        self._boundaries: list[str] = []
 
     @staticmethod
     def required_pool_size(target_tps: float, safety_factor: float = 3.0) -> int:
@@ -118,6 +122,18 @@ class NearAdapter(Adapter):
             acct = Account(key["account_id"], key["private_key"], rpc_addr=self._rpc_url)
             await acct.startup()
             self._accounts.append(acct)
+
+        # Read the shard boundaries so every transfer can be classified as
+        # same-shard or cross-shard. See `_shard_of` for why this matters more
+        # than it first appears.
+        try:
+            cfg = await self._accounts[0]._provider.json_rpc(
+                "EXPERIMENTAL_protocol_config", {"finality": "final"})
+            layout = (cfg or {}).get("shard_layout", {})
+            version = layout.get("V2") or layout.get("V1") or layout.get("V0") or {}
+            self._boundaries = version.get("boundary_accounts") or []
+        except Exception:                          # noqa: BLE001
+            self._boundaries = []
 
     async def teardown(self) -> None:
         for acct in self._accounts:
@@ -153,13 +169,20 @@ class NearAdapter(Adapter):
                   f"measure sharding that is not happening.")
             return False
 
-        # 2. Every sender holds tokens to send.
+        # 2. Shard boundaries were read. Without them every transfer would be
+        #    classified same-shard and the cross-shard finding would vanish.
+        if not self._boundaries:
+            print("  HEALTH CHECK FAILED: no shard boundaries read from genesis; "
+                  "every transfer would be misclassified as same-shard")
+            return False
+
+        # 3. Every sender holds tokens to send.
         for acct in self._accounts:
             if await self._ft_balance(acct, acct.account_id) <= 0:
                 print(f"  HEALTH CHECK FAILED: {acct.account_id} holds no tokens")
                 return False
 
-        # 3. Recipients are registered with the token contract. NEP-141
+        # 4. Recipients are registered with the token contract. NEP-141
         #    requires storage_deposit before an account can receive, and an
         #    unregistered recipient fails every transfer addressed to it --
         #    which would look like a chain failure rather than our setup.
@@ -205,13 +228,15 @@ class NearAdapter(Adapter):
             return SubmitResult(ok=False, error=f"{type(exc).__name__}: {exc}")
 
         tx_hash = str(tx_hash)
-        self._signers[tx_hash] = acct.account_id
+        crossed = 0 if self._shard_of(acct.account_id) == self._shard_of(recipient) else 1
+        self._signers[tx_hash] = (acct.account_id, crossed)
         return SubmitResult(ok=True, tx_ref=tx_hash, amount_native=amount)
 
     async def await_confirmation(self, tx_ref: str, timeout_seconds: float) -> ConfirmResult:
-        signer = self._signers.pop(tx_ref, None)
-        if signer is None:
+        entry = self._signers.pop(tx_ref, None)
+        if entry is None:
             return ConfirmResult(status="failed", error="no signer recorded for tx")
+        signer, crossed = entry
 
         provider = self._accounts[0]._provider
         deadline = asyncio.get_event_loop().time() + timeout_seconds
@@ -237,6 +262,20 @@ class NearAdapter(Adapter):
                     status="confirmed",
                     gas_used=self._total_gas(outcome),
                     fee_native=str(self._total_tokens_burnt(outcome)),
+                    # route_hops carries SHARD BOUNDARIES CROSSED here: 0 for a
+                    # same-shard transfer, 1 for cross-shard. The field is
+                    # otherwise unused on NEAR and the meaning is a fair
+                    # analogue -- how many boundaries the value had to cross.
+                    #
+                    # Recording it per transaction is what makes a 4-shard
+                    # measurement transferable to mainnet's 8-9. A random
+                    # transfer is cross-shard with probability (S-1)/S, so the
+                    # BLEND changes with shard count: 75% cross-shard at 4
+                    # shards, 87.5% at 8. Reporting only the 4-shard average
+                    # would understate mainnet cross-shard overhead. Measuring
+                    # the two regimes separately lets the average be recomputed
+                    # for any shard count.
+                    route_hops=crossed,
                 )
             if "Failure" in status:
                 return ConfirmResult(status="failed", error=str(status["Failure"])[:200])
@@ -247,6 +286,16 @@ class NearAdapter(Adapter):
         return ConfirmResult(status="timeout", error=f"not FINAL within {timeout_seconds:g}s")
 
     # -- internals ----------------------------------------------------------
+
+    def _shard_of(self, account_id: str) -> int:
+        """Which shard owns this account.
+
+        NEAR assigns an account to a shard by where its name sorts relative to
+        the genesis boundary accounts. With no boundaries read, everything
+        reports shard 0 and every transfer would be classified same-shard --
+        so `health_check` verifies the boundaries exist before a run starts.
+        """
+        return sum(1 for b in self._boundaries if account_id >= b)
 
     @staticmethod
     def _total_gas(outcome: dict) -> int | None:
