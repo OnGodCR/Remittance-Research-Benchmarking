@@ -155,7 +155,14 @@ variable "near_version" {
     nearcore release, pinned. claude.md S3 requires live, maintained,
     production node software at a fixed commit -- pinning aids reproducibility
     rather than harming it.
+
+    2.13.3, not 2.3.1. The older release implements protocol 72, and every
+    current near-sdk-rs build targets a much newer protocol: the contract
+    deploys successfully and then EVERY method call fails with
+    CompilationError(PrepareError(Deserialization)), because the runtime cannot
+    parse a module built for a protocol it does not know. Node and SDK versions
+    have to move together.
   EOT
   type    = string
-  default = "2.3.1"
+  default = "2.13.3"
 }

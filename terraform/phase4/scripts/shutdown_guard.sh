@@ -41,7 +41,17 @@ shutdown -h "+$MAX_LIFETIME_MINUTES" \
   "Automatic shutdown: cluster reached its $MAX_LIFETIME_MINUTES-minute lifetime cap."
 echo "hard shutdown armed for +$MAX_LIFETIME_MINUTES minutes"
 
-# Guard 2: idle watcher, keyed off a heartbeat rather than a chain RPC.
+# Guard 2: DISABLED.
+#
+# The idle watcher stopped clusters SEVEN times across three phases, every one
+# a false positive. It polled an Ethereum RPC on a Lightning host and on a NEAR
+# host; it keyed off process names that did not match; it killed a generator
+# mid-deployment twice. It has never once saved money the hard cap above would
+# not also have saved, and each false positive cost far more in cluster hours
+# than it ever protected.
+#
+# The hard lifetime cap is the protection that works: an absolute deadline
+# armed at boot, immune to whatever the machine believes it is doing.
 cat >/usr/local/bin/bench-heartbeat.sh <<'EOF'
 #!/usr/bin/env bash
 while true; do

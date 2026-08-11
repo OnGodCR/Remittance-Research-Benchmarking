@@ -84,6 +84,32 @@ v=sl.get('V1') or sl.get('V2') or sl.get('V0') or {}
 bounds=v.get('boundary_accounts')
 print(len(bounds)+1 if bounds is not None else v.get('num_shards', 1))
 ")
+# Two settings learned the hard way, applied here so a rebuild keeps them:
+#
+#   epoch_length -- localnet defaults to 60 blocks (~40s). Validators are
+#   selected per epoch and dropped for missed blocks, so a node even half a
+#   minute slow to boot is kicked permanently. Five of eight stayed out until
+#   this was raised.
+#
+#   block production delay -- the default 600ms assumes validators far closer
+#   together than four continents. Chunk producers in Mumbai and London could
+#   not gossip in time, and NEAR reported ShardStuck and refused transactions
+#   for that shard entirely.
+python3 - <<'PYEOF'
+import json, glob
+for gp in glob.glob("/opt/near/localnet/node*/genesis.json"):
+    g = json.load(open(gp))
+    g["epoch_length"] = 3600
+    json.dump(g, open(gp, "w"), indent=2)
+for cp in glob.glob("/opt/near/localnet/node*/config.json"):
+    c = json.load(open(cp))
+    cons = c.setdefault("consensus", {})
+    cons["min_block_production_delay"] = {"secs": 2, "nanos": 0}
+    cons["max_block_production_delay"] = {"secs": 6, "nanos": 0}
+    cons["max_block_wait_delay"]       = {"secs": 12, "nanos": 0}
+    json.dump(c, open(cp, "w"), indent=2)
+print("  epoch_length=3600, block delay 2s/6s applied to all nodes")
+PYEOF
 echo "  genesis shard count: \$SHARDS"
 [ "\$SHARDS" -ge "$NUM_SHARDS" ] || { echo "  ERROR: genesis has \$SHARDS shards, wanted $NUM_SHARDS"; exit 1; }
 EOF
@@ -125,7 +151,13 @@ python3 - <<'PYEOF'
 import json
 p="/opt/near/node/config.json"
 c=json.load(open(p))
-c.setdefault("network",{})["boot_nodes"]="$BOOT_NODE"
+net = c.setdefault("network", {})
+net["boot_nodes"] = "$BOOT_NODE"
+# `neard localnet` builds configs for running every node on ONE machine, so it
+# binds each to [::1] on a random port. Ours are spread across four regions and
+# must listen on the standard port on all interfaces, or no node can ever see
+# another -- "Waiting for peers, 0 peers" and a chain frozen at height 0.
+net["addr"] = "0.0.0.0:24567"
 # Bind RPC to all interfaces so the generator can reach it; the firewall, not
 # the bind address, is what keeps it private.
 c.setdefault("rpc",{})["addr"]="0.0.0.0:3030"

@@ -40,12 +40,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-#: The reference NEP-141 implementation, pinned. Fetched rather than built
-#: because building needs a Rust toolchain the generator has no other use for.
-#: Using the standard implementation matters: a hand-written token could have
-#: different gas characteristics, and the cost comparison against Polygon's
-#: ERC-20 would stop being like-for-like.
-FT_WASM_URL = "https://github.com/near/near-sdk-rs/releases/download/5.1.0/fungible_token.wasm"
+#: The reference NEP-141 implementation, BUILT FROM SOURCE on the generator by
+#: scripts/build_ft.sh.
+#:
+#: No prebuilt artifact is published anywhere reliable: near-examples/FT has no
+#: releases, and every res/*.wasm path older guides cite now returns a 404 HTML
+#: page (which downloads as ~300 KB and looks like a file until you check the
+#: magic bytes). Building from near-sdk-rs is better anyway -- it is the
+#: implementation the ecosystem actually uses, so gas figures stay comparable
+#: with Polygon's ERC-20 rather than reflecting a contract we invented.
+FT_WASM_PATH = "/opt/benchmark/fungible_token.wasm"
 
 #: Six decimals, matching the ERC-20 on Polygon, so $200 is 200 tokens on both
 #: chains and no exchange rate enters the study.
@@ -67,6 +71,11 @@ async def main() -> int:
     ap.add_argument("--shards", type=int, default=4)
     ap.add_argument("--out", default="config/phase4.json")
     ap.add_argument("--keys-out", default="keys/near_senders.json")
+    ap.add_argument("--tag", default="a",
+                    help="short prefix for account names. Change it to get a "
+                         "clean identity set: accounts left over from an "
+                         "earlier attempt hold keys we no longer have, and "
+                         "NEAR has no way to reclaim them without the key.")
     args = ap.parse_args()
 
     from py_near.account import Account
@@ -88,17 +97,30 @@ async def main() -> int:
 
     # --- 1. token contract -------------------------------------------------
     print("\n[1/5] deploying the NEP-141 token")
-    wasm = Path("/tmp/fungible_token.wasm")
+    wasm = Path(FT_WASM_PATH)
     if not wasm.exists() or wasm.stat().st_size < 1000:
-        subprocess.run(["curl", "-fsSL", "-o", str(wasm), FT_WASM_URL], check=False)
-    if not wasm.exists() or wasm.stat().st_size < 1000:
-        print("  ERROR: could not fetch the NEP-141 contract"); return 1
+        print(f"  ERROR: {FT_WASM_PATH} missing. Run scripts/build_ft.sh first.")
+        return 1
+    if wasm.read_bytes()[:4] != b"\x00asm":
+        print(f"  ERROR: {FT_WASM_PATH} is not a wasm module")
+        return 1
 
-    token_id = f"usdbench.{master_id}"
-    token_pub, token_sec = new_key()
-    if not await _exists(master, token_id):
-        await master.create_account(token_id, token_pub, ACCOUNT_BALANCE * 10)
-        print(f"  created {token_id}")
+    token_id = f"usdb{args.tag}.{master_id}"
+    # Persisted, so a re-run signs with the key the account was created with.
+    # Generating a fresh key each time guarantees "access key does not exist".
+    token_key_path = Path(f"/opt/benchmark/keys/near_token_{args.tag}.json")
+    token_key_path.parent.mkdir(parents=True, exist_ok=True)
+    if token_key_path.exists() and await _exists(master, token_id):
+        saved = json.loads(token_key_path.read_text())
+        token_pub, token_sec = saved["public_key"], saved["private_key"]
+        print(f"  reusing existing {token_id}")
+    else:
+        token_pub, token_sec = new_key()
+        token_key_path.write_text(json.dumps(
+            {"account_id": token_id, "public_key": token_pub, "private_key": token_sec}))
+        if not await _exists(master, token_id):
+            await master.create_account(token_id, token_pub, ACCOUNT_BALANCE * 10)
+            print(f"  created {token_id}")
     token = Account(token_id, token_sec, rpc_addr=args.rpc)
     await token.startup()
 
@@ -117,21 +139,51 @@ async def main() -> int:
 
     # --- 2. accounts -------------------------------------------------------
     print(f"\n[2/5] creating {args.senders} senders and {args.recipients} recipients")
-    senders = [f"s{i:03d}.{master_id}" for i in range(args.senders)]
-    recipients = [f"r{i:03d}.{master_id}" for i in range(args.recipients)]
+    # Account names are chosen to STRADDLE the shard boundaries.
+    #
+    # NEAR assigns an account to a shard by where its name sorts between the
+    # genesis boundary accounts, which on this chain are ['test1','test2',
+    # 'test3']. Names beginning with 's' or 'r' all sort BEFORE 'test1', so
+    # every account landed on shard 0 -- 80 accounts, one shard, and every
+    # transfer would have been same-shard while the arm reported sharding.
+    #
+    # These prefixes place accounts deliberately in each shard:
+    #     <anything before 'test1'>  -> shard 0
+    #     test1...                   -> shard 1
+    #     test2...                   -> shard 2
+    #     test3... (or later)        -> shard 3
+    shard_prefix = ["aa", "test1a", "test2a", "test3a"]
+
+    def spread(kind: str, n: int) -> list[str]:
+        out = []
+        for i in range(n):
+            pre = shard_prefix[i % len(shard_prefix)]
+            out.append(f"{pre}{kind}{args.tag}{i:03d}.{master_id}")
+        return out
+
+    senders = spread("s", args.senders)
+    recipients = spread("r", args.recipients)
     sender_keys: list[dict[str, str]] = []
 
+    existing_keys = {}
+    kp = Path(args.keys_out)
+    if kp.exists():
+        existing_keys = {k["account_id"]: k["private_key"]
+                         for k in json.loads(kp.read_text())}
+
     async def ensure(account_id: str) -> str:
+        if account_id in existing_keys and await _exists(master, account_id):
+            return existing_keys[account_id]
         pub, sec = new_key()
         if not await _exists(master, account_id):
             await master.create_account(account_id, pub, ACCOUNT_BALANCE)
-            return sec
-        return ""
+        return sec
 
     for acct in senders:
         sec = await ensure(acct)
         if sec:
             sender_keys.append({"account_id": acct, "private_key": sec})
+        await asyncio.sleep(0)
     for acct in recipients:
         await ensure(acct)
     print(f"  {len(sender_keys)} new sender keys written")
@@ -144,21 +196,91 @@ async def main() -> int:
     # NEP-141 rejects a transfer to an unregistered account. Skipping this
     # would fail every payment addressed to that recipient and read as a chain
     # failure rather than as our setup.
-    print(f"\n[3/5] registering {len(senders) + len(recipients)} accounts with the token")
-    for acct in senders + recipients:
-        await token.function_call(token_id, "storage_deposit",
-                                  {"account_id": acct, "registration_only": True},
-                                  gas=30 * TGAS, amount=STORAGE_DEPOSIT)
-    print("  registered")
+    # Fired without waiting, then verified. Waiting for finality on each of 80
+    # transactions serially takes longer than the RPC's own timeout allows once
+    # block time is 2s -- the run died on a TIMEOUT_ERROR partway through.
+    # Submitting concurrently and checking the RESULT afterwards is both faster
+    # and more honest: what matters is that every account ends up registered,
+    # not that we watched each one land.
+    all_accounts = senders + recipients
+    print(f"\n[3/5] registering {len(all_accounts)} accounts with the token")
+
+    # SUBMITTED ONE AT A TIME, but without waiting for finality.
+    #
+    # Every one of these is signed by the token account, which has a single
+    # access key -- and NEAR orders transactions per access key by NONCE.
+    # Firing them concurrently makes them collide: 64 of 80 landed and the
+    # rest were silently dropped, which looked like a contract problem and was
+    # actually our own nonce contention. The same hazard as Polygon's single
+    # sender, in a place that is easy to miss because setup feels incidental.
+    #
+    # nowait=True keeps this fast: each call returns once broadcast, so
+    # sequential submission does not mean waiting 2s per block.
+    async def register(acct: str) -> None:
+        for attempt in range(3):
+            try:
+                await token.function_call(
+                    token_id, "storage_deposit",
+                    {"account_id": acct, "registration_only": True},
+                    gas=30 * TGAS, amount=STORAGE_DEPOSIT, nowait=True)
+                return
+            except Exception:                      # noqa: BLE001
+                await asyncio.sleep(1.5)
+
+    for acct in all_accounts:
+        await register(acct)
+    print("  submitted; waiting for registrations to land")
+
+    for attempt in range(40):
+        await asyncio.sleep(6)
+        missing = []
+        for acct in all_accounts:
+            res = await _view(token, token_id, "storage_balance_of", {"account_id": acct})
+            if not res:
+                missing.append(acct)
+        if not missing:
+            print(f"  all {len(all_accounts)} registered")
+            break
+        if attempt % 5 == 0:
+            print(f"    {len(all_accounts) - len(missing)}/{len(all_accounts)} registered")
+    else:
+        print(f"  REFUSING: {len(missing)} accounts never registered. NEP-141 "
+              f"rejects transfers to unregistered accounts, so every payment to "
+              f"them would fail and read as a chain failure rather than setup.")
+        return 1
 
     # --- 4. fund senders ---------------------------------------------------
     print(f"\n[4/5] distributing tokens to {len(senders)} senders")
     per_sender = str(10**9 * 10**TOKEN_DECIMALS)   # 1e9 USDB each, ample
+
+    # Sequential for the same reason as registration: one signing key, one
+    # nonce sequence.
+    async def fund(acct: str) -> None:
+        for attempt in range(3):
+            try:
+                await token.function_call(
+                    token_id, "ft_transfer",
+                    {"receiver_id": acct, "amount": per_sender, "memo": None},
+                    gas=30 * TGAS, amount=1, nowait=True)
+                return
+            except Exception:                      # noqa: BLE001
+                await asyncio.sleep(1.5)
+
     for acct in senders:
-        await token.function_call(token_id, "ft_transfer",
-                                  {"receiver_id": acct, "amount": per_sender, "memo": None},
-                                  gas=30 * TGAS, amount=1)
-    print(f"  each sender holds {int(per_sender)/10**TOKEN_DECIMALS:,.0f} USDB")
+        await fund(acct)
+    for attempt in range(40):
+        await asyncio.sleep(6)
+        unfunded = [a for a in senders
+                    if await _ft_balance(master, token_id, a) <= 0]
+        if not unfunded:
+            print(f"  all {len(senders)} senders hold "
+                  f"{int(per_sender)/10**TOKEN_DECIMALS:,.0f} USDB")
+            break
+        if attempt % 5 == 0:
+            print(f"    {len(senders) - len(unfunded)}/{len(senders)} funded")
+    else:
+        print(f"  REFUSING: {len(unfunded)} senders hold no tokens")
+        return 1
 
     # --- 5. verify ---------------------------------------------------------
     print(f"\n[5/5] verifying")
@@ -171,10 +293,6 @@ async def main() -> int:
         print("  for work that was never actually divided.")
         return 1
 
-    unfunded = [a for a in senders[:5] if await _ft_balance(master, token_id, a) <= 0]
-    if unfunded:
-        print(f"  REFUSING: {len(unfunded)} sampled senders hold no tokens")
-        return 1
     print(f"  shard spread OK across {len(report['by_shard'])} shards; senders funded")
 
     cfg = {
@@ -193,11 +311,27 @@ async def main() -> int:
 
 
 async def _exists(master, account_id: str) -> bool:
+    """Does this account exist on chain?
+
+    Checks the RESPONSE, not merely the absence of an exception. py-near can
+    return an error object rather than raising, so a bare try/except reported
+    every account as existing -- including on a freshly wiped chain, which then
+    skipped account creation and tried to sign with a key the chain had never
+    seen ("access key does not exist while viewing").
+    """
     try:
-        await master._provider.get_account(account_id)
-        return True
+        res = await master._provider.get_account(account_id)
     except Exception:                              # noqa: BLE001
         return False
+    return bool(res) and ("amount" in res or "code_hash" in res)
+
+
+async def _view(acct, contract: str, method: str, args: dict):
+    try:
+        res = await acct.view_function(contract, method, args)
+        return res.result
+    except Exception:                              # noqa: BLE001
+        return None
 
 
 async def _view_ok(acct, contract: str, method: str) -> bool:
