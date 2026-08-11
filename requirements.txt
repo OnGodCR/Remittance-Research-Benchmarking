@@ -11,3 +11,11 @@ web3==7.16.0
 py-solc-x==2.0.5
 pandas==3.0.5
 pyarrow==25.0.0
+
+# NEAR (phase 4). Pinned like the rest so the laptop and the cloud generator
+# run identical code. Used for account handling, Borsh serialisation and
+# signing -- but NOT for transaction status: py-near's get_tx uses the legacy
+# positional RPC form with no finality control, and this study requires FINAL
+# rather than EXECUTED_OPTIMISTIC (claude.md S7), so the adapter calls that
+# RPC itself.
+py-near==1.2.22
