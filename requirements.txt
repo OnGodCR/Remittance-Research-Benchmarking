@@ -19,3 +19,7 @@ pyarrow==25.0.0
 # rather than EXECUTED_OPTIMISTIC (claude.md S7), so the adapter calls that
 # RPC itself.
 py-near==1.2.22
+# Key generation for NEAR account creation. py-near signs with keys it is
+# given; it does not mint them, and NEAR wants ed25519 in base58.
+base58==2.1.1
+PyNaCl==1.5.0
