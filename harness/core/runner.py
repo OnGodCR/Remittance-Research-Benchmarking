@@ -55,6 +55,9 @@ class _Buffers:
 
     submitted: list[tuple] = field(default_factory=list)
     outcomes: list[tuple] = field(default_factory=list)
+    #: (real_on_chain_ref, run_id, seq) for adapters that only learn the true
+    #: identifier during confirmation. See ConfirmResult.settled_ref.
+    settled_refs: list[tuple] = field(default_factory=list)
 
 
 async def run_benchmark(
@@ -147,6 +150,13 @@ async def run_benchmark(
             else:
                 counters.failed += 1
 
+            # Prefer the adapter's real on-chain identifier when it only
+            # becomes known during confirmation; otherwise the submission-time
+            # reference stands. Without this, an asynchronously broadcast
+            # payment is recorded under a local counter and can never be found
+            # on chain again.
+            if res.settled_ref:
+                buffers.settled_refs.append((res.settled_ref, run_id, seq))
             buffers.outcomes.append(
                 (run_id, seq, res.status, confirmed_offset, res.gas_used,
                  res.fee_native, res.route_hops, res.error)
@@ -172,6 +182,9 @@ async def run_benchmark(
         if buffers.outcomes:
             store.record_outcome_batch(buffers.outcomes)
             buffers.outcomes.clear()
+        if buffers.settled_refs:
+            store.update_tx_refs(buffers.settled_refs)
+            buffers.settled_refs.clear()
 
     async def sampler() -> None:
         """Per-second time series. Enables excluding warm-up analytically
