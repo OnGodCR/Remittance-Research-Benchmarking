@@ -432,7 +432,24 @@ def stop_sweep() -> None:
 def progress(phase: str) -> dict:
     conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
     try:
+        # DISTINCT CONFIGURATIONS, not runs.
+        #
+        # Counting rows declares the matrix finished at 140 runs even if some
+        # configuration was measured twice and another never at all -- and a
+        # configuration being measured twice is not hypothetical: the sweep
+        # resumes from the START of the load ladder, which on Polygon produced
+        # 22 duplicate runs and filled four cells with ten runs instead of five
+        # (RESUME_HERE.md S5 trap 0). Measured on this database mid-sweep: 8
+        # valid runs covering only 2 distinct configurations.
+        #
+        # The consequence of getting this wrong is the worst kind: the cluster
+        # shuts down reporting success, and the holes in the matrix surface
+        # weeks later at analysis, with the chain long destroyed.
         done = conn.execute(
+            "SELECT COUNT(*) FROM (SELECT DISTINCT tx_size_usd, target_tps, "
+            "repeat_index FROM runs WHERE phase=? AND architecture='near' "
+            "AND ended_wall IS NOT NULL AND invalidated=0)", (phase,)).fetchone()[0]
+        runs_done = conn.execute(
             "SELECT COUNT(*) FROM runs WHERE phase=? AND architecture='near' "
             "AND ended_wall IS NOT NULL AND invalidated=0", (phase,)).fetchone()[0]
         invalid = conn.execute(
@@ -449,6 +466,8 @@ def progress(phase: str) -> dict:
         conn.close()
     return {
         "complete": done,
+        "runs_recorded": runs_done,
+        "duplicate_runs": max(0, runs_done - done),
         "total": MATRIX_TOTAL,
         "invalidated": invalid,
         "started": started,

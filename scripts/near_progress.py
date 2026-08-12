@@ -38,14 +38,22 @@ def main() -> int:
     c = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     c.row_factory = sqlite3.Row
 
+    # Distinct configurations, matching the supervisor's completion test.
+    # Counting runs would call the matrix finished while cells were unmeasured.
     done = c.execute(
+        "SELECT COUNT(*) FROM (SELECT DISTINCT tx_size_usd, target_tps, "
+        "repeat_index FROM runs WHERE phase=? AND ended_wall IS NOT NULL "
+        "AND invalidated=0)", (args.phase,)).fetchone()[0]
+    runs_done = c.execute(
         "SELECT COUNT(*) FROM runs WHERE phase=? AND ended_wall IS NOT NULL "
         "AND invalidated=0", (args.phase,)).fetchone()[0]
     invalid = c.execute(
         "SELECT COUNT(*) FROM runs WHERE phase=? AND invalidated=1",
         (args.phase,)).fetchone()[0]
-    print(f"PROGRESS: {done}/{MATRIX_TOTAL} valid completed "
-          f"({100*done/MATRIX_TOTAL:.0f}%), {invalid} invalidated\n")
+    print(f"PROGRESS: {done}/{MATRIX_TOTAL} configurations covered "
+          f"({100*done/MATRIX_TOTAL:.0f}%), from {runs_done} valid runs"
+          + (f" ({runs_done-done} duplicates)" if runs_done > done else "")
+          + f", {invalid} invalidated\n")
 
     print(f"newest {args.recent} runs:")
     rows = c.execute(
