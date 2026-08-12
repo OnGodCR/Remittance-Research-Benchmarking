@@ -34,7 +34,47 @@ Lightning results.
 | Spend | **roughly $75–85 of the $300 credit** — verify, do not quote this from here |
 | Sweep | **NOT running** |
 | Idle watchers | **disabled on every node** (they were killing the cluster) |
-| Hard cap | **`atq` on the generator is EMPTY — the cap is GONE.** The generator rebooted at 04:08 on 11 Aug and the `at` job did not survive. **Re-arm it or the cluster runs until the credit is gone.** |
+| Hard cap | ⚠️ **Installed on only 2 of 9 machines** — `near-generator` and `near-validator-0`, expiring **12 Aug 20:09 UTC**. **The other seven have no cap and no idle watcher.** See §2.1. |
+
+### 2.1 The hard shutdown cap is only half-installed
+
+The original cap was an `at` job. **`at` is not even installed on these images**, and the
+job did not survive the generator's reboot at 04:08 on 11 Aug — which is how the cluster
+ended up with no shutdown protection of any kind.
+
+The replacement is a **deadline file plus cron**, which survives reboots (and therefore
+survives spot preemption restarts):
+
+- `/usr/local/bin/hardcap.sh` — compares `date +%s` against the deadline, shuts down when reached
+- `/etc/hardcap_deadline` — an epoch timestamp
+- `/etc/cron.d/hardcap` — runs the check every 5 minutes
+
+**Installed on `near-generator` and `near-validator-0` only**, deadline **12 Aug 20:09 UTC**.
+Validators 1–7 have nothing. The install is scripted and staged locally at `/tmp/hardcap.sh`,
+`/tmp/hardcap_deadline` and `/tmp/install_hardcap.sh` (`sudo bash /tmp/install_hardcap.sh`
+after copying all three).
+
+**If you are redeploying, do not retrofit this — put it in the OpenTofu startup script**, so
+every node is armed at boot and a rebuilt node comes back capped. That is where it should
+have been in the first place.
+
+### 2.2 `gcloud` misbehaves in this environment — read before scripting against it
+
+Three behaviours cost about forty minutes and produced a string of misleading "FAILED"
+results against machines that were actually fine:
+
+1. **Any `for` loop wrapping `gcloud compute scp` / `ssh` silently fails.** Not an error —
+   the command simply does not take effect on the remote host. Redirecting stdin
+   (`< /dev/null`) does not help. **Write the calls out individually.**
+2. **Multi-file `scp` transfers only one file.** `gcloud compute scp a b c host:/tmp/`
+   silently delivers a subset. **Copy one file per invocation.**
+3. **Remote stdout arrives on stderr.** A command ending in `2>/dev/null` therefore prints
+   nothing and looks like a failure. Use `2>&1` and filter out the `Warning:` lines.
+
+A corollary, and the reason this matters beyond convenience: **several nodes reported
+"FAILED" when the install had genuinely not run, and others reported nothing when it had
+succeeded.** Always verify the end state on the host itself (`cat /etc/hardcap_deadline`)
+rather than trusting the exit status or captured output of the loop that supposedly did it.
 
 ### Two validators were preempted today
 `near-validator-0` at 11:31 UTC, and `near-validator-1` shortly after. Both were restarted
@@ -189,10 +229,13 @@ cd /opt/benchmark && ./.venv/bin/python -m harness.cli run --config config/phase
 cluster.** He said explicitly he does not want budget spent on a benchmark that has not
 recorded a single valid transaction.
 
-### Step 2 — re-arm the hard cap (do not skip)
+### Step 2 — finish arming the hard cap (do not skip)
 
-`atq` is empty. The cluster currently has **no automatic shutdown of any kind** — the idle
-watchers are deliberately disabled *and* the lifetime cap is gone.
+Seven of nine machines have **no automatic shutdown of any kind** — the idle watchers are
+deliberately disabled *and* they have no lifetime cap. See §2.1 for the mechanism and §2.2
+for why looping over `gcloud` to install it will appear to work and will not.
+
+If redeploying, move this into the OpenTofu startup script instead of retrofitting it.
 
 ### Step 3 — launch the sweep
 
@@ -224,6 +267,10 @@ Polygon's, where 3 of 4 survived. That is a quota artifact, not a property of sh
 ## 6. Traps specific to this cluster
 
 - **Do not trust `pgrep -f` over SSH.** See Bug 4. Query the database.
+- **Do not loop over `gcloud`, do not multi-file `scp`, do not discard stderr.** See §2.2 —
+  all three fail silently and produce confident, wrong status output.
+- **`at` is not installed on these images.** The lifetime cap uses a deadline file plus
+  cron so it survives reboots and preemption restarts (§2.1).
 - **Use `python -u`** for anything detached, or the logs will be empty.
 - **`/opt/benchmark/keys/` is root-owned.** Write to `/tmp` and `sudo cp`.
 - **The phase-1 idle watcher polls `eth_blockNumber`**, which does not exist on NEAR. It
