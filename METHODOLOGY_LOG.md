@@ -811,16 +811,31 @@ because the fix — filter to valid runs — belongs in the check itself.
 87 GB free on the generator; the full matrix projects to ~1.07 GB of SQLite at
 the measured 215 bytes per payment.
 
-### 7d. The published dataset will exceed GitHub's free LFS tier
+### 7d. The dataset fits in Git LFS after all — the 1 GB figure was out of date
 
-Raw grows 539 MB -> ~903 MB and clean 373 MB -> ~700 MB once NEAR lands:
-**~1.6 GB against a 1 GB free tier**, before counting the prior versions LFS
-retains. Three savings exist that lose no information — `tx_ref` is 51% of raw
-and is needed for on-chain verification rather than analysis; `latency_s` and
-`schedule_lag_s` are 18% and are exactly recomputable from the offsets, so
-storing them is duplication — and a GitHub Release asset (2 GB per file, outside
-LFS) would hold raw without cost. Flagged for decision; it changes where a
-reviewer finds the data, so it is not being changed unilaterally.
+Initially flagged as a problem: raw grows 539 MB -> ~903 MB and clean 373 MB ->
+~700 MB once NEAR lands, ~1.6 GB against what `RESUME_HERE.md` recorded as a
+1 GB free tier.
+
+**Checked against GitHub's billing documentation on 12 Aug 2026, and the figure
+was stale.** The included allowance is **10 GiB of storage and 10 GiB per month
+of bandwidth**, identical on Free and Pro, and billing has moved from pre-paid
+data packs to metered usage. GitHub Education grants Pro, which does not change
+the LFS allowance because Free already carries the same 10 GiB.
+
+**Storage is therefore not a constraint** — 1.6 GB against 10 GiB, with room for
+the prior versions LFS retains.
+
+**Bandwidth might be.** Every clone pulls the LFS objects, so roughly six full
+clones a month would exhaust the 10 GiB. Worth knowing before circulating the
+repository to reviewers, and an argument for pointing them at the clean file
+rather than the raw one.
+
+**The savings identified while investigating remain true and remain optional:**
+`tx_ref` is 51% of the raw file (274 MB) and serves on-chain verification rather
+than analysis; `latency_s` and `schedule_lag_s` are 18% (97 MB) and are exactly
+recomputable from the offsets, so storing them duplicates data already present.
+Neither needs acting on now.
 
 ### 7e. Traps re-encountered, both already documented
 
