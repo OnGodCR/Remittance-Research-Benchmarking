@@ -273,40 +273,54 @@ def _submit_stake(account_id: str, public_key: str, secret_key: str,
 
 # -- sweep process ------------------------------------------------------------
 
-def sweep_pid() -> int | None:
-    """The sweep's PID if it is genuinely alive, else None.
+def _alive(pidfile: Path, expect: str) -> int | None:
+    """PID from `pidfile` if that process is alive AND is what we think it is.
 
-    PID file rather than a process-name search. `pgrep -f "harness.cli run"`
-    matches the arguments of the command doing the checking, so it reported
-    RUNNING for processes that did not exist and healthy progress was reported
-    to Angad on that basis.
+    TWO FAILURE MODES, BOTH SEEN
+    ----------------------------
+    1. A bare `pgrep -f <pattern>` matches the arguments of the command doing
+       the checking, so it reports RUNNING for processes that do not exist
+       (PHASE4_HANDOFF.md bug 4). Hence a PID file.
+
+    2. A PID file is only as good as the PID in it. `start_sweep` originally ran
+       `subprocess.Popen(["setsid", "bash", ...], start_new_session=True)` --
+       setsid AND a new session. `setsid` forks and exits immediately, so the
+       recorded PID belonged to a process that was already gone while the real
+       sweep ran on as an untracked orphan. Every 5-minute check then saw "no
+       sweep" and started another: four sweeps and four noise generators inside
+       ten minutes on 12 Aug 2026, quadrupling background traffic and putting
+       concurrent sweeps on the same database.
+
+    So the PID must also still BE the thing we started. /proc/<pid>/cmdline is
+    checked for an expected substring, which additionally survives PID reuse
+    after a reboot.
     """
-    if not PIDFILE.exists():
+    if not pidfile.exists():
         return None
     try:
-        pid = int(PIDFILE.read_text().strip())
+        pid = int(pidfile.read_text().strip())
     except (ValueError, OSError):
         return None
     try:
         os.kill(pid, 0)
     except (ProcessLookupError, PermissionError):
         return None
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace")
+    except OSError:
+        return None
+    if expect not in cmdline:
+        return None
     return pid
+
+
+def sweep_pid() -> int | None:
+    return _alive(PIDFILE, "run_near_sweep_inner")
 
 
 def noise_pid() -> int | None:
     """PID of the background-traffic generator if it is alive, else None."""
-    if not NOISE_PIDFILE.exists():
-        return None
-    try:
-        pid = int(NOISE_PIDFILE.read_text().strip())
-    except (ValueError, OSError):
-        return None
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
-        return None
-    return pid
+    return _alive(NOISE_PIDFILE, "noise_near")
 
 
 def start_noise() -> int | None:
@@ -325,6 +339,9 @@ def start_noise() -> int | None:
     """
     if not NOISE_KEYS.exists():
         log(f"noise: {NOISE_KEYS} missing -- cannot start background traffic")
+        return None
+    if _running_count("noise_near") > 0:
+        log("start_noise: background traffic already running; refusing a second")
         return None
     logfile = BASE / "noise.log"
     proc = subprocess.Popen(
@@ -351,6 +368,27 @@ def stop_noise() -> None:
     NOISE_PIDFILE.unlink(missing_ok=True)
 
 
+def _running_count(pattern: str) -> int:
+    """How many live processes have `pattern` in their command line.
+
+    A second safety net under the PID files. If either file is ever wrong
+    again, this still prevents a duplicate: two concurrent sweeps write to one
+    database and two noise generators double the background load, and both
+    corrupt the runs silently rather than failing.
+    """
+    n = 0
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            cmd = (entry / "cmdline").read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        if pattern in cmd:
+            n += 1
+    return n
+
+
 def start_sweep(phase: str) -> int:
     """Launch the resumable sweep detached, and record its PID.
 
@@ -358,9 +396,16 @@ def start_sweep(phase: str) -> int:
     the sweep script for the same reason its logs previously read as empty:
     Python buffers stdout when it is not a terminal.
     """
+    if _running_count("run_near_sweep_inner") > 0:
+        log("start_sweep: a sweep is already running; refusing to start another")
+        return -1
     logfile = BASE / "sweep.log"
+    # NO `setsid` COMMAND HERE. start_new_session=True already detaches the
+    # child into its own session; adding setsid on top forks again, so the PID
+    # recorded below would be a process that exits immediately while the real
+    # sweep runs on untracked. That is what spawned four concurrent sweeps.
     proc = subprocess.Popen(
-        ["setsid", "bash", str(BASE / "scripts" / "run_near_sweep_inner.sh"), phase],
+        ["bash", str(BASE / "scripts" / "run_near_sweep_inner.sh"), phase],
         cwd=str(BASE),
         stdout=logfile.open("a"),
         stderr=subprocess.STDOUT,
