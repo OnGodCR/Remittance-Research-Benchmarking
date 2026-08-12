@@ -75,6 +75,12 @@ from .noise_shape import noise_rate
 _NOISE_AMOUNT = 1
 
 
+async def _balance(acct, account_id: str) -> int:
+    """Native NEAR balance of an account, used only by the landing probe."""
+    r = await acct._provider.get_account(account_id)
+    return int(r["amount"]) if isinstance(r, dict) and "amount" in r else 0
+
+
 async def generate_noise(rpc_url: str, keys: list[dict], recipients: list[str],
                          duration: float, base_tps: float, peak_tps: float,
                          seed: int = 1234) -> dict:
@@ -84,14 +90,26 @@ async def generate_noise(rpc_url: str, keys: list[dict], recipients: list[str],
         await a.startup()
         accounts.append(a)
 
-    # Prime one nonce per account, then track locally. Re-reading it per send
-    # would add an RPC round trip to every transaction and read a stale value
-    # while earlier sends are still in flight -- the same trap the measured
-    # adapter hit.
+    # PRIME EACH NONCE FROM THE CHAIN. This line is the whole ballgame.
+    #
+    # py-near's Account._access_key_nonce starts at 0 and is NOT populated by
+    # startup(). NEAR sets an account's initial nonce from the block height at
+    # creation, so it is a large number -- and a transaction signed with nonce 1
+    # is stale, and the chain drops it. broadcast_tx_async does not validate, so
+    # every send returns happily and nothing lands.
+    #
+    # Without this, the generator reported "3,646 sent, 0 failed, 81/sec" while
+    # the chain carried 0.4 transactions/sec. The sweep then ran with NO
+    # background traffic while its runs recorded background_traffic.enabled =
+    # True -- the exact condition this module exists to prevent, wearing the
+    # appearance of success. NearAdapter.setup does the same priming; the
+    # omission here is why its payments landed and these did not.
     signers = {}
     for a in accounts:
         pk = await a._free_signers.get()
         await a._free_signers.put(pk)
+        access_key = await a.get_access_key(pk)
+        a._access_key_nonce[pk] = max(a._access_key_nonce[pk], access_key.nonce)
         signers[a.account_id] = pk
     locks = {a.account_id: asyncio.Lock() for a in accounts}
 
@@ -131,6 +149,41 @@ async def generate_noise(rpc_url: str, keys: list[dict], recipients: list[str],
 
     print(f"NEAR background traffic: {base_tps:g}-{peak_tps:g}/sec, varying, "
           f"for {duration:g}s across {len(accounts)} accounts", flush=True)
+
+    # PROVE IT LANDS BEFORE CLAIMING TO GENERATE LOAD.
+    #
+    # "sent" only means the node accepted the broadcast. Twice on 12 Aug a
+    # component reported thousands of successful sends while the chain saw
+    # none, because the transactions were signed with stale nonces and dropped
+    # without complaint. A generator that silently produces no load is worse
+    # than one that crashes: the sweep runs to completion and records
+    # conditions that never existed.
+    #
+    # So: send one, wait, and confirm the recipient's balance actually moved.
+    # 20s, not 4s. Measured settlement to FINAL on this chain is ~9s at p50,
+    # so a 4-second probe reports "not landing" for a transfer that is merely
+    # still in flight -- a false alarm that would block every run.
+    probe_to = recipients[0]
+    before = await _balance(accounts[0], probe_to)
+    await one(0)
+    landed = False
+    for _ in range(10):
+        await asyncio.sleep(2)
+        after = await _balance(accounts[0], probe_to)
+        if after > before:
+            landed = True
+            break
+    if not landed:
+        raise RuntimeError(
+            f"background traffic is NOT landing: {probe_to} balance unchanged "
+            f"({before} -> {after}) after a probe transfer. Refusing to run: a "
+            f"silent no-op here means the whole sweep is measured on an idle "
+            f"chain while recording that it was not.")
+    print(f"  probe landed ({probe_to} {before} -> {after}); traffic is real",
+          flush=True)
+    # Reset the counters so the probe is not reported as delivered load.
+    sent = 0
+    t0 = time.monotonic()
 
     tasks: set[asyncio.Task] = set()
     i = 0
