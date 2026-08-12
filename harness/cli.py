@@ -95,6 +95,66 @@ FULL_STACK_REALISM = {
 }
 
 
+#: The realism techniques active during phase-4-full-stack (NEAR).
+#:
+#: Recorded per run for the same reason Polygon's is: a phase name is a label
+#: someone chose, not evidence of the conditions. It is a SEPARATE constant
+#: rather than a reuse of FULL_STACK_REALISM because the two clusters genuinely
+#: differ -- 8 validators against 4, 4 shards against none -- and silently
+#: reusing Polygon's record would have written conditions into the NEAR data
+#: that the NEAR runs did not have.
+#:
+#: Values that MATCH Polygon exactly (impairment per region, background traffic
+#: rate and wave shape, machine type, repeats) do so deliberately: they are the
+#: independent variables of the comparison, and any difference in them would
+#: show up as a difference between the architectures.
+NEAR_FULL_STACK_REALISM = {
+    "multi_region": {
+        "enabled": True,
+        "regions": ["us-east4", "asia-south1", "asia-southeast1", "europe-west2"],
+        "validators": 8,
+        "shards": 4,
+        "validators_per_shard": 2,
+        "note": "8 validators is the project vCPU quota ceiling, not a choice; "
+                "2 per shard is the protocol minimum, so a lost validator drops "
+                "a shard to one producer",
+    },
+    "injected_impairment": {
+        "enabled": True,
+        "scope": "validator-to-validator only; measurement path unimpaired",
+        "applied": "12 Aug 2026 via scripts/inject_impairment_near.sh",
+        "per_validator": [
+            {"region": "us-east4", "delay_ms": 20, "jitter_ms": 4, "loss_pct": 0.10},
+            {"region": "asia-south1", "delay_ms": 45, "jitter_ms": 12, "loss_pct": 0.40},
+            {"region": "asia-southeast1", "delay_ms": 40, "jitter_ms": 10, "loss_pct": 0.30},
+            {"region": "europe-west2", "delay_ms": 25, "jitter_ms": 6, "loss_pct": 0.15},
+        ],
+        "note": "identical to the phase-2 profile so both architectures pay the "
+                "same network penalty",
+    },
+    "background_traffic": {
+        "enabled": True,
+        "base_tps": 60, "peak_tps": 115, "mean_tps": 88,
+        "tx_type": "native NEAR transfer (no contract call), distinct from the "
+                   "measured NEP-141 ft_transfer",
+        "wave": "harness/noise_shape.py -- the same shape Polygon used",
+        "calibrated_to": "matched to Polygon's rate so the comparison is "
+                         "architectural; NEAR mainnet itself carried ~5 tx/sec "
+                         "when measured 12 Aug 2026, so this is roughly 18x "
+                         "NEAR's real load and the result is conservative",
+    },
+    "hardware_matched": {
+        "enabled": True,
+        "machine_type": "n2-standard-8",
+        "vcpu": 8, "ram_gb": 32,
+        "note": "CPU/RAM matched to published NEAR validator specs; storage "
+                "deliberately not matched",
+    },
+    "adversarial_nodes": {"enabled": False, "note": "separate arm"},
+    "repeats": REPEATS,
+}
+
+
 def load_polygon_adapter(config_path: Path):
     from .adapters.polygon import PolygonAdapter
 
@@ -247,6 +307,7 @@ async def cmd_run(args: argparse.Namespace) -> int:
         window_seconds=args.window, repeat_index=args.repeat,
         arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
         phase=args.phase, arm=args.arm,
+        realism=FULL_STACK_REALISM if "full-stack" in (args.phase or "") else {},
     )
     summary = await run_benchmark(adapter, cfg, store)
     store.close()
@@ -315,6 +376,7 @@ async def _run_near(args: argparse.Namespace) -> int:
         window_seconds=args.window, repeat_index=args.repeat,
         arrival_seed=seed_for(BASE_SEED, args.tps, args.amount, args.repeat),
         phase=args.phase, arm=args.arm,
+        realism=NEAR_FULL_STACK_REALISM if "full-stack" in (args.phase or "") else {},
     )
     summary = await run_benchmark(adapter, cfg, store)
     store.close()
