@@ -442,6 +442,29 @@ class NearAdapter(Adapter):
 
         provider = self._accounts[0]._provider
 
+        # WHY THE LAST RPC ERROR IS KEPT.
+        #
+        # A timeout that says only "not FINAL within 60s" cannot distinguish the
+        # two outcomes that matter most, and they are not remotely equivalent:
+        #
+        #   UNKNOWN_TRANSACTION -- the chain has never heard of it. It was
+        #       broadcast, accepted by the node, and then dropped from the pool.
+        #       Nothing was charged and nothing moved; the sender can retry. This
+        #       is the same class as Polygon's "txpool is full" rejections.
+        #
+        #   still executing -- the chain HAS it and has not finalised it. This is
+        #       the "money left one side and never arrived" case, which
+        #       RESUME_HERE S3 singles out as the serious one, and which on
+        #       Polygon appeared ONLY under deliberate node failure.
+        #
+        # Reporting a NEAR loss rate without separating these would either
+        # slander NEAR or flatter it, depending which dominates. Observed on the
+        # first runs: 1.1-1.5% of payments at the LOWEST load step never reached
+        # FINAL, while the slowest payment that did arrive took 29.6s against a
+        # 60s budget -- so they were not slow, they were gone. Which kind they
+        # were is exactly what this records.
+        last_error = "no response recorded"
+
         while loop.time() < deadline:
             try:
                 # Called directly rather than through py-near's get_tx, which
@@ -452,7 +475,8 @@ class NearAdapter(Adapter):
                     "sender_account_id": signer,
                     "wait_until": _FINALITY,
                 })
-            except Exception:                      # noqa: BLE001 - not final yet, or transient
+            except Exception as exc:               # noqa: BLE001 - not final yet, or transient
+                last_error = f"{type(exc).__name__}: {exc}"[:160]
                 await asyncio.sleep(0.2)
                 continue
 
@@ -480,11 +504,18 @@ class NearAdapter(Adapter):
                 )
             if "Failure" in status:
                 return ConfirmResult(status="failed", error=str(status["Failure"])[:200])
+            # Present but not final yet -- record that, so a timeout here is
+            # distinguishable from one where the chain never had it.
+            last_error = f"present but not FINAL (status keys: {list(status)[:3]})"
             await asyncio.sleep(0.2)
 
         # 60s per claude.md S7. Past that a remittance has functionally failed
-        # regardless of what the chain eventually decides.
-        return ConfirmResult(status="timeout", error=f"not FINAL within {timeout_seconds:g}s")
+        # regardless of what the chain eventually decides. The last thing the
+        # chain said is carried through so the failure can be classified rather
+        # than guessed at -- see the note above the poll loop.
+        return ConfirmResult(
+            status="timeout",
+            error=f"not FINAL within {timeout_seconds:g}s | last: {last_error}")
 
     # -- internals ----------------------------------------------------------
 
