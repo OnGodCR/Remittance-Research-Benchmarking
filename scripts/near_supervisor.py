@@ -105,18 +105,37 @@ def rpc(method: str, params, timeout: float = 10.0):
 
 # -- liveness -----------------------------------------------------------------
 
+#: Bytes of tail to read when looking for recent samples. Generous on purpose.
+#:
+#: This was originally sized as `200 * (n + 5)` -- an estimate of the line
+#: length. Adding per-validator production counters to each sample pushed a
+#: line past 450 bytes, so the seek covered only FIVE samples where six are
+#: required to declare the chain healthy. The supervisor would then have
+#: reported "only 5 liveness samples available" forever and never started the
+#: sweep, no matter how healthy the chain became.
+#:
+#: A fixed generous window has no such failure mode: 256 KB is roughly 500
+#: samples, about 85 minutes at a 10s interval, and reading it costs nothing
+#: next to the five-minute cron period. Do not replace this with an estimate of
+#: the line length again -- the record format is expected to grow.
+_TAIL_BYTES = 256 * 1024
+
+
 def recent_liveness(n: int) -> list[dict]:
-    """Last n samples, newest last. Reads the tail rather than the whole file:
-    over a 13-hour sweep this log is ~4,700 lines and growing."""
+    """Last n samples, newest last.
+
+    Reads a fixed tail rather than the whole file: over a 13-hour sweep this log
+    is ~4,700 lines and growing.
+    """
     if not LIVENESS.exists():
         return []
     with LIVENESS.open("rb") as fh:
-        try:
-            fh.seek(-min(200 * (n + 5), os.path.getsize(LIVENESS)), os.SEEK_END)
-        except OSError:
-            fh.seek(0)
+        size = os.path.getsize(LIVENESS)
+        fh.seek(-min(_TAIL_BYTES, size), os.SEEK_END)
         lines = fh.read().decode("utf-8", "replace").splitlines()
     out = []
+    # The first line may be truncated by the seek; json.loads rejects it and it
+    # is skipped, which is why the slice takes more lines than needed.
     for line in lines[-(n + 2):]:
         try:
             out.append(json.loads(line))
