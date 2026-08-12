@@ -89,6 +89,21 @@ NON_RESULT_PHASES = {
     "phase-3-smoke",
     "phase-3-mctest",
     "phase-3-sizetest",
+    # Phase 4 (NEAR) shake-out. Same reasoning again, and here it matters more
+    # than anywhere else: phase-4-lagtest and phase-4-smoke were collected while
+    # the harness was discarding every transaction hash, so they record 100%
+    # failure for payments that were settling on chain perfectly well. Left in,
+    # they would be averaged into NEAR's results and report a 100%-failure
+    # architecture. phase-4-launchtest exists only to prove the supervisor can
+    # start and stop a sweep.
+    #
+    # This list did not include them until 12 Aug 2026, and until then a NEAR
+    # export pulled all three into the clean dataset -- which is how a $200
+    # run at 10/sec came out at 100.00% failure in the first end-to-end test of
+    # the analysis pipeline.
+    "phase-4-smoke",
+    "phase-4-lagtest",
+    "phase-4-launchtest",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
@@ -329,27 +344,47 @@ def write_log(log: list[Exclusion], raw: pd.DataFrame, cleaned: pd.DataFrame) ->
 
 
 def main() -> int:
-    db_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DB
+    # Output paths are overridable. They were fixed constants while the database
+    # path was a positional argument, so `export.py some_other.sqlite` silently
+    # REPLACED the assembled dataset with whatever that database happened to
+    # hold -- and the obvious way to test the pipeline against one cluster's
+    # data was exactly that command. The committed parquet is the only place the
+    # three architectures exist together.
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("db", nargs="?", default=str(DEFAULT_DB))
+    ap.add_argument("--raw", default=str(RAW_PATH))
+    ap.add_argument("--clean", default=str(CLEAN_PATH))
+    args = ap.parse_args()
+
+    db_path = Path(args.db)
+    raw_path, clean_path = Path(args.raw), Path(args.clean)
     print(f"reading {db_path}")
 
     raw, events = load(db_path)
     cleaned, log = clean(raw, events)
 
-    RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CLEAN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _write_parquet(raw, RAW_PATH)
-    _write_parquet(cleaned, CLEAN_PATH)
-    write_log(log, raw, cleaned)
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    clean_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_parquet(raw, raw_path)
+    _write_parquet(cleaned, clean_path)
+    if raw_path == RAW_PATH:
+        write_log(log, raw, cleaned)
 
-    raw_mb = RAW_PATH.stat().st_size / 1e6
-    clean_mb = CLEAN_PATH.stat().st_size / 1e6
+    raw_mb = raw_path.stat().st_size / 1e6
+    clean_mb = clean_path.stat().st_size / 1e6
 
     print(f"\n  raw   {len(raw):>10,} payments  {raw['run_id'].nunique():>4} runs  "
-          f"{raw_mb:>6.1f} MB  -> {RAW_PATH.relative_to(REPO)}")
+          f"{raw_mb:>6.1f} MB  -> {raw_path}")
     print(f"  clean {len(cleaned):>10,} payments  {cleaned['run_id'].nunique():>4} runs  "
-          f"{clean_mb:>6.1f} MB  -> {CLEAN_PATH.relative_to(REPO)}")
-    print(f"  log   {len(log)} exclusion rule(s) applied "
-          f"-> {LOG_PATH.relative_to(REPO)}")
+          f"{clean_mb:>6.1f} MB  -> {clean_path}")
+    # Honest about whether the log was actually written. It is only written
+    # for a canonical export; a run against a temp path leaves the committed
+    # log alone, and saying otherwise is the same class of false reassurance
+    # this file's exclusion rules exist to prevent.
+    wrote = " -> " + str(LOG_PATH.relative_to(REPO)) if raw_path == RAW_PATH \
+        else " (not written: non-canonical output path)"
+    print(f"  log   {len(log)} exclusion rule(s) applied{wrote}")
 
     # GitHub hard-rejects pushes containing a file over 100 MB, so warn well
     # before that rather than at push time.
