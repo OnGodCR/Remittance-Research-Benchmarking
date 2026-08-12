@@ -172,41 +172,113 @@ async def main() -> int:
     recipients = spread("r", args.recipients)
     sender_keys: list[dict[str, str]] = []
 
-    existing_keys = {}
+    # Keyed by account, holding BOTH halves. The public half is what makes
+    # verification against the chain possible; a file written before that was
+    # recorded simply re-derives nothing and those accounts are treated as
+    # having no key on file, which is the safe direction.
+    existing_keys: dict[str, dict] = {}
     kp = Path(args.keys_out)
     if kp.exists():
-        existing_keys = {k["account_id"]: k["private_key"]
-                         for k in json.loads(kp.read_text())}
-
-    async def ensure(account_id: str, nowait: bool = False) -> str:
-        if account_id in existing_keys and await _exists(master, account_id):
-            return existing_keys[account_id]
-        pub, sec = new_key()
-        if not await _exists(master, account_id):
-            for attempt in range(3):
+        for k in json.loads(kp.read_text()):
+            if "public_key" not in k:
+                # Files written before the public half was recorded can still be
+                # used: a NEAR ed25519 secret key is base58(seed || public), so
+                # the public half is the last 32 bytes and needs no chain call
+                # to recover. Deriving it means an existing account set can be
+                # verified in place rather than abandoned for a fresh --tag.
                 try:
-                    await master.create_account(account_id, pub, ACCOUNT_BALANCE,
-                                                nowait=nowait)
-                    break
+                    raw = base58.b58decode(k["private_key"].split(":", 1)[1])
+                    k["public_key"] = "ed25519:" + base58.b58encode(raw[32:]).decode()
                 except Exception:                  # noqa: BLE001
-                    await asyncio.sleep(1.0)
-        return sec
+                    continue
+            existing_keys[k["account_id"]] = k
+
+    async def ensure(account_id: str, nowait: bool = False):
+        """Return (public_key, secret_key) for an account we can actually sign as.
+
+        Returns None when the account already exists and we do NOT hold its key.
+
+        THE BUG THIS GUARDS AGAINST -- it cost Phase 4 a day.
+        The previous version generated a fresh keypair, skipped `create_account`
+        because the account already existed, and then RETURNED THE NEW SECRET
+        ANYWAY. The caller wrote it to the keys file. The result was 64 accounts
+        whose recorded private key corresponded to no on-chain access key, which
+        surfaced much later and far from its cause as:
+
+            ValueError: access key ed25519:... does not exist while viewing
+
+        The trigger is ordinary: re-running the bootstrap with a larger account
+        count reuses the earlier names. Generating a key for an account you
+        cannot modify is always wrong, so the only safe answer is to admit we
+        have no usable key for it rather than invent one.
+        """
+        exists = await _exists(master, account_id)
+        if account_id in existing_keys and exists:
+            k = existing_keys[account_id]
+            return k["public_key"], k["private_key"]
+        if exists:
+            # Pre-existing account, no key on file. Creating it again would
+            # fail, and fabricating a key would reproduce the bug above.
+            return None
+        pub, sec = new_key()
+        for attempt in range(3):
+            try:
+                await master.create_account(account_id, pub, ACCOUNT_BALANCE,
+                                            nowait=nowait)
+                break
+            except Exception:                      # noqa: BLE001
+                await asyncio.sleep(1.0)
+        return pub, sec
 
     # Submitted one at a time (the master account has a single access key, so
     # nonces serialise regardless) but WITHOUT waiting for finality, then
     # verified in bulk. Waiting per account would cost ~2s each -- half an hour
     # for 900 accounts.
     created = 0
+    skipped_no_key: list[str] = []
     for acct in senders:
-        sec = await ensure(acct, nowait=True)
-        if sec:
-            sender_keys.append({"account_id": acct, "private_key": sec})
-            created += 1
+        got = await ensure(acct, nowait=True)
+        if got is None:
+            skipped_no_key.append(acct)
+            continue
+        pub, sec = got
+        sender_keys.append({"account_id": acct, "private_key": sec,
+                            "public_key": pub})
+        created += 1
         if created and created % 100 == 0:
             print(f"    {created} sender accounts submitted")
     for acct in recipients:
         await ensure(acct)
-    print(f"  {len(sender_keys)} new sender keys written")
+    print(f"  {created} sender accounts submitted, "
+          f"{len(skipped_no_key)} pre-existing with no key on file")
+
+    # VERIFY EVERY KEY AGAINST THE CHAIN BEFORE WRITING THE FILE.
+    #
+    # Creation was submitted without waiting for finality, so "submitted" is not
+    # "exists with the key we think it has". The check is cheap next to the cost
+    # of discovering a mismatch during a measured run, where it looks like a
+    # chain failure rather than a setup fault.
+    print(f"  verifying {len(sender_keys)} sender keys against the chain")
+    for attempt in range(30):
+        await asyncio.sleep(4)
+        verified, unverified = [], []
+        for k in sender_keys:
+            if await _has_access_key(master, k["account_id"], k["public_key"]):
+                verified.append(k)
+            else:
+                unverified.append(k["account_id"])
+        if not unverified:
+            print(f"  all {len(verified)} sender keys match an on-chain access key")
+            break
+        if attempt % 5 == 0:
+            print(f"    {len(verified)}/{len(sender_keys)} confirmed on chain")
+    else:
+        print(f"  REFUSING TO WRITE: {len(unverified)} of {len(sender_keys)} keys "
+              f"do not match an on-chain access key. Writing them would produce "
+              f"senders that cannot sign, and the failure would surface later as "
+              f"a chain error rather than a setup error. First few: "
+              f"{unverified[:5]}")
+        return 1
 
     if sender_keys:
         p = Path(args.keys_out); p.parent.mkdir(parents=True, exist_ok=True)
@@ -344,6 +416,31 @@ async def _exists(master, account_id: str) -> bool:
     except Exception:                              # noqa: BLE001
         return False
     return bool(res) and ("amount" in res or "code_hash" in res)
+
+
+async def _has_access_key(master, account_id: str, public_key: str) -> bool:
+    """Does this account carry this public key as an access key?
+
+    The question the old bootstrap never asked. It generated keys, wrote them
+    down, and assumed the chain agreed -- so 64 senders ended up holding keys
+    the chain had never seen, and the fault surfaced during a measured run as
+    "access key does not exist while viewing" rather than during setup.
+
+    Checks the response rather than relying on absence of an exception, for the
+    same reason `_exists` does: py-near returns error objects as often as it
+    raises, and a bare try/except reports success for both.
+    """
+    try:
+        res = await master._provider.json_rpc("query", {
+            "request_type": "view_access_key_list",
+            "finality": "final",
+            "account_id": account_id,
+        })
+    except Exception:                              # noqa: BLE001
+        return False
+    if not isinstance(res, dict):
+        return False
+    return any(k.get("public_key") == public_key for k in res.get("keys", []))
 
 
 async def _view(acct, contract: str, method: str, args: dict):
