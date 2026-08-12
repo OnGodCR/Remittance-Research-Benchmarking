@@ -187,6 +187,7 @@ Work required: a NEAR adapter implementing `harness/adapters/base.py`, NEP-141 t
 ## 9. Standing instructions from Angad
 
 - **Begin every message with "Hi Angad!"** — every message, without exception.
+- **Commit and push to `main` without asking** (standing permission, 12 Aug 2026) — but **say so every time**, naming what went in. No branch workflow on this repo.
 - **Flag anything that spends money first**, with the rate for the pricing model actually in use.
 - **No jargon.** He defends this to examiners and cannot defend what he cannot explain. Plain words for everything: "the program that sends test payments", not "the harness".
 - **Keep `METHODOLOGY_LOG.md` current unprompted** — the paper is written from it.

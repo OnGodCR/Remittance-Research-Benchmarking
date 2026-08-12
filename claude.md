@@ -10,6 +10,10 @@
 > than "the harness"; "the computers running the blockchain" rather than "the validator
 > set". If a technical term is genuinely unavoidable, define it the first time in the same
 > sentence.
+>
+> **Commit and push to `main` whenever it makes sense — do not ask first.** Standing
+> permission, given 12 Aug 2026. The one obligation is to **tell him every time**, with what
+> was committed. Work on `main`; this repo has no branch workflow.
 
 > ## 0. CURRENT STATE — updated 11 Aug 2026
 >
