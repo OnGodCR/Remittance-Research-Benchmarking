@@ -845,3 +845,59 @@ line killed the connection mid-cleanup. Both are in the handoff. Both were hit
 anyway, which is an argument for tooling rather than for warnings:
 `scripts/near_count_procs.sh` now answers the question from a file, printing full
 command lines rather than a count to be trusted.
+
+---
+
+## Phase 4 — the NEAR submission-drop rate, 12 August 2026
+
+### 8a. What was measured
+
+At the lowest load step (10/sec, $10), **3–4% of payments are accepted for
+broadcast and never appear on the chain at all**. Consistent across runs: 94 of
+2,956, 89 of 3,009, 45 of 1,190, 52 of 1,205.
+
+### 8b. What they are, and what they are NOT
+
+The chain's own answer, recorded per payment: **`Transaction <hash> doesn't
+exist`**. Queried against three validators on three continents — validator-0
+(Virginia), validator-2 (Mumbai), validator-6 (London) — all three return
+`UNKNOWN_TRANSACTION`. The transaction is absent from the chain, not merely
+absent from the node we happen to poll.
+
+So these are **submission rejections**: broadcast accepted by the node, never
+included in a block, **no gas charged, no state changed, retryable by the
+sender**. This is the same class as Polygon's `txpool is full` rejections, and
+it is emphatically **not** the accepted-but-never-settled case — money leaving
+one side and not arriving — which on Polygon appeared **only** under deliberate
+node failure. The two must never be merged in reporting.
+
+The slowest payment that *did* settle took 29.6s against a 60s budget, and
+nothing settled between 30s and 60s, so these are not slow payments. They are
+absent.
+
+### 8c. Causes ruled out, by experiment rather than argument
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| Competing background traffic | Same configuration run with traffic on and off, minutes apart | **3.78% with, 4.32% without** — not the cause |
+| Transaction expiry | `transaction_validity_period` is 100 blocks = 200s; py-near re-signs with a block hash at most 50s old | not the cause |
+| Nonce contention on particular senders | Distribution of losses across the 836 senders | spread evenly, max 3 on any one sender | 
+| Single-node view (RPC tracking only some shards) | Same hashes queried on three validators in three regions | all three agree the transaction never existed |
+| Slow settlement hitting the 60s budget | Latency distribution of settled payments | p99 16.1s, max 29.6s — nothing between 30s and 60s |
+
+### 8d. What remains open, and how the sweep itself will narrow it
+
+The mechanism is not isolated. `broadcast_tx_async` returns a hash without
+validating, so a transaction rejected after that point disappears silently — and
+that is the only route by which a node can accept a broadcast and the chain
+never see it.
+
+**The load ramp will discriminate.** If the rate stays near 3–4% from 10/sec
+through 300/sec, it is a per-transaction submission property independent of
+load, most likely in the client path. If it climbs with offered load, it is
+capacity — a real finding about NEAR under pressure. That data is being
+collected regardless, so no extra runs are needed to answer it.
+
+**Until it is resolved, the honest reporting is:** a measured submission-rejection
+rate under our stated conditions, of the retryable kind, with the cause not
+established. It must not be presented as NEAR losing payments.
