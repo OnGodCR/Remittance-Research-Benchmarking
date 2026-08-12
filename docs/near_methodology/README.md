@@ -7,6 +7,7 @@ Reference material for writing up the NEAR (sharding) arm. Each file states what
 | [`shard_scaling.md`](shard_scaling.md) | How a 4-shard measurement answers a 10-shard question. The $c(S)$ formula and why a naive average cannot be scaled. |
 | [`cost_per_transaction.md`](cost_per_transaction.md) | Gas summed across receipts, priced with mainnet rates. RQ3. |
 | [`settlement_definition.md`](settlement_definition.md) | Why settlement means `FINAL` and what accepting `EXECUTED_OPTIMISTIC` would have done to the comparison. |
+| [`adversarial_arm.md`](adversarial_arm.md) | The node-failure arm: the three asymmetries against Polygon, the four-hour expulsion cost with its evidence, how hostile the injection is against mainnet, and the claims it does and does not support. |
 
 ---
 
@@ -38,56 +39,11 @@ Reference material for writing up the NEAR (sharding) arm. Each file states what
 
 ---
 
-## The adversarial arm — why NEAR's is not Polygon's, 12 August 2026
+## The adversarial arm
 
-**Design:** identical fault schedule to phase 2 — one validator offline at a
-time, 15–45s down, 20–60s between, continuous across all 15 runs (3 loads ×
-$200 × 5 repeats). The difference between the arms must be the architecture, not
-the fault pattern.
-
-**The complication, and the property that resolves it.** On Polygon Edge a
-restarted validator rejoins consensus immediately, so every run met the same
-4-validator network. On NEAR a validator that misses its scheduled blocks falls
-below the **90% kickout threshold** and is **expelled for two further epochs** —
-four hours here. Outages therefore do not merely perturb the run they occur in;
-they permanently shrink the network for everything after, and the arm would
-measure a progressively smaller cluster rather than the effect of node failure.
-
-What makes the arm possible is that **expulsion is decided at the end of the
-epoch and applied two epochs later**. Starting near an epoch boundary buys at
-least two hours, and up to four, in which the validator set stays nominally
-whole however badly a node behaves. The arm takes about 80 minutes.
-`scripts/near_adversarial_nodes.sh` checks that window before starting and
-refuses if it is too short — an expulsion landing mid-arm would make the later
-runs incomparable to the earlier ones.
-
-**Two limits enforced in the script, not trusted to the operator:**
-- **Never validator-0** — it is the boot node and sole RPC endpoint, so taking it
-  down measures our loss of connectivity, not the network's tolerance of a
-  missing validator.
-- **At most one validator down at a time** — 8 validators over 4 shards is
-  exactly 2 per shard, the protocol minimum, so two simultaneous outages can
-  leave a shard with no producer at all.
-
-**Events go into the database, not a log file.** `analysis/backfill.py` records
-that phase 2's outages "went to a text file, never the database", and
-`analysis/export.py` keys two exclusion rules on `node_events` — an empty table
-means those rules silently never fire. `scripts/near_import_events.py` attributes
-each event to the run it fell in, refuses to import twice, and reports any run
-that carries no outage at all.
-
-### Three asymmetries to state when the two arms are compared
-
-1. **Fraction of the network removed.** Polygon lost 1 of 4 (25%); NEAR loses 1
-   of 8 (12.5%). NEAR's arm is *gentler* on this axis.
-2. **Redundancy remaining in the affected shard.** Polygon kept 3 of 4
-   validators; NEAR drops the affected shard from 2 producers to 1, its
-   protocol minimum. NEAR's arm is *harsher* on this axis.
-3. **The recovery cost itself, which Polygon does not have.** A NEAR validator
-   interrupted beyond ~10% of an epoch is locked out for four hours. This was
-   observed twice, unintentionally and with timestamps, on 11–12 Aug. It is a
-   real architectural cost of proof-of-stake sharding that the Polygon arm
-   cannot produce, and it needs no extra runs to report.
-
-Points 1 and 2 pull in opposite directions. The paper should give both rather
-than the flattering one.
+Moved to [`adversarial_arm.md`](adversarial_arm.md) — it is paper-writing
+reference material and was outgrowing this index. In short: the fault
+schedule is identical to Polygon's, the arm fits inside the two-to-four
+hour window before an expulsion takes effect, and **three asymmetries
+against Polygon's arm must all be stated** because two of them point in
+opposite directions.
