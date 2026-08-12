@@ -9,6 +9,7 @@ Reference material for writing up the NEAR (sharding) arm. Each file states what
 | [`settlement_definition.md`](settlement_definition.md) | Why settlement means `FINAL` and what accepting `EXECUTED_OPTIMISTIC` would have done to the comparison. |
 | [`adversarial_arm.md`](adversarial_arm.md) | The node-failure arm: the three asymmetries against Polygon, the four-hour expulsion cost with its evidence, how hostile the injection is against mainnet, and the claims it does and does not support. |
 | [`restart_recovery_effect.md`](restart_recovery_effect.md) | The first run after a chain restart fails more (+0.37pp at worst). Observed, deliberately not corrected for, and how to sensitivity-check it. |
+| [`finishing_runbook.md`](finishing_runbook.md) | The exact sequence from "matrix complete" to "cluster stopped", the two ordering traps in it, and the checklist that must pass before the machines are switched off. |
 
 ---
 
