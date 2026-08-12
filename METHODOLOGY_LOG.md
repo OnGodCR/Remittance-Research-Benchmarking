@@ -1040,3 +1040,34 @@ the derived number and its inputs are printed so a reader can substitute it.
 very large — mainnet NEAR carries ~5 tx/sec — and that number says nothing about
 NEAR's capability, only that the network is lightly used today. It must be
 labelled as such wherever it appears.
+
+---
+
+## Phase 4 — sweep order changed to protect the headline size, 12 August 2026
+
+**Change.** The sweep now measures amounts in the order **$200, $10, $50, $500**
+rather than $10, $50, $200, $500.
+
+**Why.** $200 is the World Bank's standard remittance size (claude.md §6) and the
+headline figure of every comparison the paper makes. In the original order it was
+measured *third*, landing seven to ten hours into a 13.5-hour sweep. Anything
+cutting the sweep short — a validator expulsion, a budget ceiling, a stall — would
+have left the two least important sizes complete and **no $200 data at all.**
+
+Phase 4 has already lost four hours to one expulsion cycle, so this is not a
+hypothetical.
+
+**Why it does not affect a result.** Each cell is five repeats under identical
+conditions, and the runs are independent of one another. Amount is additionally
+already known not to change gas or latency on an account-model chain — Polygon's
+own finding, where gas varied by 12 units across all four amounts (0.044%).
+
+**The one honest caveat.** Polygon's sweep ran $10 → $500 in ascending order, so
+NEAR's cells now sit at slightly different points in the chain's accumulated
+history than Polygon's did. That is a second-order effect on a chain a few hours
+old with negligible state, and it is stated here rather than left for a reader
+to notice.
+
+**Measured pace, for the record:** 336s mean run duration plus a 23s gap = **6.0
+minutes per configuration**, so 140 configurations is **14 hours** of clean
+running.
