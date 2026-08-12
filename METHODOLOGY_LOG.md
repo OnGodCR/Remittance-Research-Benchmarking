@@ -986,3 +986,57 @@ one node rather than the sum over shards. **Our NEAR throughput figures are
 therefore conservative relative to a production deployment where validators track
 only their assigned shards.** The cross-shard *latency and gas* measurements are
 unaffected — those are properties of receipt routing, which happens regardless.
+
+---
+
+## Phase 5 — calibration against mainnet, 12 August 2026
+
+`analysis/calibration.py` computes the two figures ANALYSIS_PLAN §11 requires,
+from the dataset and from each chain's own RPC rather than a scraped explorer
+page.
+
+### 10a. Mainnet observed throughput, measured rather than cited
+
+| Chain | Observed | Block utilisation | Source |
+|---|---|---|---|
+| Polygon | **79.6 tx/sec** | **28.5%** | `polygon-bor-rpc.publicnode.com`, 25 contiguous blocks, head 91,888,830, 12 Aug 2026 12:37 UTC |
+| NEAR | **~4.8 tx/sec** | ~0.04% | `rpc.mainnet.near.org`, 8 contiguous blocks across 10 shards, 12 Aug 2026 01:35 UTC — small sample, indicative only |
+
+The project notes quoted Polygon at "~87 tx/sec (7.5M/day)" from a secondary
+source. Measured from the chain it is 79.6, which corroborates it.
+
+### 10b. Polygon result
+
+- **Demand ratio = 2.52×.** We sustain 2.5× what Polygon mainnet currently
+  carries. A statement about **workload realism**: the loads tested are of the
+  same order as real activity, slightly above it.
+- **Capability gap = 0.719×.**
+
+### 10c. A finding that contradicts an assumption in the project scope
+
+claude.md §5 technique #7 anticipates reporting *"our private network measured X;
+real mainnet activity suggests Y; results should be treated as an **upper bound**
+roughly Z% above expected real-world performance."*
+
+**For Polygon that is the wrong direction.** Our 4-validator testbed sustains
+**71.9%** of Polygon mainnet's estimated capacity — it is *less* capable, not
+more. The results are therefore **conservative** on this axis rather than an
+upper bound, and the scope's framing should be corrected rather than repeated.
+
+The reason is the one §11 already gives: mainnet's *observed* 79.6 tx/sec is
+demand, not capacity. Its blocks run **28.5% full**, so the same traffic mix at
+full blocks implies roughly **279 tx/sec** of capacity — comfortably above the
+200/sec our cluster sustains.
+
+**The assumption this rests on, stated plainly:** implied capacity =
+observed ÷ utilisation presumes the marginal transaction costs what the average
+one costs. Reasonable on a chain of mostly simple transfers, and it would
+overstate capacity on one dominated by heavy contract calls. §11 asks instead for
+the highest sustained throughput in explorer history, which cannot be pulled from
+an RPC; `--mainnet-peak` accepts that figure if it is looked up by hand, and both
+the derived number and its inputs are printed so a reader can substitute it.
+
+**NEAR's figures follow once its matrix completes.** Its demand ratio will be
+very large — mainnet NEAR carries ~5 tx/sec — and that number says nothing about
+NEAR's capability, only that the network is lightly used today. It must be
+labelled as such wherever it appears.
