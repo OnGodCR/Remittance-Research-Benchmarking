@@ -409,11 +409,31 @@ class NearAdapter(Adapter):
                 fut.set_exception(exc)
 
     async def await_confirmation(self, tx_ref: str, timeout_seconds: float) -> ConfirmResult:
+        # ONE DEADLINE FOR THE WHOLE PATH, started here and shared by both
+        # stages below.
+        #
+        # This must match Polygon exactly. There, await_confirmation is a single
+        # `wait_for(future, timeout_seconds)` covering submission through
+        # settlement, so a payment has 60s total (claude.md S7) and is a failure
+        # after that whatever the chain later decides.
+        #
+        # NEAR settles in two observable stages -- the node accepts the
+        # transaction, then it reaches FINAL -- and giving each stage its own
+        # fresh `timeout_seconds` allowed up to 120s. A NEAR payment could then
+        # be counted as settled where the identical Polygon payment was already
+        # recorded as failed, which puts a real advantage for one architecture
+        # inside the three-way comparison this project exists to make. The
+        # stages are an implementation detail of how we observe NEAR; they must
+        # not buy NEAR extra time.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_seconds
+
         fut = self._hashes.pop(tx_ref, None)
         if fut is None:
             return ConfirmResult(status="failed", error="no pending submission for ref")
         try:
-            tx_ref, signer, crossed = await asyncio.wait_for(fut, timeout=timeout_seconds)
+            tx_ref, signer, crossed = await asyncio.wait_for(
+                fut, timeout=max(0.0, deadline - loop.time()))
         except asyncio.TimeoutError:
             return ConfirmResult(status="timeout",
                                  error=f"never broadcast within {timeout_seconds:g}s")
@@ -421,9 +441,8 @@ class NearAdapter(Adapter):
             return ConfirmResult(status="failed", error=f"{type(exc).__name__}: {exc}")
 
         provider = self._accounts[0]._provider
-        deadline = asyncio.get_event_loop().time() + timeout_seconds
 
-        while asyncio.get_event_loop().time() < deadline:
+        while loop.time() < deadline:
             try:
                 # Called directly rather than through py-near's get_tx, which
                 # uses the legacy positional form and cannot request a finality

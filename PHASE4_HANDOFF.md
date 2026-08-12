@@ -12,12 +12,17 @@ For paper-writing context, `HANDOFF.md`. For NEAR-specific formulas, `docs/near_
 
 ## 1. The one-line status
 
-**Phase 4 has produced ZERO valid runs. A 9-instance cluster has been billing since
-10 August. Every full-rate test has failed 100%.** The cause is now identified and a fix
-is written but **untested**.
+> **Updated 12 Aug 2026, 01:00 UTC.** The four bugs below are all fixed and the race fix is
+> **verified working against the live chain** — 382 of 400 payments confirmed, against 0 on
+> every previous attempt. Collection is automated and gated; it starts by itself once the
+> validator set is whole. Read §2 for the current state; §3's bug histories are kept because
+> the failure modes are instructive, not because they are open.
 
-Phases 1–3 are complete and unaffected. Nothing in this document threatens the Polygon or
-Lightning results.
+**Phase 4 has produced 0 of 140 valid runs so far**, but the instrument now works and the
+cluster is self-healing. What blocks collection is validator churn, not code: two validators
+were expelled by the protocol after spot preemptions and are being re-admitted.
+
+Phases 1–3 are complete and unaffected.
 
 ---
 
@@ -27,36 +32,64 @@ Lightning results.
 |---|---|
 | Instances | **9 RUNNING** — `near-validator-0..7` + `near-generator`, project `project-c4c87dcb-da41-4caf-922` |
 | Regions | us-east4-c (v0, v1, generator), asia-south1-a (v2, v3), asia-southeast1-a (v4, v5), europe-west2-b (v6, v7) |
-| Chain | nearcore **2.13.3**, protocol **86**, 8 validators, **4 shards**, healthy, block height ~27,500 |
-| RPC endpoint | `http://10.40.0.10:3030` — this is **validator-0**, reachable only from inside the VPC and from the operator IP |
+| Chain | nearcore **2.13.3**, protocol **86**, **4 shards**, healthy |
+| Validator set | ⚠️ **7 of 8** — `node0` expelled, re-admitted at block 36002; `node1` expelled next epoch, re-admitted ~39602. Shard 3 has one producer until then. |
+| RPC endpoint | `http://10.40.0.10:3030` — **validator-0**, reachable only from inside the VPC and from the operator IP |
 | Machine type | `n2-standard-8` everywhere (8 vCPU / 32 GB), 100 GB pd-balanced |
-| Provisioning | validators **SPOT**, generator **STANDARD** (on-demand) |
-| Spend | **roughly $75–85 of the $300 credit** — verify, do not quote this from here |
-| Sweep | **NOT running** |
-| Idle watchers | **disabled on every node** (they were killing the cluster) |
-| Hard cap | ⚠️ **Installed on only 2 of 9 machines** — `near-generator` and `near-validator-0`, expiring **12 Aug 20:09 UTC**. **The other seven have no cap and no idle watcher.** See §2.1. |
+| Provisioning | **STANDARD (on-demand) on all nine** as of 12 Aug — see §2.1 |
+| Cost | **~$3.50/hr**, ~$80 of the $300 credit spent — verify, do not quote from here |
+| Sweep | **not running; starts automatically** when the validator set is whole |
+| Idle watchers | **disabled on every node** (they were killing the cluster) — keep it that way |
+| Shutdown | **dead-man's switch armed on all nine**, six hours out, renewed by the operator every 30 min — see §2.2 |
 
-### 2.1 The hard shutdown cap is only half-installed
+### 2.1 Spot was abandoned — preemption causes EXPULSION, not a restart
 
-The original cap was an `at` job. **`at` is not even installed on these images**, and the
-job did not survive the generator's reboot at 04:08 on 11 Aug — which is how the cluster
-ended up with no shutdown protection of any kind.
+**This is the most important operational finding of the phase.** A reclaimed validator does
+not cost a restart. It misses scheduled blocks and chunks, its epoch score falls below the
+**90%** kickout threshold, and the protocol **expels** it. Re-admission needs a fresh
+`StakeAction` and takes effect two epochs later — **four hours** at `epoch_length` 3600 and
+2s blocks. The harness health check refuses to run below 8 validators, so **one preemption
+costs four hours of collection**.
 
-The replacement is a **deadline file plus cron**, which survives reboots (and therefore
-survives spot preemption restarts):
+Observed: `node0` reclaimed 11:31 UTC 11 Aug, scored 19%, expelled. `node1` reclaimed 00:04
+UTC 12 Aug, back to 100% production within minutes, still expelled on a 63% score.
 
-- `/usr/local/bin/hardcap.sh` — compares `date +%s` against the deadline, shuts down when reached
-- `/etc/hardcap_deadline` — an epoch timestamp
-- `/etc/cron.d/hardcap` — runs the check every 5 minutes
+All nine were converted in place — stop, `set-scheduling`, start. **The flag that makes this
+work is `--clear-instance-termination-action`**; without it GCP rejects SPOT→STANDARD, which
+is why an earlier attempt concluded it was impossible. Disks, chain state, validator keys and
+the static internal IP all survive; genesis was verified byte-identical by SHA-256.
 
-**Installed on `near-generator` and `near-validator-0` only**, deadline **12 Aug 20:09 UTC**.
-Validators 1–7 have nothing. The install is scripted and staged locally at `/tmp/hardcap.sh`,
-`/tmp/hardcap_deadline` and `/tmp/install_hardcap.sh` (`sudo bash /tmp/install_hardcap.sh`
-after copying all three).
+### 2.2 Shutdown protection — a renewed dead-man's switch, not a fixed timer
 
-**If you are redeploying, do not retrofit this — put it in the OpenTofu startup script**, so
-every node is armed at boot and a rebuilt node comes back capped. That is where it should
-have been in the first place.
+Every machine halts itself at an absolute epoch timestamp in `/etc/hardcap_deadline`,
+checked by `/etc/cron.d/hardcap` every 5 minutes. This survives reboots, unlike the old `at`
+job (`at` is not installed on these images) and unlike `shutdown -h +N`, which re-arms from
+each boot and so is silently extended by a reboot.
+
+**The window is six hours and is renewed by the operator every 30 minutes**
+(`scripts/near_cluster_control.sh renew`). If the operator side stops renewing, the whole
+cluster halts within six hours rather than billing for days. Halting is cheap and safe:
+disks, chain state and the database persist, and the sweep is resumable.
+
+The terraform guard's `shutdown -h +2040` is cancelled on each machine so there is exactly
+one deadline in one place.
+
+**If you are redeploying, put the deadline file in the OpenTofu startup script** so every
+node is armed at boot.
+
+### 2.3 What now runs by itself
+
+| Component | Where | Does what |
+|---|---|---|
+| `scripts/near_liveness_watch.py` | generator, systemd `near-liveness` | samples the chain every 10s; records validator count, per-shard producer counts, peers, sync state |
+| `scripts/near_supervisor.py` | generator, cron every 5 min | gates the sweep on a whole validator set, restarts a dead sweep, **re-stakes expelled validators automatically**, writes `supervisor_status.json` |
+| `scripts/run_near_sweep_inner.sh` | generator | the 140-run matrix, foreground, resumable; the supervisor owns detaching and the PID file |
+| `analysis/apply_validator_liveness.py` | operator | invalidates any run overlapping a degraded sample, **and any run whose window is not densely covered** |
+| `scripts/near_cluster_control.sh` | operator | `status` / `renew` / `stop` |
+
+`supervisor_status.json` on the generator is the single place to read what is happening.
+**The generator has no service account**, so it cannot call the Compute API — cluster-wide
+shutdown must come from the operator side.
 
 ### 2.2 `gcloud` misbehaves in this environment — read before scripting against it
 

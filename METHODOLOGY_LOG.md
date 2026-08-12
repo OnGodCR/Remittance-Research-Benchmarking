@@ -530,3 +530,116 @@ defects produced this:
 none of it may be reported. The affected runs are invalidated and retained. This is the
 same class of error as the Lightning rebalancer no-op recorded in §7: a measurement
 instrument reporting confidently on something it was not measuring.
+
+---
+
+## Phase 4 (NEAR) — validator churn, and why spot was abandoned, 12 August 2026
+
+### 5a. The race fix is verified working
+
+The `_hashes` race described in §4d is fixed and **executed against the live chain for the
+first time on 12 Aug**: 400 payments at 50/sec produced **382 confirmed, 18 timeouts**,
+against 0 confirmed on every previous attempt. Cross-shard share was **73.8%**, against the
+75% that $(S-1)/S$ predicts at 4 shards.
+
+Run as a standalone probe (`submit()` then `await_confirmation()` immediately, the exact
+ordering that triggered the race) rather than through the harness, because the harness
+health check correctly refuses to run against an incomplete validator set. **These numbers
+are a test of our own code and are not a measurement of NEAR.** They are recorded here only
+as evidence that the instrument works.
+
+### 5b. Settlement deadline corrected — NEAR had twice Polygon's budget
+
+`NearAdapter.await_confirmation` allowed `timeout_seconds` for the broadcast future and
+then started a **fresh** `timeout_seconds` for the FINAL poll, so a NEAR payment had up to
+**120s** where the pre-registered timeout is 60s (claude.md §7) and where Polygon enforces a
+single 60s across submission and settlement.
+
+A NEAR payment could therefore have been recorded as settled while the identical Polygon
+payment was already a failure. That is a real advantage for one architecture sitting inside
+the three-way comparison the study exists to make. Corrected to one shared deadline started
+when `await_confirmation` is entered, matching Polygon exactly.
+
+**No results are affected**: Phase 4 had zero valid runs when this was found. Had it been
+found later, every NEAR run would have needed re-running.
+
+### 5c. Spot instances abandoned for this phase — preemption causes EXPULSION, not a restart
+
+The cost of a reclaimed validator was badly underestimated in the earlier planning. It is
+not a restart. The sequence is:
+
+1. GCP reclaims the instance; it is down for minutes.
+2. It returns and resumes producing normally.
+3. But it has missed blocks and chunks it was scheduled to produce, and NEAR scores each
+   validator per epoch against `block_producer_kickout_threshold` and
+   `chunk_producer_kickout_threshold`, **both 90%** on this chain.
+4. Below either threshold the protocol **expels** it. The deficit is arithmetic and cannot
+   be recovered inside the epoch.
+5. Re-admission requires a fresh `StakeAction` and takes effect **two epochs later**. At
+   `epoch_length` 3600 and 2s blocks that is **four hours**.
+
+Observed directly: `node0` was reclaimed at 11:31 UTC on 11 Aug, scored 91/467 blocks
+(19%) and was expelled. `node1` was reclaimed at 00:04 UTC on 12 Aug, recovered to 100%
+block production within minutes, and was still expelled on a 63% epoch score.
+
+With 8 validators over 4 shards, losing one leaves a shard with a single producer, and the
+harness health check then refuses to run at all. **A single preemption therefore costs four
+hours of collection, not fifteen minutes** — and over a 13-hour sweep across 7 spot machines
+it was close to certain to happen more than once.
+
+All nine machines were converted to `STANDARD` (on-demand) on 12 Aug. Cost rises from
+~$1.40/hr to ~$3.50/hr; expected total for the phase ~$70 against ~$215 of remaining credit.
+
+**The conversion is possible in place** — stop, `set-scheduling`, start — which an earlier
+attempt had concluded it was not. The missing piece was
+`--clear-instance-termination-action`: GCP rejects SPOT→STANDARD while a termination action
+is stored, and will not drop it implicitly. Disks, chain state, validator keys and the
+static internal IP all survive; genesis was verified byte-identical by SHA-256 before and
+after.
+
+**This belongs in the paper, not just in ops notes.** It is a real operational property of
+proof-of-stake sharding: a validator interruption is penalised for hours, where Polygon
+Edge's IBFT validators rejoin immediately on restart. It also sharpens the caveat already
+recorded for the adversarial arm — see 5e.
+
+### 5d. Validator liveness is now recorded continuously, and runs are auto-invalidated
+
+claude.md §8 requires that any run touched by preemption be invalidated, and
+`analysis/export.py` already drops runs carrying a `node_events` row with
+`source='preemption'`. **Nothing had ever written one.** On 12 Aug the cluster had lost a
+validator, the protocol had expelled it, shard 3 was down to a single producer, and the
+database recorded none of it; it was found by hand.
+
+`scripts/near_liveness_watch.py` now samples the chain every 10s and records validator
+count, per-shard producer counts, peer count and sync state.
+`analysis/apply_validator_liveness.py` invalidates any run overlapping a degraded sample,
+and — deliberately — any run whose window is not densely covered by samples, on the grounds
+that absence of evidence of degradation is not evidence of health.
+
+This is **stronger than a preemption hook** would have been: it records what the chain
+believes, so it catches a validator lost to a crash, a partition, or the protocol's own
+kickout rule, none of which a hook on the instance would have seen. The expulsions above
+were exactly that case — by the time they mattered, the machines were running fine.
+
+### 5e. Consequence for the adversarial arm — it is not symmetric with Polygon's
+
+Polygon's adversarial arm took validators offline and they rejoined on restart, so each run
+was measured against the same 4-validator network. **On NEAR a validator taken offline is
+expelled for four hours**, so outages contaminate every subsequent run rather than only the
+one they occur in, and the network shrinks progressively through the arm.
+
+The NEAR adversarial arm therefore needs its own design and must run after the full
+baseline. This is a second reason NEAR's adversarial result is harsher than Polygon's,
+alongside the quota-driven 2-validators-per-shard minimum already recorded. **Both must be
+stated when the two architectures are compared.**
+
+### 5f. A third py-near defect
+
+`Account.stake` calls `create_staking_action(public_key, amount)`, but that builder's
+signature is `(amount, pk)`. It therefore base58-decodes the stake amount as a key and
+fails on `Invalid character '0'`. Staking is done by building the action directly.
+
+Three defects in one library now (`nowait` semantics, this, plus the unclosed-session
+warnings). Worth one sentence in Limitations: the NEAR client tooling is materially less
+mature than web3.py, and two of the three produced *silent wrong behaviour* rather than an
+error.
