@@ -35,9 +35,11 @@ transfers, not a token transfer against a native one.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 from typing import Any
 
 from py_near.account import Account
+from py_near import transactions as _near_tx
 
 from .base import Adapter, ConfirmResult, SubmitResult
 
@@ -101,8 +103,13 @@ class NearAdapter(Adapter):
         self._accounts: list[Account] = []
         self._next_sender = 0
         self._next_recipient = 0
-        #: tx hash -> (signing account, shard boundaries crossed)
-        self._signers: dict[str, tuple[str, int]] = {}
+        #: local ref -> future resolving to (tx hash, signer, shards crossed)
+        self._hashes: dict[str, asyncio.Future] = {}
+        self._tasks: set[asyncio.Task] = set()
+
+        #: One lock per sender account -- see the comment in submit().
+        import collections as _collections
+        self._locks: dict[str, asyncio.Lock] = _collections.defaultdict(asyncio.Lock)
 
         #: Seeded so the shard mix is reproducible across repeats of a
         #: configuration -- two repeats must not differ because one happened to
@@ -131,6 +138,18 @@ class NearAdapter(Adapter):
         for key in self._sender_keys:
             acct = Account(key["account_id"], key["private_key"], rpc_addr=self._rpc_url)
             await acct.startup()
+
+            # Prime the local nonce from chain ONCE, here, rather than per
+            # submission. _send_one increments this counter and never re-reads
+            # it: see the long note there for why re-reading per payment both
+            # costs an RPC round trip and returns a stale value while earlier
+            # sends from the same key are still in flight.
+            pk = await acct._free_signers.get()
+            await acct._free_signers.put(pk)
+            access_key = await acct.get_access_key(pk)
+            acct._access_key_nonce[pk] = max(
+                acct._access_key_nonce[pk], access_key.nonce)
+
             self._accounts.append(acct)
 
         # Read the shard boundaries so every transfer can be classified as
@@ -146,6 +165,11 @@ class NearAdapter(Adapter):
             self._boundaries = []
 
     async def teardown(self) -> None:
+        for task in list(self._tasks):
+            task.cancel()
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
         for acct in self._accounts:
             try:
                 await acct._provider.shutdown()
@@ -270,31 +294,131 @@ class NearAdapter(Adapter):
         self._next_recipient += 1
 
         amount = self.to_token_units(amount_usd)
-        try:
-            # nowait=True returns as soon as the transaction is broadcast.
-            # Blocking here would serialise the send loop and turn a
-            # concurrency test into a round-trip-latency test (claude.md S6).
-            tx_hash = await acct.function_call(
-                contract_id=self._token,
-                method_name="ft_transfer",
-                args={"receiver_id": recipient, "amount": amount, "memo": None},
-                gas=_FT_TRANSFER_GAS,
-                amount=_ONE_YOCTO,
-                nowait=True,
-            )
-        except Exception as exc:                   # noqa: BLE001 - recorded, not raised
-            return SubmitResult(ok=False, error=f"{type(exc).__name__}: {exc}")
-
-        tx_hash = str(tx_hash)
         crossed = 0 if self._shard_of(acct.account_id) == self._shard_of(recipient) else 1
-        self._signers[tx_hash] = (acct.account_id, crossed)
-        return SubmitResult(ok=True, tx_ref=tx_hash, amount_native=amount)
+
+        # The send is fired as a BACKGROUND TASK and this returns immediately.
+        #
+        # py-near's `nowait=True` is misleadingly named: its own docstring says
+        # it waits until the transaction is INCLUDED IN A BLOCK before
+        # returning the hash. With 2-second blocks that is ~2s per submission,
+        # and sign_and_submit_tx additionally makes two RPC round trips
+        # (refresh block hash, fetch access key) before broadcasting. Awaiting
+        # that inline serialised the send loop: scheduling lag climbed and 3 of
+        # the first 7 runs were invalidated as generator-saturated -- our own
+        # client, measured as if it were the chain. Exactly the fault that
+        # produced Polygon's phantom throughput knee.
+        #
+        # A local reference is returned instead and resolved to the real
+        # transaction hash in await_confirmation, the same pattern the
+        # Lightning adapter uses for its streaming sends.
+        ref = f"seq-{seq}"
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        self._hashes[ref] = fut
+        # `fut` is held as a LOCAL and handed to the send task directly. It must
+        # not be re-read from self._hashes inside the task: await_confirmation
+        # pops the ref, and asyncio.create_task does not run the coroutine until
+        # the caller next awaits, so the pop routinely happens FIRST. The task
+        # then looked up a ref that was already gone, broadcast the payment, and
+        # discarded the hash -- every transaction settled on chain while the
+        # harness recorded "never broadcast within 60s" for all of them.
+
+        async def send() -> None:
+            # ONE SUBMISSION IN FLIGHT PER SENDER.
+            #
+            # NEAR orders transactions per ACCESS KEY by nonce, and py-near
+            # fetches and increments that nonce per call. Firing concurrently
+            # from the same account makes them collide. Without this lock the
+            # first attempt queued 2,241 simultaneous sends against 64
+            # accounts, none completed inside 60s, and every payment recorded
+            # as "never broadcast" -- our own client, not the chain.
+            #
+            # This makes the sender pool the concurrency limit: with N senders
+            # and ~2s to inclusion, the ceiling is about N/2 per second. That
+            # is why required_pool_size() exists and why the CLI warns when the
+            # pool is too small for the target rate.
+            async with self._locks[acct.account_id]:
+                await self._send_one(acct, recipient, amount, fut, crossed)
+
+        task = asyncio.create_task(send())
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+        return SubmitResult(ok=True, tx_ref=ref, amount_native=amount)
+
+    async def _send_one(self, acct, recipient: str, amount: str,
+                        fut: asyncio.Future, crossed: int) -> None:
+        """Sign and broadcast one transfer, resolving the caller's future.
+
+        WHY THIS DOES NOT CALL `account.function_call(nowait=True)`
+        ----------------------------------------------------------
+        Because in py-near 1.2.22 that flag does not mean what it says. Its own
+        docstring reads "nowait: LEGACY, now same as included", and
+        `sign_and_submit_tx` then does `included = included or nowait` and calls
+        `send_tx_included`, which blocks SERVER-SIDE until the transaction is
+        included in a block.
+
+        That is fatal for a throughput benchmark. Inclusion takes about 2s, the
+        node's own RPC ceiling is 10s, and concurrent submissions queue behind
+        one another until they exceed it: 20 simultaneous sends produced one
+        success and nineteen TIMEOUT_ERRORs, and a 100/sec run recorded all
+        5,956 payments as "never broadcast within 60s". The chain was healthy
+        throughout -- the ceiling was our client library.
+
+        So the transaction is signed here and handed to `send_tx`, which is
+        `broadcast_tx_async`: it returns the hash as soon as the node accepts
+        the transaction and never waits for execution. Settlement is then
+        measured where it should be, by polling for FINAL in await_confirmation.
+
+        The nonce is tracked locally (fetched once per account in setup) rather
+        than re-read per submission. NEAR orders transactions per access key by
+        nonce, and re-reading it would both add an RPC round trip per payment
+        and read a stale value while earlier sends are still in flight -- the
+        per-sender lock in submit() is what keeps the local counter correct.
+        """
+        try:
+            await acct._update_last_block_hash()
+
+            pk = await acct._free_signers.get()
+            await acct._free_signers.put(pk)
+
+            acct._access_key_nonce[pk] += 1
+            nonce = acct._access_key_nonce[pk]
+
+            import base58 as _b58
+            block_hash = _b58.b58decode(acct._latest_block_hash.encode("utf8"))
+            actions = [_near_tx.create_function_call_action(
+                "ft_transfer",
+                _json.dumps({"receiver_id": recipient,
+                             "amount": amount, "memo": None}).encode("utf8"),
+                _FT_TRANSFER_GAS,
+                _ONE_YOCTO,
+            )]
+
+            tx_hash = _near_tx.calc_trx_hash(
+                acct.account_id, pk, self._token, nonce, actions, block_hash)
+            signed = _near_tx.sign_and_serialize_transaction(
+                acct.account_id, pk, self._token, nonce, actions, block_hash)
+
+            await acct._provider.send_tx(signed)
+
+            if fut and not fut.done():
+                fut.set_result((str(tx_hash), acct.account_id, crossed))
+        except Exception as exc:                   # noqa: BLE001 - recorded, not raised
+            if fut and not fut.done():
+                fut.set_exception(exc)
 
     async def await_confirmation(self, tx_ref: str, timeout_seconds: float) -> ConfirmResult:
-        entry = self._signers.pop(tx_ref, None)
-        if entry is None:
-            return ConfirmResult(status="failed", error="no signer recorded for tx")
-        signer, crossed = entry
+        fut = self._hashes.pop(tx_ref, None)
+        if fut is None:
+            return ConfirmResult(status="failed", error="no pending submission for ref")
+        try:
+            tx_ref, signer, crossed = await asyncio.wait_for(fut, timeout=timeout_seconds)
+        except asyncio.TimeoutError:
+            return ConfirmResult(status="timeout",
+                                 error=f"never broadcast within {timeout_seconds:g}s")
+        except Exception as exc:                   # noqa: BLE001
+            return ConfirmResult(status="failed", error=f"{type(exc).__name__}: {exc}")
 
         provider = self._accounts[0]._provider
         deadline = asyncio.get_event_loop().time() + timeout_seconds

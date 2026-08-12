@@ -1,4 +1,14 @@
-# Resume Here — complete state, 9 August 2026
+# Resume Here — complete state, updated 11 August 2026
+
+> ## ⚠️ READ `PHASE4_HANDOFF.md` FIRST
+>
+> **A 9-instance NEAR cluster is RUNNING and billing right now**, with **no idle watcher and
+> no hard shutdown cap**. It has produced **0 of 140 valid runs**. The chain is healthy; the
+> measurement harness had a race condition that discarded every transaction hash. A fix is
+> written but untested and not deployed.
+>
+> §2 of this document ("Nothing is running") describes the state on **9 August** and is
+> **no longer true**. Everything about Phases 1–3 below remains accurate.
 
 **Read this, then `METHODOLOGY_LOG.md` (every decision and parameter) and `ANALYSIS_PLAN.md` (the locked analysis rules). Between them you should not need conversation history.**
 
@@ -12,7 +22,7 @@
 | 2 — Realism techniques on Polygon | ✅ **Complete — 140/140 configurations** |
 | 2b — Adversarial arm (Polygon) | ✅ **Complete — 15/15 runs** |
 | 3 — Lightning | ✅ **Closed 10 Aug** — data source switched to Waugh & Holz (2020); cost + illustrative settlement time retained |
-| 4 — NEAR sharding | ⏭️ **NEXT** — capped at 8 validators by the 96 vCPU quota |
+| 4 — NEAR sharding | ⚠️ **IN PROGRESS, 0/140 valid runs** — cluster live and billing; see `PHASE4_HANDOFF.md` |
 | 5 — Calibration + confidence intervals | ❌ Not started |
 | 6 — Cross-architecture comparison | ❌ Not started |
 
@@ -33,11 +43,17 @@
 
 ---
 
-## 2. Nothing is running
+## 2. What is running  *(superseded 11 Aug — this section said "Nothing is running")*
 
-**Cloud fully destroyed and verified: 0 instances, 0 disks, 0 addresses, 0 of 96 processors.** Nothing is billing.
+**A 9-instance NEAR cluster IS running and billing**: `near-validator-0..7` + `near-generator`,
+`n2-standard-8`, across us-east4-c / asia-south1-a / asia-southeast1-a / europe-west2-b.
+Roughly **$75–85 of the $300 credit** spent. **The idle watchers are disabled and the hard
+lifetime cap is gone** — there is currently nothing that will shut this cluster down.
+Full detail, and the four bugs found, in **`PHASE4_HANDOFF.md`**.
 
-**Polygon is finished.** Main matrix (140/140) and adversarial arm (15/15) both complete. Next work is Phase 3 (Lightning) — see §7.
+**Polygon is finished** — main matrix (140/140) and adversarial arm (15/15). **Lightning is
+closed** (data sourced from Waugh & Holz; see `LIGHTNING_ANALYSIS.md`). **Phase 4 has 0 valid
+runs**: the chain is healthy, but a race in the harness discarded every transaction hash.
 
 ---
 

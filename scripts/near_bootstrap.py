@@ -57,16 +57,23 @@ TOKEN_DECIMALS = 6
 
 #: NEP-141 holds storage on each holder's behalf and requires a deposit.
 STORAGE_DEPOSIT = 1_250_000_000_000_000_000_000        # 0.00125 NEAR
-ACCOUNT_BALANCE = 10_000_000_000_000_000_000_000_000   # 10 NEAR per account
+ACCOUNT_BALANCE = 2_000_000_000_000_000_000_000_000    # 2 NEAR per account
+#: 2 NEAR, not 10. With ~900 senders the larger figure would need 9,000 NEAR of
+#: the master's balance; 2 comfortably covers storage plus gas for a sender
+#: that only ever calls ft_transfer.
 TGAS = 1_000_000_000_000
 
 
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rpc", default="http://10.40.0.10:3030")
-    ap.add_argument("--senders", type=int, default=64,
+    ap.add_argument("--senders", type=int, default=900,
                     help="NEAR orders transactions per access key by nonce, so "
-                         "this is the concurrency ceiling")
+                         "the sender count IS the concurrency ceiling. At ~2s "
+                         "to inclusion, sustaining N/sec needs roughly 3N "
+                         "senders; 300/sec therefore needs ~900. Measured with "
+                         "64, the ceiling was 14-32/sec and the top of the "
+                         "load ramp could not be reached at all.")
     ap.add_argument("--recipients", type=int, default=16)
     ap.add_argument("--shards", type=int, default=4)
     ap.add_argument("--out", default="config/phase4.json")
@@ -171,19 +178,32 @@ async def main() -> int:
         existing_keys = {k["account_id"]: k["private_key"]
                          for k in json.loads(kp.read_text())}
 
-    async def ensure(account_id: str) -> str:
+    async def ensure(account_id: str, nowait: bool = False) -> str:
         if account_id in existing_keys and await _exists(master, account_id):
             return existing_keys[account_id]
         pub, sec = new_key()
         if not await _exists(master, account_id):
-            await master.create_account(account_id, pub, ACCOUNT_BALANCE)
+            for attempt in range(3):
+                try:
+                    await master.create_account(account_id, pub, ACCOUNT_BALANCE,
+                                                nowait=nowait)
+                    break
+                except Exception:                  # noqa: BLE001
+                    await asyncio.sleep(1.0)
         return sec
 
+    # Submitted one at a time (the master account has a single access key, so
+    # nonces serialise regardless) but WITHOUT waiting for finality, then
+    # verified in bulk. Waiting per account would cost ~2s each -- half an hour
+    # for 900 accounts.
+    created = 0
     for acct in senders:
-        sec = await ensure(acct)
+        sec = await ensure(acct, nowait=True)
         if sec:
             sender_keys.append({"account_id": acct, "private_key": sec})
-        await asyncio.sleep(0)
+            created += 1
+        if created and created % 100 == 0:
+            print(f"    {created} sender accounts submitted")
     for acct in recipients:
         await ensure(acct)
     print(f"  {len(sender_keys)} new sender keys written")
