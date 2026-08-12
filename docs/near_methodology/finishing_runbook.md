@@ -75,6 +75,54 @@ sudo systemctl restart cron
 
 ---
 
+## Trap 3 — the sweep is a single pass, so holes are filled on a SECOND pass
+
+`run_near_sweep_inner.sh` walks the ladder once and exits. A run invalidated
+*after* the sweep has already passed that point is **not** revisited during that
+pass.
+
+It still self-heals, just later: when the sweep process exits, the supervisor
+sees `complete < 140`, finds no sweep PID, and starts a fresh one. That new pass
+skips every configuration that is complete and re-measures only the holes.
+
+**Consequence for scheduling:** the matrix finishes a little *after* the naive
+"runs remaining × 6 minutes" estimate — one extra ~6-minute run per hole, taken
+at the end. Do not read the ETA as final until a pass completes with no holes
+left.
+
+**First observed case.** `$200 @ 100/sec repeat 4`, invalidated 12 Aug at 18:07.
+See below for why, and note the sweep had already moved on to `$200 @ 150/sec`.
+
+### The epoch-boundary transient that caused it
+
+At **18:02:43** — the exact moment of an epoch boundary — the liveness watcher
+recorded one sample with 8 validators but only **one producer per shard**, which
+fails the `min_per_shard >= 2` condition and invalidated the run spanning it.
+
+Everything else in that same sample was healthy: 7 peers, every validator within
+2 blocks of the tip, none unreachable. And the run itself was the *best* repeat
+in its cell — 29,644 settled, 0.20% failures. The network was demonstrably fine;
+the RPC's `validators` response simply reported shard assignments mid-transition.
+
+**Frequency: 1 sample in 5,604.** Every other degraded sample in the log is a
+genuine 6-or-7-validator period from the morning's expulsions. So this is a rare
+transient, not a per-boundary tax — though with only one observation, expect it
+to recur at up to one run per two-hour epoch and budget ~6 minutes each time.
+
+**Deliberately not fixed.** Loosening a health detector *after* seeing it reject
+a run judged good is the same move as inventing an exclusion rule after seeing
+the data, and 34 runs had already been judged under the current criterion.
+Consistency is worth more than the ~6 minutes each occurrence costs. The
+detector's stated bias — "it can throw away a run that was actually fine, but it
+can never keep one that was not" — is working exactly as designed.
+
+**One consequence to state in Limitations:** because boundary-spanning runs are
+discarded and re-measured, the final matrix slightly **under-represents epoch
+transitions**. If NEAR behaves differently during them, the study does not
+capture it.
+
+---
+
 ## The sequence
 
 **Step 0 — confirm the matrix is genuinely done.** Not just 140 rows: 140
