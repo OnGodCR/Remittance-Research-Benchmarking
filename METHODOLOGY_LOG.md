@@ -643,3 +643,41 @@ Three defects in one library now (`nowait` semantics, this, plus the unclosed-se
 warnings). Worth one sentence in Limitations: the NEAR client tooling is materially less
 mature than web3.py, and two of the three produced *silent wrong behaviour* rather than an
 error.
+
+### 5g. Generator capacity for NEAR — signing is not the constraint
+
+claude.md §8 and §13 step 8 require the generator's own ceiling to be known
+*before* collecting, so that an observed plateau can be attributed to the chain
+rather than to our tooling. This had not been done for NEAR, and there was a
+specific reason to worry.
+
+`_run_near` is deliberately single-process, on the reasoning recorded in
+`harness/cli.py` that "a NEAR submission is one RPC call and the work happens on
+the validators." **That reasoning predates the Bug 2 fix.** The adapter now signs
+every transaction locally — borsh-serialising it twice (once in `calc_trx_hash`,
+once in `sign_and_serialize_transaction`), ed25519-signing it, and base58-decoding
+a block hash. That is precisely the CPU-bound work that capped the Polygon
+harness near 150/sec and forced it onto eight worker processes. `harness.cli
+capacity` cannot detect it, because the null adapter it ramps against performs
+no signing at all.
+
+Measured directly (`analysis/near_signing_capacity.py`, 12 Aug 2026, on the
+`n2-standard-8` generator):
+
+| | |
+|---|---|
+| Build-and-sign throughput | **7,379 payments/sec** (0.136 ms each) |
+| CPU cost at the 300/sec top step | **4.1% of one core** |
+| Headroom at 300/sec | **24.6×** |
+| Share spent in `calc_trx_hash` | 37% |
+
+**Signing is not the constraint and single-process NEAR is safe for the full
+ramp.** The governing number is the scheduler ceiling from `harness.cli
+capacity`, run separately at the same 300s window as the real runs.
+
+Recorded because the *absence* of this check was the live risk: had signing come
+in near 300/sec, every NEAR result at 200 and 300/sec would have been measuring
+our own client, and the Polygon phantom-knee error would have been repeated in
+the second architecture. The 37% figure also notes that the transaction is
+serialised twice per payment — worth knowing before anyone optimises, though at
+24.6× headroom there is nothing to optimise.
