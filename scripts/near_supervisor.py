@@ -62,6 +62,8 @@ DB = WORKING / "runs.sqlite"
 LIVENESS = WORKING / "validator_liveness.jsonl"
 STATUS = WORKING / "supervisor_status.json"
 PIDFILE = WORKING / "sweep.pid"
+NOISE_PIDFILE = WORKING / "noise.pid"
+NOISE_KEYS = BASE / "keys" / "near_noise_senders.json"
 LOG = Path("/var/log/near-supervisor.log")
 VALIDATOR_KEYS = BASE / "keys" / "near_validator_keys.json"
 
@@ -292,6 +294,63 @@ def sweep_pid() -> int | None:
     return pid
 
 
+def noise_pid() -> int | None:
+    """PID of the background-traffic generator if it is alive, else None."""
+    if not NOISE_PIDFILE.exists():
+        return None
+    try:
+        pid = int(NOISE_PIDFILE.read_text().strip())
+    except (ValueError, OSError):
+        return None
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, PermissionError):
+        return None
+    return pid
+
+
+def start_noise() -> int | None:
+    """Start competing background traffic (realism technique #3).
+
+    WHY THE SWEEP MUST NOT RUN WITHOUT THIS
+    Every one of Polygon's 140 runs carried ~88 transactions/sec of competing
+    load, and the Polygon sweep script refuses to start without it: "the sweep
+    would run against an idle chain, which is not the full realism stack." NEAR
+    measured on an empty chain against Polygon measured on a busy one would win
+    the comparison partly on how quiet its blocks were, which is not a fact
+    about sharding.
+
+    Duration is set well past the length of the sweep; the supervisor restarts
+    it if it exits early.
+    """
+    if not NOISE_KEYS.exists():
+        log(f"noise: {NOISE_KEYS} missing -- cannot start background traffic")
+        return None
+    logfile = BASE / "noise.log"
+    proc = subprocess.Popen(
+        [str(BASE / ".venv" / "bin" / "python"), "-u", "-m", "harness.noise_near",
+         "--config", str(BASE / "config" / "phase4.json"),
+         "--keys", str(NOISE_KEYS),
+         "--duration", "86400"],
+        cwd=str(BASE),
+        stdout=logfile.open("a"), stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL, start_new_session=True,
+    )
+    NOISE_PIDFILE.write_text(str(proc.pid))
+    return proc.pid
+
+
+def stop_noise() -> None:
+    pid = noise_pid()
+    if pid is None:
+        return
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
+    NOISE_PIDFILE.unlink(missing_ok=True)
+
+
 def start_sweep(phase: str) -> int:
     """Launch the resumable sweep detached, and record its PID.
 
@@ -372,10 +431,15 @@ def main() -> int:
 
     restaked = restake_missing()
 
+    npid = noise_pid()
+
     if prog["complete"] >= MATRIX_TOTAL:
         state, action = "complete", "matrix finished; sweep stopped"
         if pid:
             stop_sweep()
+        if npid:
+            stop_noise()
+            npid = None
     elif not healthy:
         # Stop rather than let it churn: each aborted run still creates a row,
         # and 140 instant failures would look like a sweep that ran.
@@ -383,13 +447,38 @@ def main() -> int:
         if pid:
             stop_sweep()
             action = f"{why}; stopped the sweep to avoid churning failed runs"
+        # Noise is stopped too: it is only meaningful alongside measurement, and
+        # leaving it running would burn the noise accounts' balances for nothing.
+        if npid:
+            stop_noise()
+            npid = None
     elif pid:
-        state, action = "running", f"sweep alive (pid {pid})"
+        if npid is None:
+            npid = start_noise()
+            state, action = "running", (
+                f"sweep alive (pid {pid}); background traffic had stopped and "
+                f"was restarted (pid {npid})")
+            log("noise: RESTARTED mid-sweep -- runs overlapping the gap saw "
+                "less competing load than intended")
+        else:
+            state, action = "running", f"sweep alive (pid {pid}), noise (pid {npid})"
     elif args.no_start:
         state, action = "ready", "chain healthy; --no-start set, not launching"
     else:
-        pid = start_sweep(args.phase)
-        state, action = "running", f"chain healthy; started sweep (pid {pid})"
+        # Noise first, then the sweep: a run that begins before background
+        # traffic is flowing is measured on a quieter chain than the rest.
+        npid = start_noise()
+        if npid is None:
+            state, action = "blocked", (
+                "chain healthy but background traffic could not start; NOT "
+                "measuring, because an idle chain is not the full realism stack "
+                "and the result would not be comparable with Polygon")
+            log(f"[{state}] {action}")
+        else:
+            pid = start_sweep(args.phase)
+            state, action = "running", (
+                f"chain healthy; started background traffic (pid {npid}) "
+                f"then sweep (pid {pid})")
 
     status = {
         "checked_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -400,6 +489,7 @@ def main() -> int:
         "chain_healthy": healthy,
         "chain_detail": why,
         "sweep_pid": pid,
+        "noise_pid": npid,
         "restaked_this_check": restaked,
     }
     STATUS.write_text(json.dumps(status, indent=2))

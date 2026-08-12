@@ -47,6 +47,7 @@ import sys
 import time
 from pathlib import Path
 
+from .noise_shape import noise_rate
 from eth_account import Account
 from web3 import AsyncHTTPProvider, AsyncWeb3
 
@@ -56,21 +57,6 @@ REPO = Path(__file__).resolve().parent.parent
 #: token transfer uses, so noise and measured traffic stay separable in the
 #: block data.
 _NOISE_GAS = 21_000
-
-
-def noise_rate(elapsed: float, duration: float, base: float, peak: float) -> float:
-    """Background load at a point in time.
-
-    Two overlaid waves rather than one, so the pattern does not repeat
-    predictably within a run. A single sine wave would put every test window
-    at the same phase, which would let the workload synchronise with the
-    congestion instead of meeting it at random -- exactly the artificial
-    regularity this technique exists to avoid.
-    """
-    slow = math.sin(2 * math.pi * elapsed / max(duration / 2.0, 1e-9))
-    fast = math.sin(2 * math.pi * elapsed / 37.0)
-    wave = (0.7 * slow + 0.3 * fast + 1.0) / 2.0     # normalise to 0..1
-    return base + (peak - base) * wave
 
 
 async def generate_noise(rpc_url: str, chain_id: int, keys: list[str],
