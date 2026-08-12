@@ -449,6 +449,32 @@ def progress(phase: str) -> dict:
             "SELECT COUNT(*) FROM (SELECT DISTINCT tx_size_usd, target_tps, "
             "repeat_index FROM runs WHERE phase=? AND architecture='near' "
             "AND ended_wall IS NOT NULL AND invalidated=0)", (phase,)).fetchone()[0]
+        # CELLS THAT CANNOT BE MEASURED, so the sweep is allowed to finish.
+        #
+        # `run_near_sweep_inner.sh` skips a configuration after 3 finished
+        # attempts, because some cells can never succeed: every 300/sec run was
+        # invalidated for generator saturation (p95 scheduling lag ~1.2s), and
+        # the cause is structural -- NEAR's RPC answers slowly once congested,
+        # which holds up the send path. Retrying cannot fix it.
+        #
+        # Without matching that cap here, `done` never reaches 140, the
+        # completion branch never fires, and the supervisor restarts a sweep
+        # that immediately exits -- forever, and without ever reaching the
+        # state that triggers shutdown. Capped cells are reported separately
+        # rather than folded into `complete`, so a reader of this status can
+        # always see the matrix is short and by how much.
+        # Must mirror the skip rule in run_near_sweep_inner.sh exactly: a cell
+        # is settled-as-unmeasurable when it has 3 finished attempts with no
+        # valid one, OR when every finished attempt failed as "generator
+        # saturated", which is structural and identical on every retry.
+        capped = conn.execute(
+            "SELECT COUNT(*) FROM (SELECT tx_size_usd, target_tps, repeat_index "
+            "FROM runs WHERE phase=? AND architecture='near' "
+            "AND ended_wall IS NOT NULL "
+            "GROUP BY tx_size_usd, target_tps, repeat_index "
+            "HAVING SUM(invalidated=0) = 0 AND (COUNT(*) >= 3 OR "
+            "SUM(COALESCE(invalidation_reason,'') LIKE 'generator saturated%') "
+            "= COUNT(*)))", (phase,)).fetchone()[0]
         runs_done = conn.execute(
             "SELECT COUNT(*) FROM runs WHERE phase=? AND architecture='near' "
             "AND ended_wall IS NOT NULL AND invalidated=0", (phase,)).fetchone()[0]
@@ -466,6 +492,8 @@ def progress(phase: str) -> dict:
         conn.close()
     return {
         "complete": done,
+        "unmeasurable": capped,
+        "settled": done + capped,
         "runs_recorded": runs_done,
         "duplicate_runs": max(0, runs_done - done),
         "total": MATRIX_TOTAL,
@@ -497,8 +525,12 @@ def main() -> int:
 
     npid = noise_pid()
 
-    if prog["complete"] >= MATRIX_TOTAL:
-        state, action = "complete", "matrix finished; sweep stopped"
+    if prog["settled"] >= MATRIX_TOTAL:
+        state, action = "complete", (
+            "matrix finished; sweep stopped"
+            + (f" ({prog['unmeasurable']} cells unmeasurable, capped "
+               f"after 3 attempts -- see sweep.log)"
+               if prog["unmeasurable"] else ""))
         if pid:
             stop_sweep()
         if npid:
