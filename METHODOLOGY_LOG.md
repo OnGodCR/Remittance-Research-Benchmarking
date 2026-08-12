@@ -766,3 +766,67 @@ against our **2**, the protocol minimum. This does not affect throughput scaling
 — per-shard capacity is set by block gas limit and timing, not producer count —
 but it is a further reason the NEAR adversarial arm is harsher than any mainnet
 failure model, and must be stated alongside the quota caveat.
+
+---
+
+## Phase 4 codebase audit — 12 August 2026, second pass
+
+Run against the handoff's own trap list while the sweep was live. Five findings,
+two of which would have corrupted results silently.
+
+### 7a. Account balances were too tight to finish the matrix — FIXED
+
+Measured senders held **1.993 NEAR** each. A confirmed NEP-141 transfer costs
+**0.00020190 NEAR** (measured, n=2,757), and the full matrix is ~5,978 payments
+per sender, so the requirement is **1.207 NEAR** — only **1.6x headroom**. Noise
+accounts held **1.000 NEAR** against an upper bound of 2.27.
+
+**Why this mattered more than the numbers suggest.** Exhaustion would not have
+failed loudly or early. It would have starved the LAST runs of the matrix — the
+$500 high-load cells, which the sweep reaches after twelve hours — and those
+runs would have failed for want of gas. Read naively, that is *NEAR collapsing
+at scale*: a headline finding, entirely false, and perfectly consistent with a
+system that had been working all night.
+
+Both pools topped up (10 NEAR measured, 8 NEAR noise), giving roughly 8x
+headroom. The master account holds 949 million NEAR, so the original 2-NEAR
+allocation was over-cautious rather than necessary — `near_bootstrap.py`'s note
+that a larger figure would need "9,000 NEAR of the master's balance" was true and
+irrelevant.
+
+### 7b. Cross-shard mix is correct — and the check that said otherwise was wrong
+
+The first audit query reported a **62.9%** cross-shard share against the 75%
+that $(S-1)/S$ predicts at 4 shards, which `PHASE4_HANDOFF.md` §6 names as a
+silent, healthy-looking failure. It was the query that was wrong: it aggregated
+across *invalidated* runs, including the 11 Aug runs built on the earlier
+64-account pool with a different shard distribution.
+
+Restricted to the live sweep: **74.6%**, with every individual run between 72.9%
+and 77.8%. Recorded because a check that produces false alarms gets ignored, and
+because the fix — filter to valid runs — belongs in the check itself.
+
+### 7c. Disk is not a constraint
+
+87 GB free on the generator; the full matrix projects to ~1.07 GB of SQLite at
+the measured 215 bytes per payment.
+
+### 7d. The published dataset will exceed GitHub's free LFS tier
+
+Raw grows 539 MB -> ~903 MB and clean 373 MB -> ~700 MB once NEAR lands:
+**~1.6 GB against a 1 GB free tier**, before counting the prior versions LFS
+retains. Three savings exist that lose no information — `tx_ref` is 51% of raw
+and is needed for on-chain verification rather than analysis; `latency_s` and
+`schedule_lag_s` are 18% and are exactly recomputable from the offsets, so
+storing them is duplication — and a GitHub Release asset (2 GB per file, outside
+LFS) would hold raw without cost. Flagged for decision; it changes where a
+reviewer finds the data, so it is not being changed unilaterally.
+
+### 7e. Traps re-encountered, both already documented
+
+`pgrep -f` over SSH matched the checking command's own arguments and reported
+three duplicate sweeps where there was one; `pkill -f` matching the SSH command
+line killed the connection mid-cleanup. Both are in the handoff. Both were hit
+anyway, which is an argument for tooling rather than for warnings:
+`scripts/near_count_procs.sh` now answers the question from a file, printing full
+command lines rather than a count to be trusted.
