@@ -62,6 +62,11 @@ LOG_PATH = REPO / "data" / "clean" / "exclusions.log"
 #: truncated latency.
 WARMUP_SECONDS = 10.0
 
+#: claude.md S7. Roughly 10x the expected p99 for both chains, and past it a
+#: remittance has functionally failed whatever the chain eventually does. Used
+#: to decide `succeeded`, not to drop rows -- see `load()`.
+TIMEOUT_SECONDS = 60.0
+
 #: Runs from these phases never contribute to results.
 #:
 #: phase-1 and capacity-check exist to prove the machinery records reality.
@@ -181,7 +186,34 @@ def load(db_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     # inconsistently.
     merged["latency_s"] = merged["confirmed_offset"] - merged["submitted_offset"]
     merged["schedule_lag_s"] = merged["submitted_offset"] - merged["scheduled_offset"]
-    merged["succeeded"] = merged["status"] == "confirmed"
+
+    # SUCCESS MEANS SETTLED *WITHIN THE BUDGET*, not merely settled.
+    #
+    # claude.md S7 fixes the timeout at 60 seconds and says why: "past 60s a
+    # remittance has functionally failed regardless of what the chain
+    # eventually does". A payment that finalises at 91 seconds is not a
+    # success that happened to be slow; by the study's own definition it is a
+    # failure.
+    #
+    # The harness does not enforce this uniformly. Polygon's adapter stops at
+    # the deadline (its slowest recorded settlement is 60.0101s). NEAR's
+    # drains still-in-flight payments after the send window closes, so a late
+    # finalisation is recorded with status='confirmed' and its true latency.
+    # At 200/sec that is 34% and 69% of the "confirmed" payments in the first
+    # two repeats -- which would have understated the failure rate at exactly
+    # the load where the knee is and where the headline claim lives.
+    #
+    # Applied here rather than in the adapter for three reasons: the rule then
+    # lands identically on all three architectures; it is recoverable for data
+    # already collected, because per-transaction latency was recorded (which is
+    # the reason claude.md S8 insists on per-transaction records); and it does
+    # not require changing a measurement instrument in the middle of a matrix.
+    #
+    # `status` is deliberately left alone. It stays the raw observation -- what
+    # the chain actually did -- so a reviewer can see both "it did confirm, at
+    # 91s" and "it counts as a failure". The verdict is separate from the fact.
+    merged["succeeded"] = ((merged["status"] == "confirmed")
+                           & (merged["latency_s"] <= TIMEOUT_SECONDS))
 
     return merged, events
 

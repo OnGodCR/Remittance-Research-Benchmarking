@@ -385,3 +385,33 @@ The pooled table also omitted the 10-second warm-up cut that §7 applies uniform
 - **$200 and $500 rest on 3 and 2 runs**, against the 5-repeat minimum in §5, and 96% of all confirmed Lightning payments are $10. The crossover mechanism (flat versus proportional fees) is architectural and certain; the exact crossing point is not tightly pinned. More data cannot be collected — Lightning collection closed 10 Aug and the cluster is gone.
 
 **How it was found.** Recomputing the published figures from `all_runs_raw.parquet` during a Phase 4 check, per the standing rule to re-derive every number from the data at each architecture boundary rather than carrying figures forward.
+
+---
+
+### Amendment 11 — 12 Aug 2026: the 60-second budget decides success, applied in analysis
+
+**Sections affected:** §2 (primary outcome), §3 (secondary metrics), §7 (exclusions).
+
+**This is a bug fix, not a rule change.** The 60-second timeout is pre-registered in `claude.md` §7, with its reason stated: *"past 60s a remittance has functionally failed regardless of what the chain eventually does."* The rule was not being applied consistently by the harness. This amendment records the correction, not a new criterion.
+
+**What was wrong.** `analysis/export.py` defined `succeeded = (status == 'confirmed')`, ignoring latency. Polygon's adapter stops at the deadline, so its slowest recorded settlement is **60.0101s** and the omission was invisible. NEAR's adapter drains still-in-flight payments after the send window closes, so a payment finalising at 91 seconds was recorded `confirmed` with its true latency — and counted as a success.
+
+**Scale of it, at the load where it matters most:**
+
+| Run | Confirmed | Of those, over 60s | Share |
+|---|---|---|---|
+| $200 @ 200/sec r0 | 34,813 | 11,839 | **34.0%** |
+| $200 @ 200/sec r1 | 22,496 | 15,560 | **69.2%** |
+
+200/sec is where NEAR's knee sits, so the error understated the failure rate at exactly the point the headline claim rests on. At and below 150/sec no payment exceeded 60s (slowest 30.4s), so lower load steps are unaffected.
+
+**The correction.** `succeeded = (status == 'confirmed') AND (latency_s <= 60)`.
+
+**Why in analysis rather than in the adapter.**
+1. It lands identically on all three architectures, which is the comparability argument that justified dropping Caliper in the first place.
+2. It is recoverable for data already collected, because per-transaction latency was recorded — the reason `claude.md` §8 insists on per-transaction records rather than pre-aggregated summaries.
+3. It does not require changing a measurement instrument in the middle of a matrix.
+
+**`status` is deliberately left untouched.** It remains the raw observation — what the chain actually did — so a reviewer can see both *"it did confirm, at 91s"* and *"it counts as a failure"*. The fact stays separate from the verdict.
+
+**Effect on published results: none.** Across the whole clean dataset only **10** payments were affected outside NEAR — 1 at Polygon 200/sec and 9 at 300/sec, the slowest being 60.0101s. All seven published Polygon load steps reproduce exactly, to two decimals, on throughput, failure rate, p50, p95 and p99.
