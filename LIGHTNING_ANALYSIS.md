@@ -71,15 +71,41 @@ This is the one Lightning metric generated from our own network, and it follows 
 
 Our LND nodes ran the stock fee policy — 1,000 msat base per hop plus 1 ppm. At the route lengths we observed, that alone predicts ~2,530 msat, and the measured mean was **2,016 msat**. In other words the "measured" fee was essentially **our own configuration**, exactly the circularity `ANALYSIS_PLAN.md` §6.3 warns about for Polygon's gas price.
 
-What is genuinely architecture-determined is **route length**:
+What is genuinely architecture-determined is **route length**.
 
-| Route length | Payments |
-|---|---|
-| 2 hops | 72,910 |
-| 3 hops | 118,807 |
-| 4 hops | 2,679 |
+> **Corrected 12 Aug 2026 — recomputed from `all_runs_raw.parquet`.** The earlier
+> version of this section printed a route-length distribution **pooled across all
+> amounts** (2 hops: 72,910; 3 hops: 118,807; 4 hops: 2,679; n = 194,396) and then
+> stated "Mean 2.53 hops" beside it. Those two do not describe the same
+> population: the pooled table's own mean is **2.639**, and 2.53 was the
+> **$200-only** figure. The pooled table also omitted the 10-second warm-up cut
+> that `ANALYSIS_PLAN.md` §7 applies uniformly to all three architectures.
+>
+> The consequence was not the mismatch itself but what was done with it: **a
+> single hop count was applied to every row of the cost table**, when route length
+> in fact varies materially with amount.
 
-**Mean 2.53 hops.** Fees on Lightning are charged by *forwarding* nodes, so a route of N hops has N−1 chargers → **1.53 fee-charging hops**.
+Per amount, after the warm-up cut, over confirmed payments:
+
+| Amount | Confirmed payments | Runs | Mean route length | Fee-charging hops (N−1) |
+|---|---|---|---|---|
+| $10 | 173,449 | 46 | 2.651 | **1.651** |
+| $50 | *none — never tested* | 0 | — | — |
+| $200 | 2,162 | 3 | 2.571 | **1.571** |
+| $500 | 3,305 | 2 | 2.772 | **1.772** |
+
+Fees on Lightning are charged by *forwarding* nodes, so a route of N hops has
+N−1 chargers.
+
+**Two things this table makes visible that the pooled one hid:**
+
+1. **$50 was never run on Lightning at all.** Only $10, $200 and $500 were. The
+   $50 row in the cost table below is therefore a **formula extrapolation**, not a
+   measurement, and is labelled as one.
+2. **The evidence is very unevenly distributed.** 96% of confirmed Lightning
+   payments are $10. The $200 figure rests on **3 runs** and $500 on **2** —
+   against the 5-repeat minimum in `ANALYSIS_PLAN.md` §5. These do not meet the
+   pre-registered protocol and must not be presented as though they do.
 
 ### Pricing
 
@@ -90,25 +116,37 @@ median base fee   = 0.449584 sat per hop
 median fee rate   = 0.000165 sat/sat  (165 ppm)
 
 per hop = 0.449584 + 0.000165 x amount_sat
-fee     = per_hop x 1.53
+fee     = per_hop x (that amount's own fee-charging hops)
 ```
 
-| Amount | Satoshis | Fee (sat) | **Fee (USD)** | % of value |
-|---|---|---|---|---|
-| $10 | 15,431 | 4.6 | **$0.0030** | 0.030% |
-| $50 | 77,157 | 20.2 | **$0.0131** | 0.026% |
-| **$200** | 308,628 | 78.6 | **$0.0509** | 0.025% |
-| $500 | 771,569 | 195.5 | **$0.1267** | 0.025% |
+| Amount | Satoshis | Charging hops | Fee (sat) | **Fee (USD)** | % of value | Superseded |
+|---|---|---|---|---|---|---|
+| $10 | 15,431 | 1.651 | 4.9 | **$0.0032** | 0.032% | $0.0030 |
+| $50 | 77,157 | *1.571 assumed* | 20.7 | **$0.0134** ⚠️ | 0.027% | $0.0131 |
+| **$200** | 308,628 | 1.571 | 80.7 | **$0.0523** | 0.026% | $0.0509 |
+| $500 | 771,569 | 1.772 | 226.4 | **$0.1467** | 0.029% | $0.1267 |
+
+⚠️ **$50 was never measured on Lightning.** Its row borrows the $200 hop count
+because that is the nearest measured amount, and it is an **extrapolation, not a
+result**. Label it as such wherever it appears, or drop the row.
+
+**Direction of the correction:** every figure moved **up**, because the pooled
+mean that was previously applied everywhere sat below the true hop count at $10
+and well below it at $500. The old numbers therefore **understated Lightning's
+cost**, which is the same direction as the topology caveat below — the two biases
+compound rather than cancel.
 
 ### The two findings this produces
 
-**1. Lightning costs 85× more than Polygon to settle a $200 remittance** — $0.0509 against $0.0006 measured. And this is routing fees *only*, before amortised channel-open cost or the cost of capital locked in channels.
+**1. Lightning costs ~87× more than Polygon to settle a $200 remittance** — $0.0523 against $0.0006 measured. And this is routing fees *only*, before amortised channel-open cost or the cost of capital locked in channels. *(Was stated as 85× on the superseded $0.0509; the correction does not change the finding, and the order of magnitude is what carries it.)*
 
 **2. The cost crossover exists, and it sits below $500.** This resolves the secondary objective pre-registered in `ANALYSIS_PLAN.md` §12.
 
-Polygon charges for computational work, so its cost is **flat** — $500 costs exactly what $10 costs (measured variation: 0.044%). Lightning charges 165 ppm of the amount, so its cost is **proportional**. At **$500 the Lightning routing fee alone is $0.1267, which exceeds the $0.10 architecture-selection threshold** in §10.
+Polygon charges for computational work, so its cost is **flat** — $500 costs exactly what $10 costs (measured variation: 0.044%). Lightning charges 165 ppm of the amount, so its cost is **proportional**. At **$500 the Lightning routing fee alone is $0.1467, which exceeds the $0.10 architecture-selection threshold** in §10 — by 47%, where the superseded figure cleared it by only 27%. **The correction strengthens this finding rather than threatening it.**
 
-> ⚠️ **Route length is topology-dependent.** 2.53 hops was measured on a 20-node network; a 6,010-node network generally needs longer paths. This figure therefore likely **understates** mainnet Lightning cost. The bias flatters Lightning rather than its competitors, which is the safer direction, but it must be stated.
+> ⚠️ **Route length is topology-dependent.** These hop counts were measured on a 20-node network; a 6,010-node network generally needs longer paths. They therefore likely **understate** mainnet Lightning cost. The bias flatters Lightning rather than its competitors, which is the safer direction, but it must be stated.
+
+> ⚠️ **The $200 and $500 rows do not meet the pre-registered repeat protocol.** They rest on 3 and 2 runs against a 5-repeat minimum (`ANALYSIS_PLAN.md` §5), and $50 was never run at all. The crossover finding above should be stated as **supported by, not established by**, this evidence: the mechanism (flat versus proportional fees) is architectural and certain, while the exact crossing point is not tightly pinned by two runs. Collecting more is not possible — Lightning data collection closed 10 Aug (§1) and the cluster is gone.
 
 ---
 

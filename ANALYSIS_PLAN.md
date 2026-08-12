@@ -268,11 +268,13 @@ per hop = median_base_fee + (median_fee_rate x amount)
 fee     = per_hop x (hops - 1)          # forwarding nodes charge, the destination does not
 ```
 
-**Result at $200: $0.0509**, against Polygon's measured $0.0006 — a factor of 85.
+**Result at $200: $0.0523**, against Polygon's measured $0.0006 — a factor of 87. *(Corrected 12 Aug 2026; was $0.0509 and 85×. See amendment 10.)*
 
-**This resolves the §12 crossover objective.** Polygon charges for computational work, so cost is flat with amount. Lightning charges 165 ppm, so cost is proportional. At **$500 the Lightning routing fee alone is $0.1267, exceeding the $0.10 architecture-selection threshold in §10** — before amortised channel-open cost or the cost of locked capital. The crossover lies below $500.
+**This resolves the §12 crossover objective.** Polygon charges for computational work, so cost is flat with amount. Lightning charges 165 ppm, so cost is proportional. At **$500 the Lightning routing fee alone is $0.1467, exceeding the $0.10 architecture-selection threshold in §10** — before amortised channel-open cost or the cost of locked capital. The crossover lies below $500. *(Corrected 12 Aug 2026; was $0.1267. See amendment 10.)*
 
-**Limitation.** Route length of 2.53 hops was measured on a 20-node network; a 6,010-node network generally requires longer paths, so this likely *understates* mainnet Lightning cost. The bias flatters Lightning rather than its competitors, and is stated rather than corrected.
+**Limitation.** Route lengths of 2.571 hops at $200 and 2.772 at $500 were measured on a 20-node network; a 6,010-node network generally requires longer paths, so this likely *understates* mainnet Lightning cost. The bias flatters Lightning rather than its competitors, and is stated rather than corrected.
+
+**Second limitation, added 12 Aug 2026.** The $200 and $500 route lengths rest on **3 and 2 runs** against the 5-repeat minimum in §5, and **$50 was never run on Lightning at all**. The crossover *mechanism* — flat versus proportional fees — is architectural and certain; the exact crossing point is not tightly pinned by two runs. State the finding as supported by, not established by, this evidence.
 
 **Channel-open cost** is cited from literature rather than measured — the cluster was destroyed before that measurement was taken, and re-provisioning for one figure was not judged worth the budget.
 
@@ -316,3 +318,70 @@ Filtering on *submission* time conditions the sample on an outcome. A transactio
 **No reported figure changes.** At 0.0155% overall and 0.22% in the worst single run, this cannot move an achieved throughput of 270.5/sec or a failure rate of 9.97%. It is recorded because a discrepancy between the locked text and the implementation is the kind of thing a reviewer is entitled to find already disclosed, not because the numbers are in doubt.
 
 **Applies uniformly** to all architectures and all runs, past and future, since it describes the export path every result passes through.
+
+---
+
+### Amendment 9 — 12 Aug 2026: runs that never recorded an end are excluded
+
+**Rule.** A run whose `ended_wall` timestamp is NULL is excluded from the clean dataset. Its payments remain in the raw dataset, flagged, like every other exclusion.
+
+**What `ended_wall` means.** The harness writes it when a run finishes its window normally. NULL means the run was cut off part-way — the process was killed, the machine went away, or the sweep was restarted underneath it.
+
+**Why it is needed.** The payments such a run recorded are real, but they are a **truncated** sample of a window that was specified as 300s, and the truncation is not random: a run gets interrupted precisely when something is going wrong. Including one silently mixes a partial measurement taken during a fault with complete measurements taken under control.
+
+**The concrete case that exposed it.** On 12 Aug the `$10 at 100/sec repeat 0` run was cut off at 12:02 UTC when two validators dropped out of the set mid-window. It retained 30,403 payments, was never flagged invalid, and passed every existing exclusion rule. Two consequences:
+
+1. a truncated run measured on a degrading network would have entered the clean dataset as an ordinary measurement; and
+2. **Amendment 4 keeps the *first* execution of a configuration.** The orphan is earlier than its eventual clean re-run, so the truncated run would have been kept and the good complete one discarded.
+
+The second is the serious one, and it is the reverse of what Amendment 4 was written to achieve.
+
+**Why this is not outcome-selection.** The rule keys on whether a run *finished*, which is known without inspecting its throughput, latency or failure rate. It cannot be used to drop a run for being inconvenient. This matters because the rule was written after data existed, unlike Rules 1 and 3–6.
+
+**Scope.** Applies uniformly to all architectures and all runs, past and future. **No published figure changes:** the only run it excludes at the time of writing is the NEAR orphan above, which was never part of any reported result, and re-running `analysis/results.py --verify-polygon` reproduces all seven published Polygon load steps exactly.
+
+**Why the harness did not already prevent this.** It half did. The sweep's own completeness check requires `ended_wall IS NOT NULL`, so an interrupted configuration is correctly re-run rather than skipped. Only the export path was missing the matching rule, which is why the orphan was queued for re-measurement *and* would have been exported.
+
+---
+
+### Amendment 10 — 12 Aug 2026: Lightning route length is per-amount, not pooled
+
+**Sections affected:** §6.3 (cost), §12 (crossover objective).
+
+**What was wrong.** `LIGHTNING_ANALYSIS.md` §3 printed a route-length distribution **pooled across all amounts** (2 hops: 72,910; 3 hops: 118,807; 4 hops: 2,679; n = 194,396) and stated "Mean 2.53 hops" beside it. Two defects:
+
+1. The pooled table's own mean is **2.639**, not 2.53. The 2.53 figure was the **$200-only** mean, printed against a pooled table.
+2. That single hop count was then applied to **every row** of the cost table — but route length varies materially with amount.
+
+The pooled table also omitted the 10-second warm-up cut that §7 applies uniformly to all three architectures.
+
+**Measured per-amount route lengths** (confirmed payments, warm-up cut applied):
+
+| Amount | Confirmed | Runs | Mean hops | Fee-charging hops |
+|---|---|---|---|---|
+| $10 | 173,449 | 46 | 2.651 | 1.651 |
+| $50 | *never run* | 0 | — | — |
+| $200 | 2,162 | 3 | 2.571 | 1.571 |
+| $500 | 3,305 | 2 | 2.772 | 1.772 |
+
+**Corrected costs**, priced identically (1ML medians, 0.449584 sat base + 165 ppm):
+
+| Amount | Was | Now |
+|---|---|---|
+| $10 | $0.0030 | **$0.0032** |
+| $50 | $0.0131 | **$0.0134** ⚠️ extrapolated |
+| $200 | $0.0509 | **$0.0523** |
+| $500 | $0.1267 | **$0.1467** |
+
+**Independent confirmation.** Each amount's measured mean fee reproduces its own hop count against our nodes' stock LND policy (1,000 msat base + 1 ppm) to within 1%: $10 → 1.638 implied vs 1.638 measured; $200 → 1.541 vs 1.534; $500 → 1.738 vs 1.729. The per-amount hop counts are therefore not an artefact of how the data was sliced.
+
+**Effect on findings.**
+- The $200 comparison moves from **85× to 87×** Polygon. The finding is unchanged; it was always carried by the order of magnitude.
+- The $500 crossover **strengthens**: the routing fee clears the $0.10 threshold by 47% rather than 27%.
+- Every figure moved **up**, so the superseded numbers understated Lightning's cost — the same direction as the topology caveat, which the two now compound rather than cancel.
+
+**Two evidence limits recorded at the same time, previously undisclosed:**
+- **$50 was never run on Lightning.** Only $10, $200 and $500 were. The $50 cost row is a formula extrapolation and must be labelled or dropped.
+- **$200 and $500 rest on 3 and 2 runs**, against the 5-repeat minimum in §5, and 96% of all confirmed Lightning payments are $10. The crossover mechanism (flat versus proportional fees) is architectural and certain; the exact crossing point is not tightly pinned. More data cannot be collected — Lightning collection closed 10 Aug and the cluster is gone.
+
+**How it was found.** Recomputing the published figures from `all_runs_raw.parquet` during a Phase 4 check, per the standing rule to re-derive every number from the data at each architecture boundary rather than carrying figures forward.

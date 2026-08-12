@@ -153,8 +153,8 @@ The avoidable part was an estimation error: after switching spot→on-demand, th
 **Polygon did not have this problem** because it is a replicated state machine: throughput is set by the block gas limit and consensus timing, not validator count, so 4 validators measure the same ceiling as 100. That asymmetry is a finding, not an inconsistency — state it in the paper.
 
 **What Lightning still contributes:**
-- **Cost per transaction: $0.0509 at $200** — measured route length (2.53 hops) priced at 1ML mainnet rates. Polygon is $0.0006. **85x.**
-- **The §12 crossover, resolved:** Polygon flat, Lightning proportional at 165 ppm. At $500 Lightning's routing fee alone ($0.1267) breaches the $0.10 threshold.
+- **Cost per transaction: $0.0523 at $200** — measured route length (2.571 hops at $200) priced at 1ML mainnet rates. Polygon is $0.0006. **87x.** *(Corrected 12 Aug from $0.0509/85x: one pooled hop count had been applied to every amount, when route length varies by amount. ANALYSIS_PLAN amendment 10.)*
+- **The §12 crossover, resolved:** Polygon flat, Lightning proportional at 165 ppm. At $500 Lightning's routing fee alone ($0.1467) breaches the $0.10 threshold. **Caveat:** $200 and $500 rest on 3 and 2 runs against a 5-repeat minimum, and $50 was never run. The mechanism is certain; the exact crossing point is not.
 - **Settlement time p50 1.501s** — small-scale illustrative only.
 - Channel-open cost — **cited, not measured** (cluster destroyed first).
 
