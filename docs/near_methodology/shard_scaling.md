@@ -80,6 +80,16 @@ $$T(S) \;\approx\; S \cdot T_{\text{shard}} \cdot \frac{c(4)}{c(S)}$$
 
 The second factor is the correction for the worsening mix. It is a modest downward adjustment on an otherwise linear scaling — **not** a reason to expect sub-linear scaling in general.
 
+> **Clarified 12 Aug 2026 — the correction here must use GAS.**
+>
+> The section above says $c(S)$ "applies unchanged to settlement latency, gas burnt, and cost in dollars", and that is true of $c(S)$ itself. It is **not** true of the ratio $c(4)/c(S)$ used here. Throughput is limited by how much *work* a shard can execute per block, so the correction is a gas ratio. Substituting the latency ratio would fold a queueing property into a capacity calculation and give a different, wrong answer — the two ratios have no reason to be equal. `analysis/shard_scaling.py` uses gas and says so in its output.
+
+> **Precondition, added 12 Aug 2026 — $T_{\text{shard}}$ must be a measured ceiling.**
+>
+> This formula presumes $T_{\text{shard}}$ is the point at which a shard runs out of capacity. If the chain meets every offered load across the whole 10–300/sec ramp, then the largest throughput we observed is simply **the largest load we asked for**, and multiplying it by $S$ projects our own test plan rather than NEAR's capacity — a number that would look like a finding and contain none.
+>
+> `analysis/shard_scaling.py` therefore checks for saturation (achieved below 90% of offered at some step) **before** projecting, and refuses to extrapolate when none occurred. If NEAR clears 300/sec cleanly, the honest options are to report throughput as "at least 300/sec, ceiling not reached" or to add exploratory load steps above the pre-registered ramp — the route Polygon took with its 500 and 1000/sec levels (`ANALYSIS_PLAN.md` §13, amendment 3). **Do not scale an unsaturated measurement.**
+
 ---
 
 ## 4. Why this is stronger than running 8 shards would have been
@@ -91,6 +101,28 @@ Running at 8 shards would have produced **one number, at one shard count**. Meas
 - lets a reader check the reasoning against their own assumptions about $S$
 
 **State the limitation honestly anyway:** the two regimes are measured on a 4-shard chain with 2 validators per shard. If cross-shard cost itself varies with shard count — for example through congestion control behaving differently at 9 shards — this method would not capture it. Nothing in our data can rule that out.
+
+---
+
+## 4b. The implementation
+
+`analysis/shard_scaling.py` computes all of the above from
+`data/clean/all_runs_clean.parquet`:
+
+- $c_{\text{same}}$ and $c_{\text{cross}}$ for latency and gas, each with a
+  bootstrap 95% interval taken **over runs** (the unit of replication), matching
+  `analysis/results.py`
+- $c(S)$ for every shard count up to mainnet's 10, and the 4 → 10 correction factor
+- dollar cost, priced from `docs/mainnet_pricing.json`
+- the §6 sanity check on the observed mix, run automatically
+- the throughput projection, gated on saturation as described above
+
+`--self-test` verifies the projection against hand-computed values and checks
+that $c(S)$ rises monotonically in $S$ and is bounded above by $c_{\text{cross}}$.
+That check exists because this projection is the one part of the NEAR analysis
+with **no observable ground truth**: if the formula were implemented wrongly,
+every projected figure would be wrong together and wrong consistently, which is
+precisely the kind of error that survives review.
 
 ---
 
