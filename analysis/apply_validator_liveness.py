@@ -76,12 +76,51 @@ def load_samples(path: Path) -> list[dict]:
     return samples
 
 
+def sample_ok(s: dict, arm: str, expected_validators: int, min_per_shard: int,
+              min_peers: int) -> bool:
+    """Is this sample acceptable FOR THIS ARM?
+
+    The verdict is recomputed here rather than read from the watcher's own `ok`
+    field, because the two arms are not judged by the same rule.
+
+    The baseline requires the network to be whole in every sense, including a
+    full peer count -- that is what catches a validator which has gone dark but
+    is still listed in the set, which the protocol will keep listing for up to
+    two epochs.
+
+    The adversarial arm takes a validator offline deliberately, so the peer
+    count is SUPPOSED to dip. Applying the baseline rule there would invalidate
+    every run in the arm for successfully doing the thing the arm exists to do.
+    What still must hold is that the validator set itself is intact and every
+    shard has its producers -- i.e. nothing was expelled mid-arm, which would
+    shrink the network permanently and make later runs incomparable to earlier
+    ones.
+    """
+    if s.get("error"):
+        return False
+    if s.get("syncing"):
+        return False
+    if s.get("validators", 0) < expected_validators:
+        return False
+    shards = s.get("shards") or {}
+    if not shards or any(n < min_per_shard for n in shards.values()):
+        return False
+    if arm != "adversarial":
+        peers = s.get("peers")
+        if peers is None or peers < min_peers:
+            return False
+    return True
+
+
 def judge(run_start: float, run_end: float, samples: list[dict],
-          max_gap: float) -> tuple[str | None, dict]:
+          max_gap: float, arm: str = "baseline",
+          expected_validators: int = 8, min_per_shard: int = 2,
+          min_peers: int = 7) -> tuple[str | None, dict]:
     """Return (reason, detail) -- reason is None when the run is acceptable."""
     window = [s for s in samples if run_start <= s["t"] <= run_end]
 
-    bad = [s for s in window if not s.get("ok")]
+    bad = [s for s in window
+           if not sample_ok(s, arm, expected_validators, min_per_shard, min_peers)]
     if bad:
         first = bad[0]
         return REASON_DEGRADED, {
@@ -91,6 +130,7 @@ def judge(run_start: float, run_end: float, samples: list[dict],
                                            time.gmtime(first["t"])),
             "validators": first.get("validators"),
             "shards": first.get("shards"),
+            "peers": first.get("peers"),
             "error": first.get("error"),
         }
 
@@ -127,6 +167,11 @@ def main() -> int:
                     help="restrict to one phase; default is every NEAR run")
     ap.add_argument("--max-gap", type=float, default=120.0,
                     help="longest tolerated gap between samples, seconds")
+    ap.add_argument("--expected-validators", type=int, default=8)
+    ap.add_argument("--min-per-shard", type=int, default=2)
+    ap.add_argument("--min-peers", type=int, default=7,
+                    help="baseline runs only; the adversarial arm is exempt "
+                         "because it takes a validator offline on purpose")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -136,11 +181,12 @@ def main() -> int:
         span = (time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(samples[0]['t'])),
                 time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(samples[-1]['t'])))
         n_bad = sum(1 for s in samples if not s.get("ok"))
-        print(f"  covering {span[0]} .. {span[1]}, {n_bad} degraded")
+        print(f"  covering {span[0]} .. {span[1]}, {n_bad} flagged by the "
+              f"watcher (arm-specific rules applied per run below)")
 
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
-    sql = ("SELECT run_id, phase, tx_size_usd, target_tps, repeat_index, "
+    sql = ("SELECT run_id, phase, arm, tx_size_usd, target_tps, repeat_index, "
            "t0_wall, ended_wall, invalidated, invalidation_reason "
            "FROM runs WHERE architecture = 'near' AND ended_wall IS NOT NULL")
     params: tuple = ()
@@ -157,8 +203,11 @@ def main() -> int:
             counts["already"] += 1
             continue
         reason, detail = judge(r["t0_wall"], r["ended_wall"], samples,
-                               args.max_gap)
-        label = (f"${r['tx_size_usd']:g} @ {r['target_tps']:g}/sec "
+                               args.max_gap, arm=r["arm"] or "baseline",
+                               expected_validators=args.expected_validators,
+                               min_per_shard=args.min_per_shard,
+                               min_peers=args.min_peers)
+        label = (f"[{r['arm']}] ${r['tx_size_usd']:g} @ {r['target_tps']:g}/sec "
                  f"rep {r['repeat_index']}")
         if reason is None:
             counts["kept"] += 1

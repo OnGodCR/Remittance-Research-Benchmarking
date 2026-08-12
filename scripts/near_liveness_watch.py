@@ -32,11 +32,18 @@ One JSON object per sample, appended to a log that survives restarts:
     validators number of validators in the current epoch
     shards     {shard_id: number of validators serving it}
     peers      active peer count seen by the RPC node
-    ok         True only if validators == expected AND every shard has >= 2
+    produced   {validator: [blocks_produced, expected, chunks_produced, expected]}
+    ok         True only if the set is full, every shard has >= 2 producers,
+               enough peers are visible, and the node is not syncing
 
-`ok` is the field the invalidation step keys on. Sampling every 10s against
-300s runs means roughly 30 observations per run, so a degradation lasting even
-a few seconds is very likely to be seen.
+Sampling every 10s against 300s runs means roughly 30 observations per run, so
+a degradation lasting even a few seconds is very likely to be seen.
+
+`ok` is a convenience summary. `analysis/apply_validator_liveness.py` recomputes
+its own verdict from the recorded fields rather than trusting it, because the
+criteria differ by arm: the adversarial arm takes a validator offline on
+purpose, so a peer-count dip there is the experiment working, not a fault.
+This file's job is to record facts; deciding what they mean belongs in analysis.
 
 FAILURE IS RECORDED, NOT SWALLOWED
 ----------------------------------
@@ -74,7 +81,8 @@ def rpc(url: str, method: str, params, timeout: float = 8.0):
     return body["result"]
 
 
-def sample(rpc_url: str, expected_validators: int, min_per_shard: int) -> dict:
+def sample(rpc_url: str, expected_validators: int, min_per_shard: int,
+           min_peers: int) -> dict:
     out: dict = {"t": time.time()}
     try:
         status = rpc(rpc_url, "status", [])
@@ -92,19 +100,38 @@ def sample(rpc_url: str, expected_validators: int, min_per_shard: int) -> dict:
                 shards[str(s)] = shards.get(str(s), 0) + 1
         out["shards"] = shards
 
+        # Per-validator production counters, so a validator that is LISTED but
+        # not actually producing is visible in the record. See below.
+        out["produced"] = {
+            v["account_id"]: [v["num_produced_blocks"], v["num_expected_blocks"],
+                              v["num_produced_chunks"], v["num_expected_chunks"]]
+            for v in current
+        }
+
         try:
             out["peers"] = rpc(rpc_url, "network_info", [])["num_active_peers"]
         except Exception:                          # noqa: BLE001 - secondary
             out["peers"] = None
 
-        # Both conditions matter and they are not the same. The count catches a
-        # missing validator; the per-shard check catches the case that actually
-        # invalidates a sharding measurement -- a shard left with one producer,
-        # which is the adversarial arm's condition sitting in the baseline.
+        # THREE CONDITIONS, and the third is the one that is easy to miss.
+        #
+        # The count catches a validator the protocol has already removed. The
+        # per-shard check catches a shard left with one producer -- the
+        # adversarial arm's condition sitting inside the baseline.
+        #
+        # But a validator that has crashed or been reclaimed is STILL LISTED in
+        # current_validators for up to two epochs, because expulsion is decided
+        # at the end of the epoch it underperformed in and applied two epochs
+        # later. Counting validators alone would therefore report a healthy set
+        # for up to four hours after a machine went dark. node0 sat in that
+        # state for most of 11 Aug. The peer count drops within seconds, so it
+        # is the signal that actually catches a live failure.
         enough_total = out["validators"] >= expected_validators
         enough_each = (len(shards) > 0
                        and all(n >= min_per_shard for n in shards.values()))
-        out["ok"] = bool(enough_total and enough_each and not out["syncing"])
+        enough_peers = out["peers"] is not None and out["peers"] >= min_peers
+        out["ok"] = bool(enough_total and enough_each and enough_peers
+                         and not out["syncing"])
     except Exception as exc:                       # noqa: BLE001 - recorded
         out["ok"] = False
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -118,18 +145,25 @@ def main() -> int:
     ap.add_argument("--interval", type=float, default=10.0)
     ap.add_argument("--expected-validators", type=int, default=8)
     ap.add_argument("--min-per-shard", type=int, default=2)
+    ap.add_argument("--min-peers", type=int, default=7,
+                    help="peers the RPC node should see. On an 8-validator "
+                         "cluster the RPC node is one of them, so it sees the "
+                         "other 7. This is the signal that catches a validator "
+                         "that has gone dark but is still listed in the set.")
     args = ap.parse_args()
 
     log = Path(args.log)
     log.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"watching {args.rpc} every {args.interval:g}s -> {log}", flush=True)
-    print(f"healthy means >= {args.expected_validators} validators and "
-          f">= {args.min_per_shard} per shard", flush=True)
+    print(f"healthy means >= {args.expected_validators} validators, "
+          f">= {args.min_per_shard} per shard, >= {args.min_peers} peers",
+          flush=True)
 
     last_ok: bool | None = None
     while True:
-        s = sample(args.rpc, args.expected_validators, args.min_per_shard)
+        s = sample(args.rpc, args.expected_validators, args.min_per_shard,
+                   args.min_peers)
         # Append and flush per sample. A buffered write loses precisely the
         # records around a crash, which are the ones that matter.
         with log.open("a") as fh:
@@ -142,10 +176,11 @@ def main() -> int:
             ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(s["t"]))
             if s["ok"]:
                 print(f"{ts}Z HEALTHY  validators={s.get('validators')} "
-                      f"shards={s.get('shards')}", flush=True)
+                      f"shards={s.get('shards')} peers={s.get('peers')}",
+                      flush=True)
             else:
                 print(f"{ts}Z DEGRADED validators={s.get('validators')} "
-                      f"shards={s.get('shards')} "
+                      f"shards={s.get('shards')} peers={s.get('peers')} "
                       f"{s.get('error', '')}", flush=True)
             last_ok = s["ok"]
 
