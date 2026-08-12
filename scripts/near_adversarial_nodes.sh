@@ -105,6 +105,32 @@ echo "$(cat /tmp/h) $(cat /tmp/es)"' < /dev/null 2>/dev/null | tail -1)"
 if [ -z "${HEIGHT:-}" ]; then
   echo "could not read chain height; refusing to start" >&2; exit 1
 fi
+
+# PRECONDITION: the set must be WHOLE before deliberately breaking it.
+#
+# The window check below only asks whether an expulsion would land mid-arm. It
+# says nothing about whether the network is intact NOW -- and on 12 Aug the set
+# sat at 7/8 for four hours while that check passed happily. Starting an
+# adversarial arm on an already-degraded network measures two faults at once and
+# neither can be attributed.
+#
+# The verdict comes from scripts/near_chain_status.py ON THE GENERATOR rather
+# than an inline query. Building the JSON inside a --command string is the trap
+# that has now mangled three separate checks tonight: the quotes do not survive
+# three shell layers, the query returns nothing, and the caller reads the empty
+# result as whatever its default is. Here that meant refusing even when the set
+# was whole, which would have silently blocked the whole arm.
+VERDICT=$(gcloud compute ssh near-generator --zone us-east4-c --project "$PROJECT" \
+  --command 'python3 /opt/benchmark/scripts/near_chain_status.py' < /dev/null 2>/dev/null)
+SET_LINE=$(echo "$VERDICT" | grep -m1 "^validators ")
+log "${SET_LINE:-could not read the validator set}"
+if ! echo "$VERDICT" | grep -q "STATE: HEALTHY"; then
+  echo "REFUSING: the validator set is not whole. Breaking an already-broken" >&2
+  echo "network measures two faults at once and neither can be attributed." >&2
+  echo "  chain says: ${SET_LINE:-<no reading>}" >&2
+  exit 1
+fi
+
 # Expulsions decided this epoch apply two epochs out, so the set is safe until
 # then. epoch_length is 3600 blocks at ~2s.
 SAFE_UNTIL=$(( EPOCH_START + 2 * 3600 ))
