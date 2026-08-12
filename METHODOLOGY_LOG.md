@@ -436,8 +436,10 @@ The short version: Lightning capacity is **additive across channels**, and our t
 
 ### What Lightning still contributes
 
-- **Cost per transaction**, built the same way as Polygon's: measure the architecture-determined quantity (route length, 2.53 hops), price it with real mainnet rates (1ML, 10 Aug 2026). **$0.0509 at $200, against Polygon's $0.0006 — a factor of 85.**
-- **The §12 cost crossover, resolved.** Polygon's cost is flat with amount; Lightning's is proportional at 165 ppm. At $500 the Lightning routing fee alone is $0.1267, above the $0.10 selection threshold. The crossover lies below $500.
+- **Cost per transaction**, built the same way as Polygon's: measure the architecture-determined quantity (route length, **2.571 hops at $200**), price it with real mainnet rates (1ML, 10 Aug 2026). **$0.0523 at $200, against Polygon's $0.0006 — a factor of 87.**
+- **The §12 cost crossover, resolved.** Polygon's cost is flat with amount; Lightning's is proportional at 165 ppm. At $500 the Lightning routing fee alone is $0.1467, above the $0.10 selection threshold. The crossover lies below $500.
+
+> **Corrected 12 Aug 2026** (ANALYSIS_PLAN amendment 10). Previously $0.0509/85× and $0.1267, from a **pooled** mean route length of 2.53 hops applied to every amount. Route length in fact varies with amount — 2.651 at $10, 2.571 at $200, 2.772 at $500 — and the pooled figure also omitted the §7 warm-up cut. All corrected figures move **up**, so the earlier numbers understated Lightning's cost. Also recorded: **$50 was never run on Lightning**, so its cost row is an extrapolation, and the $200 and $500 rows rest on 3 and 2 runs against the 5-repeat minimum.
 - **Settlement time under clean conditions** — p50 1.501s — labelled small-scale illustrative.
 - **The scale limitation itself**, as a methodological finding: Lightning's capacity is a property of deployed capital, not of the protocol.
 
@@ -458,7 +460,7 @@ Infrastructure faults, recorded in `RESUME_HERE.md` §5: bitcoind requiring netw
 
 ### Cost methodology — why our own fees were not reported
 
-Our LND nodes ran the stock policy: 1,000 msat base per hop plus 1 ppm. At 2.53 hops that predicts ~2,530 msat and the measured mean was 2,016 — i.e. the "measured" fee was essentially our own configuration. Reporting it would repeat the exact circularity §6.3 identifies for Polygon's gas price. Route length is measured; the price comes from 1ML.
+Our LND nodes ran the stock policy: 1,000 msat base per hop plus 1 ppm. At $200 that predicts 1,308.6 msat per charging hop × 1.571 hops = 2,056 msat, and the measured mean was 2,016 — i.e. the "measured" fee was essentially our own configuration, reproducible to within 2% from the config file alone. Reporting it would repeat the exact circularity §6.3 identifies for Polygon's gas price. Route length is measured; the price comes from 1ML.
 
 ### Scope closure
 

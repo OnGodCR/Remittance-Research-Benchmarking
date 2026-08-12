@@ -21,6 +21,14 @@ nobody can detect afterward, and it is the most common way benchmarking papers
 quietly become wrong. If an exclusion is ever warranted for a reason not on
 this list, it goes to Angad as a judgment call rather than being applied here.
 
+**One rule was added later and is marked as such.** Rule 2b (runs with no end
+timestamp) was written on 12 Aug 2026, after data existed, and is logged as
+amendment 9 in ANALYSIS_PLAN.md S13. It is recorded as an amendment rather than
+presented as pre-registered because the distinction is the whole point of
+pre-registering. It does not select on any measured outcome: it keys on whether
+a run finished, which is known without looking at its throughput, latency or
+failure rate, so it cannot be used to drop a run for being inconvenient.
+
 WHY PARQUET RATHER THAN THE DATABASE FILE
 -----------------------------------------
 GitHub rejects any file over 100 MB, and the finished dataset is roughly 1.3 GB
@@ -200,6 +208,39 @@ def clean(raw: pd.DataFrame, events: pd.DataFrame) -> tuple[pd.DataFrame, list[E
     for run_id, reason in invalid[["run_id", "invalidation_reason"]].drop_duplicates().values:
         log.append(Exclusion("run", run_id, "harness flagged invalid", str(reason)))
     df = df[df["invalidated"] != 1]
+
+    # Rule 2b -- runs that never recorded an end.
+    #
+    # `ended_wall` is written by the harness when a run completes normally. A
+    # NULL means the run was cut off: the process was killed, the machine went
+    # away, or the sweep was restarted underneath it. The payments it did record
+    # are real, but they are a TRUNCATED sample of a window that was supposed to
+    # be 300s, and the truncation is not random -- a run is interrupted
+    # precisely when something is going wrong.
+    #
+    # Found 12 Aug 2026, and it was not hypothetical. The $10-at-100/sec repeat
+    # 0 run was cut off at 12:02 when two validators dropped out mid-window. It
+    # kept 30,403 payments, was never flagged invalid, and passed every rule
+    # above. Two consequences, the second worse than the first:
+    #
+    #   1. a truncated run measured on a collapsing network would have entered
+    #      the paper's clean dataset as an ordinary measurement;
+    #   2. Rule 5 keeps the FIRST execution of a configuration, and the orphan
+    #      is earlier than its eventual re-run -- so the truncated run would
+    #      have been kept and the good complete one DISCARDED.
+    #
+    # The harness's own completeness check requires `ended_wall IS NOT NULL`, so
+    # the sweep correctly re-runs these; only the export was missing the rule.
+    # A run that never finished is not a measurement of a 300s window.
+    if "ended_wall" in df.columns:
+        unfinished = df[df["ended_wall"].isna()]
+        for run_id in sorted(set(unfinished["run_id"])):
+            log.append(Exclusion(
+                "run", str(run_id), "run never completed",
+                "no end timestamp: the run was interrupted, so its payments are "
+                "a truncated and non-random sample of the intended window",
+            ))
+        df = df[df["ended_wall"].notna()]
 
     # Rule 3 -- spot reclamation. A reclaimed machine looks exactly like the
     # node failures the adversarial arm injects deliberately; keeping such a

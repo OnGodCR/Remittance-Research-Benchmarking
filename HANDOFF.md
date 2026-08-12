@@ -246,9 +246,11 @@ Four validators in Virginia, Mumbai, Singapore and London. 60-second windows, on
 
 **Their finding, verified against the source:** payment success falls from **71.9% at $0.01 to 17.3% at $100**. Node reachability is a *separate* statistic, roughly flat at 25-35%, and must never be described as a size-specific success rate — an earlier draft of this project's documents made exactly that error.
 
-**What is ours:** cost per transaction (**$0.0509 at $200**, from measured route length priced at 1ML mainnet rates), and settlement time under clean conditions (**p50 1.501s**, small-scale illustrative). Channel-open cost is cited.
+**What is ours:** cost per transaction (**$0.0523 at $200**, from measured route length priced at 1ML mainnet rates), and settlement time under clean conditions (**p50 1.501s**, small-scale illustrative). Channel-open cost is cited.
 
-**The comparison it enables:** Polygon $0.0006 flat with amount; Lightning $0.0509 at $200 and proportional. At $500 Lightning's fee alone exceeds the $0.10 threshold — the pre-registered crossover, resolved.
+**The comparison it enables:** Polygon $0.0006 flat with amount; Lightning $0.0523 at $200 and proportional. At $500 Lightning's fee alone ($0.1467) exceeds the $0.10 threshold — the pre-registered crossover, resolved.
+
+*(Cost figures corrected 12 Aug 2026 from $0.0509/$0.1267 — a single pooled route length had been applied to every amount. ANALYSIS_PLAN amendment 10. Note also that $50 was never run on Lightning, and the $200/$500 rows rest on 3 and 2 runs against a 5-repeat minimum.)*
 
 ---
 
