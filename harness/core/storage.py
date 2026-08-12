@@ -274,6 +274,20 @@ class Store:
             [(off, ref, amt, run, seq) for (run, seq, off, ref, amt) in rows],
         )
 
+    def update_tx_refs(self, rows: Iterable[tuple]) -> None:
+        """Replace a submission-time placeholder with the real on-chain ref.
+
+        NEAR broadcasts asynchronously, so submit() returns a local counter and
+        the true transaction hash only exists once the send task has signed.
+        Without this the dataset stored `seq-268` and no NEAR payment could ever
+        be located on chain -- no independent verification of any result, and no
+        way to investigate a single failure after the fact.
+        """
+        self.conn.executemany(
+            "UPDATE transactions SET tx_ref = ? WHERE run_id = ? AND seq = ?",
+            rows,
+        )
+
     def record_outcome_batch(self, rows) -> None:
         """Batched form of record_outcome. See record_submitted_batch."""
         self.conn.executemany(

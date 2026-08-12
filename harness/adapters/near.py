@@ -470,10 +470,29 @@ class NearAdapter(Adapter):
                 # Called directly rather than through py-near's get_tx, which
                 # uses the legacy positional form and cannot request a finality
                 # level. Settlement here means FINAL (claude.md S7).
+                # wait_until=NONE, NOT FINAL -- and this still measures
+                # FINAL, because finality is READ from the response rather than
+                # waited for.
+                #
+                # `wait_until=FINAL` blocks SERVER-SIDE until the transaction is
+                # final or the node gives up. Measured on this cluster: 10.002s
+                # per call for a transaction that is not yet final, against
+                # 0.001s for wait_until=NONE. With ~11s settlement, a run at
+                # 300/sec would hold roughly three thousand simultaneous
+                # ten-second requests against a single RPC node, and the ceiling
+                # we measured would be that node's request capacity rather than
+                # NEAR's throughput -- our own tooling reported as a finding,
+                # the exact error claude.md S8 exists to prevent. It was already
+                # visible at the LOWEST load step as 1.6% of payments timing out
+                # with HANDLER_ERROR/TIMEOUT_ERROR.
+                #
+                # The response carries `final_execution_status`, so NONE returns
+                # immediately and finality is checked below. The settlement
+                # definition is unchanged: nothing counts until FINAL.
                 result = await provider.json_rpc("tx", {
                     "tx_hash": tx_ref,
                     "sender_account_id": signer,
-                    "wait_until": _FINALITY,
+                    "wait_until": "NONE",
                 })
             except Exception as exc:               # noqa: BLE001 - not final yet, or transient
                 last_error = f"{type(exc).__name__}: {exc}"[:160]
@@ -482,6 +501,15 @@ class NearAdapter(Adapter):
 
             outcome = (result or {}).get("final_execution_outcome") or result or {}
             status = (outcome.get("status") or {})
+            reached = (result or {}).get("final_execution_status")
+            # Both conditions, and the finality one is not optional: an outcome
+            # can be successful at EXECUTED_OPTIMISTIC and still be reorged.
+            # claude.md S7 requires FINAL for NEAR precisely so the comparison
+            # against Polygon's deterministic instant finality is honest.
+            if reached != _FINALITY:
+                last_error = f"reached {reached}, not {_FINALITY}"
+                await asyncio.sleep(0.2)
+                continue
             if "SuccessValue" in status or "SuccessReceiptId" in status:
                 return ConfirmResult(
                     status="confirmed",
@@ -501,6 +529,12 @@ class NearAdapter(Adapter):
                     # the two regimes separately lets the average be recomputed
                     # for any shard count.
                     route_hops=crossed,
+                    # The real on-chain hash. submit() could only return a local
+                    # `seq-N` reference, because the hash does not exist until
+                    # the send task has signed. Reporting it here is what lets
+                    # any NEAR payment in the dataset be checked against the
+                    # chain afterwards.
+                    settled_ref=tx_ref,
                 )
             if "Failure" in status:
                 return ConfirmResult(status="failed", error=str(status["Failure"])[:200])

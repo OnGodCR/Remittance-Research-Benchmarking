@@ -50,6 +50,17 @@ class ConfirmResult:
     route_hops: int | None = None   # Lightning only
     error: str | None = None
 
+    #: The REAL on-chain identifier, when it is not known at submission time.
+    #:
+    #: NEAR's adapter broadcasts asynchronously and returns a local reference
+    #: (`seq-N`) from submit(), because the hash does not exist until the
+    #: transaction has been signed inside the send task. Without this field the
+    #: database kept `seq-268` forever and NOT ONE NEAR payment in the dataset
+    #: could be checked against the chain -- no post-hoc verification, and no
+    #: way to investigate an individual failure. Polygon and Lightning know
+    #: their identifier at submission and leave this None.
+    settled_ref: str | None = None
+
 
 class Adapter(ABC):
     """One network under test."""
