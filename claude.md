@@ -1,18 +1,25 @@
 # Project Handoff: Blockchain Remittance Scaling Architecture Benchmarking
 
-> ## 0. CURRENT STATE — added 9 Aug 2026
+> ## 0. CURRENT STATE — updated 11 Aug 2026
 >
 > **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:
 >
-> 1. **`RESUME_HERE.md`** — what is running right now, results so far, and the operational traps that have already cost time or money
-> 2. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
-> 3. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
+> 1. **`PHASE4_HANDOFF.md`** — ⚠️ **READ FIRST.** Phase 4 is mid-flight and partly broken; this file has the live cluster state, four identified bugs, and the exact next steps.
+> 2. **`RESUME_HERE.md`** — results so far and the operational traps that have already cost time or money
+> 3. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
+> 4. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
 >
-> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations + 15/15 adversarial). **Phase 3 (Lightning) closed 10 Aug** — reliability and throughput now sourced from Waugh & Holz (2020) rather than self-measured, because our testbed has ~385x fewer channels than the real network and Lightning capacity is additive across channels. Cost per transaction and an illustrative settlement time were retained. See `LIGHTNING_ANALYSIS.md`. **Next: Phase 4 (NEAR)**, capped at 8 validators by a 96 vCPU quota ceiling.
+> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations + 15/15 adversarial). **Phase 3 (Lightning) closed 10 Aug** — reliability and throughput now sourced from Waugh & Holz (2020) rather than self-measured, because our testbed has ~385x fewer channels than the real network and Lightning capacity is additive across channels. Cost per transaction and an illustrative settlement time were retained. See `LIGHTNING_ANALYSIS.md`. **Phase 4 (NEAR) is IN PROGRESS and has produced 0 of 140 valid runs.**
+>
+> **Phase 4 status in one paragraph.** A 9-instance cluster (8 validators + generator) has been billing since 10 Aug. The chain itself is healthy — nearcore 2.13.3, protocol 86, 4 shards, 836 verified sender accounts spread evenly across shards. **The measurement harness, not the chain, is what failed:** a race between `submit()` and `await_confirmation()` on the pending-hash dictionary meant transactions were broadcast and settled on chain while the harness discarded every hash and recorded `never broadcast within 60s`. A fix is written but **untested and not deployed**. There is currently **no idle watcher and no hard shutdown cap** on the cluster. See `PHASE4_HANDOFF.md`.
 >
 > **Headline result:** Polygon Edge sustains **200 payments/second** at $200 under the full realism stack, with the knee between 200 and 300/sec. Details in `RESUME_HERE.md` §3.
 >
 > **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), leaving 155 Polygon runs plus NEAR's 155 still to come.
+>
+> **Two constraints discovered in Phase 4 that belong in the paper**, not just in ops notes:
+> - **NEAR orders transactions per access key by nonce**, so a sender account cannot hold two payments in flight. The sender pool size *is* the concurrency ceiling — roughly N/2 per second at ~2s inclusion. Reaching 300/sec needs ~836 funded accounts. This is the sharding analogue of Polygon's nonce-pool problem and is a real property of the architecture.
+> - **8 validators across 4 shards leaves exactly 2 per shard**, the protocol minimum. Losing one node drops a shard to a single validator, so **NEAR's adversarial arm is harsher than Polygon's**, where 3 of 4 validators survived. That is a quota artifact and must be stated as such when the two are compared.
 
 **Purpose of this document**: This is a full context handoff for Claude Code, which will handle the scripting, infrastructure deployment, and technical debugging for the simulation portion of this research project. Read this whole document before starting any work. It explains not just *what* to build, but *why*, so you can make good judgment calls when something isn't explicitly specified.
 

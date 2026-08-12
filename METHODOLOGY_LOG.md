@@ -463,3 +463,70 @@ Our LND nodes ran the stock policy: 1,000 msat base per hop plus 1 ppm. At 2.53 
 ### Scope closure
 
 No further Lightning testing is scheduled. Four candidates were assessed and recorded in `ANALYSIS_PLAN.md` §13 amendment 7. One — even versus hub-and-spoke liquidity funding — is **parked rather than rejected**, since real providers concentrate liquidity along the corridors they serve; revisit only if NEAR and Phases 5-6 finish with time and budget to spare.
+
+---
+
+## Phase 4 (NEAR) — constraints and corrections, 11 August 2026
+
+**Status at the time of writing: 0 of 140 configurations collected.** The entries below are
+recorded now because two of them are properties of the architecture that belong in the
+paper regardless of how the run eventually goes, and one is a measurement error that must
+not be quietly forgotten.
+
+### 4a. The sender pool size is a NEAR concurrency limit, not a harness detail
+
+NEAR orders transactions **per access key by nonce**. A single account therefore cannot hold
+two payments in flight: the second is either rejected or must wait. At roughly 2s to
+inclusion, a pool of N sender accounts imposes a ceiling near **N/2 transactions per
+second**.
+
+The 64-account pool inherited from the smoke tests capped throughput near **32/sec** against
+a matrix whose top step is **300/sec**. The pool was therefore rebuilt at 900 accounts, of
+which **836 are verified usable** (see 4c), giving a ceiling near 418/sec.
+
+**This is the sharding analogue of Polygon's nonce-pool problem** (§7 of this log) and it is
+a real architectural property, not an artifact of our tooling: any NEAR remittance operator
+sending at scale must shard its own sending keys. It should be stated in the Methodology
+alongside the Polygon equivalent, and it is a genuine finding about operating on NEAR.
+
+### 4b. Four valid runs were invalidated as *superseded*, not as faulty
+
+Four `phase-4-full-stack` runs ($10 at 10/sec and 25/sec) were collected successfully with
+the 64-account pool before the pool was enlarged. They are marked `invalidated = 1` with
+reason `superseded: measured with the 64-account sender pool …`.
+
+**They were not wrong; they were measured under a different configuration.** Reporting them
+in the same table as 836-account runs would place a mid-study parameter change inside one
+results table. Nothing was deleted — the rows and their transactions remain in the raw
+data, per the "nothing is ever deleted" rule in §8.
+
+### 4c. Sixty-four sender accounts had keys that did not match the chain
+
+The 900-account bootstrap reused account names that already existed from the 64-account
+pool. `CreateAccount` failed for those names, but the newly generated keys were written to
+the keys file regardless, producing 64 accounts whose private keys corresponded to no
+on-chain access key (`access key … does not exist while viewing`).
+
+They were dropped rather than repaired — an account's key can only be replaced by a
+transaction signed with the key we did not have. **836 senders remain, verified against
+chain, funded, registered with the token contract, and spread 209/209/209/209 across the
+four shards.** `scripts/near_bootstrap.py` still needs a guard so this cannot recur.
+
+### 4d. Measurement error: every Phase 4 "failure" so far is an artifact
+
+All Phase 4 runs to date recorded 100% failure with the error `never broadcast within 60s`.
+**The chain was not at fault and the payments were settling normally.** Two client-side
+defects produced this:
+
+1. **`py-near` 1.2.22's `nowait=True` does not mean "do not wait."** Its own docstring
+   marks it legacy and aliases it to `included`, which blocks server-side until block
+   inclusion (~2s) against a 10s node ceiling. Replaced with local signing plus
+   `broadcast_tx_async`.
+2. **A race on the pending-hash dictionary.** `await_confirmation` popped the entry before
+   the newly created send task had run, so the task broadcast the payment and then
+   discarded its hash.
+
+**No Phase 4 failure rate from before this date carries any information about NEAR**, and
+none of it may be reported. The affected runs are invalidated and retained. This is the
+same class of error as the Lightning rebalancer no-op recorded in §7: a measurement
+instrument reporting confidently on something it was not measuring.
