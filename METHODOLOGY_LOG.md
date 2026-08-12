@@ -901,3 +901,88 @@ collected regardless, so no extra runs are needed to answer it.
 **Until it is resolved, the honest reporting is:** a measured submission-rejection
 rate under our stated conditions, of the retryable kind, with the cause not
 established. It must not be presented as NEAR losing payments.
+
+---
+
+## Phase 4 — the TIER1 misconfiguration, 12 August 2026
+
+### 9a. What happened
+
+At 08:37 UTC the sweep began degrading, and from 08:56 **eleven consecutive runs
+recorded ZERO settled payments** out of 30,000 to 60,000 each — 100/sec through
+200/sec. The runs were being written down as valid.
+
+Both `asia-south1` validators had fallen ~460 blocks behind the chain and were
+stuck in slow sync. NEAR finality requires chunks from **every** shard, so two
+shards without a producing validator stalled settlement network-wide, not just
+for payments addressed to those shards.
+
+### 9b. Root cause
+
+**Every validator advertised `[::1]` — IPv6 localhost — as its `public_addrs`.**
+
+```
+network.public_addrs = ["ed25519:...@[::1]:37223"]
+```
+
+TIER1 is NEAR's direct validator-to-validator layer, used to propagate blocks
+and chunks among validators without traversing general gossip. Each validator
+was telling the others to reach it at *their own* localhost, so **no TIER1
+connection could ever be established** and all validator traffic fell back to
+the slower TIER2 path.
+
+This was survivable to 50/sec and fatal above it.
+
+`PHASE4_HANDOFF.md` §6 already lists **"P2P must not bind `[::1]` — this broke
+the chain twice."** It is now three times. The fix is written into each node's
+`config.json` (`scripts/near_fix_tier1_addrs.sh`) rather than applied by hand, so
+a restart cannot undo it.
+
+### 9c. Evidence that this was the cause, not a symptom
+
+| | Before the fix | After the fix |
+|---|---|---|
+| asia-south1 validators | ~460 blocks behind, stuck for **hours**, not recovering | **at the tip within one minute** |
+| Recovery with impairment removed | still stuck — impairment was **not** the cause | — |
+| Recovery after a plain restart | node2 partially, node3 not at all | — |
+| A 100/sec run | **0 settled of 30,000** | **11,970 settled, 99.8/sec achieved, 0.4% failed** |
+| TIER1 connection failures in the log | continuous | **0 in three minutes** |
+
+### 9d. Consequence for the data — all prior phase-4 runs invalidated
+
+**23 runs, including the 15 low-load configurations that had looked clean.**
+Everything collected on this cluster ran without the validator network NEAR is
+designed to use. Those numbers describe a misconfigured deployment, not NEAR,
+and reporting them would understate it for a reason that has nothing to do with
+sharding.
+
+This also very likely explains the **3–4% submission-drop rate** investigated in
+§8, which was measured entirely under the broken configuration. At 100/sec after
+the fix the failure rate is **0.4%**. §8's conclusion about what those failures
+*were* (submission rejections, nothing charged, retryable) still stands; the
+*rate* should be re-measured and the earlier figures not quoted.
+
+### 9e. The monitoring gap this exposed, now closed
+
+The liveness watch checked validator count, per-shard coverage, and peer count.
+All three read **healthy** throughout, because a validator stuck syncing stays in
+the set, keeps its peers, and is counted. It produced nothing.
+
+`scripts/near_liveness_watch.py` now also polls **every validator's own view of
+the chain tip** and marks the sample degraded if any is more than 30 blocks
+behind (≈60s) or reports itself syncing. Confirmed against the live failure: it
+immediately reported `max_behind=477, behind={node2: 477, node3: 444}`.
+
+### 9f. A limitation this surfaced, which must be stated in the paper
+
+`tracked_shards_config: AllShards` — **every validator tracks and executes all
+four shards.** For a cluster this small that is the safe configuration, because
+chunk-producer assignment rotates each epoch and a node reassigned to a shard it
+does not track cannot produce for it.
+
+But it means our deployment does **not** realise sharding's execution-division
+benefit: each node does all four shards' work, so total capacity is bounded by
+one node rather than the sum over shards. **Our NEAR throughput figures are
+therefore conservative relative to a production deployment where validators track
+only their assigned shards.** The cross-shard *latency and gas* measurements are
+unaffected — those are properties of receipt routing, which happens regardless.

@@ -81,8 +81,32 @@ def rpc(url: str, method: str, params, timeout: float = 8.0):
     return body["result"]
 
 
+#: Every validator's RPC, so each one's own view of the chain tip can be
+#: checked. Asking only the node we submit through cannot see a validator that
+#: has fallen behind: it stays in the set, keeps its peers, and is counted.
+PEER_RPCS = {
+    "node0": "10.40.0.10", "node1": "10.40.0.2",
+    "node2": "10.40.1.2",  "node3": "10.40.1.3",
+    "node4": "10.40.2.3",  "node5": "10.40.2.2",
+    "node6": "10.40.3.3",  "node7": "10.40.3.2",
+}
+
+
+def peer_heights(timeout: float = 4.0) -> dict:
+    """Each validator's own latest block height, and whether it is syncing."""
+    out = {}
+    for name, ip in PEER_RPCS.items():
+        try:
+            r = rpc(f"http://{ip}:3030", "status", [], timeout=timeout)
+            out[name] = [r["sync_info"]["latest_block_height"],
+                         bool(r["sync_info"]["syncing"])]
+        except Exception:                          # noqa: BLE001
+            out[name] = None
+    return out
+
+
 def sample(rpc_url: str, expected_validators: int, min_per_shard: int,
-           min_peers: int) -> dict:
+           min_peers: int, max_behind: int = 30) -> dict:
     out: dict = {"t": time.time()}
     try:
         status = rpc(rpc_url, "status", [])
@@ -130,8 +154,34 @@ def sample(rpc_url: str, expected_validators: int, min_per_shard: int,
         enough_each = (len(shards) > 0
                        and all(n >= min_per_shard for n in shards.values()))
         enough_peers = out["peers"] is not None and out["peers"] >= min_peers
+
+        # FOURTH CONDITION, and the one whose absence cost eleven runs.
+        #
+        # On 12 Aug both asia-south1 validators fell ~460 blocks behind under
+        # load and got stuck syncing. They stayed in the validator set, kept
+        # their peers, and were counted as present -- so validator count,
+        # per-shard coverage and peer count all read healthy. They produced no
+        # chunks, NEAR finality needs chunks from every shard, and settlement
+        # stalled network wide: eleven consecutive runs recorded ZERO settled
+        # payments out of 30,000 to 60,000, and were written down as valid.
+        #
+        # A validator that cannot reach the chain tip is not participating,
+        # whatever the set says. This asks each one directly.
+        heights = peer_heights()
+        out["peer_heights"] = heights
+        alive = [v[0] for v in heights.values() if v]
+        head = max(alive) if alive else 0
+        behind = {n: head - v[0] for n, v in heights.items() if v}
+        out["max_behind"] = max(behind.values()) if behind else None
+        out["behind"] = {n: b for n, b in behind.items() if b > max_behind}
+        out["unreachable"] = [n for n, v in heights.items() if v is None]
+        all_current = (len(alive) == len(PEER_RPCS)
+                       and out["max_behind"] is not None
+                       and out["max_behind"] <= max_behind
+                       and not any(v[1] for v in heights.values() if v))
+
         out["ok"] = bool(enough_total and enough_each and enough_peers
-                         and not out["syncing"])
+                         and all_current and not out["syncing"])
     except Exception as exc:                       # noqa: BLE001 - recorded
         out["ok"] = False
         out["error"] = f"{type(exc).__name__}: {exc}"[:300]
@@ -145,6 +195,12 @@ def main() -> int:
     ap.add_argument("--interval", type=float, default=10.0)
     ap.add_argument("--expected-validators", type=int, default=8)
     ap.add_argument("--min-per-shard", type=int, default=2)
+    ap.add_argument("--max-behind", type=int, default=30,
+                    help="blocks a validator may lag the tip before the sample "
+                         "counts as degraded. 30 blocks is ~60s at 2s blocks -- "
+                         "enough for ordinary jitter, far short of the ~460 "
+                         "blocks the asia-south1 pair reached while every other "
+                         "check still read healthy.")
     ap.add_argument("--min-peers", type=int, default=7,
                     help="peers the RPC node should see. On an 8-validator "
                          "cluster the RPC node is one of them, so it sees the "
@@ -163,7 +219,7 @@ def main() -> int:
     last_ok: bool | None = None
     while True:
         s = sample(args.rpc, args.expected_validators, args.min_per_shard,
-                   args.min_peers)
+                   args.min_peers, args.max_behind)
         # Append and flush per sample. A buffered write loses precisely the
         # records around a crash, which are the ones that matter.
         with log.open("a") as fh:
@@ -181,6 +237,9 @@ def main() -> int:
             else:
                 print(f"{ts}Z DEGRADED validators={s.get('validators')} "
                       f"shards={s.get('shards')} peers={s.get('peers')} "
+                      f"max_behind={s.get('max_behind')} "
+                      f"behind={s.get('behind')} "
+                      f"unreachable={s.get('unreachable')} "
                       f"{s.get('error', '')}", flush=True)
             last_ok = s["ok"]
 
