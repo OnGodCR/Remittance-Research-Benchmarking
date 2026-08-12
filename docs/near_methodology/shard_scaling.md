@@ -1,13 +1,17 @@
 # Shard Scaling — how a 4-shard measurement answers an 8-shard question
 
 **Written:** 11 August 2026
-**Use this when:** writing the NEAR results and the Limitations section, and whenever a reader asks why a 4-shard testbed can say anything about a 9-shard mainnet.
+**Use this when:** writing the NEAR results and the Limitations section, and whenever a reader asks why a 4-shard testbed can say anything about a 10-shard mainnet.
+
+> **Corrected 12 Aug 2026.** This document said mainnet ran "8–9 shards", carried over from planning. Queried directly (`EXPERIMENTAL_protocol_config` on `rpc.mainnet.near.org`, 12 Aug 2026, protocol version 86, shard layout **V3**): mainnet runs **10 shards** with **422 validators, 10 per shard**. Every figure below is updated. The correction makes the cross-shard blend *larger*, so the conservative direction of our bias is unchanged — see §2.
 
 ---
 
 ## 1. The problem in one paragraph
 
-NEAR mainnet runs **8–9 shards**. Our testbed runs **4**, and that is forced by quota: NEAR needs at least 2 validators per shard for consensus, so 8 shards means 16 validators, which at NEAR's published 8 vCPU minimum is 136 vCPU against a 96 ceiling. Requests for 144, 120 and 136 were all denied. So the question is not "can we run 8 shards" — we cannot — but **"can a 4-shard measurement be honestly extended to 8–9?"**
+NEAR mainnet runs **10 shards** (measured 12 Aug 2026, shard layout V3). Our testbed runs **4**, and that is forced by quota: NEAR needs at least 2 validators per shard for consensus, so 10 shards means 20 validators, which at NEAR's published 8 vCPU minimum is 160 vCPU against a 96 ceiling. Requests for 144, 120 and 136 were all denied. So the question is not "can we run 10 shards" — we cannot — but **"can a 4-shard measurement be honestly extended to 10?"**
+
+A second gap, newly measured and worth stating beside the first: mainnet carries **10 validators per shard**; we carry **2**, the protocol minimum. Our shards therefore have no redundancy where mainnet's have nine spare producers each. That does not affect the throughput scaling below — capacity per shard is set by block gas limit and timing, not producer count — but it is why our adversarial arm is harsher than mainnet conditions and must not be read as a mainnet failure model.
 
 The answer is yes, but **not by measuring an average and multiplying.** That was the first instinct and it is wrong.
 
@@ -27,8 +31,9 @@ $$P(\text{cross-shard}) = \frac{S-1}{S}$$
 |---|---|
 | 4 (ours) | 75.0% |
 | 6 | 83.3% |
-| **8 (mainnet)** | **87.5%** |
-| 9 (mainnet) | 88.9% |
+| 8 | 87.5% |
+| 9 | 88.9% |
+| **10 (mainnet, measured 12 Aug 2026)** | **90.0%** |
 
 A cross-shard transfer costs more than a same-shard one: the transaction executes on the sender's shard, produces a receipt, and that receipt executes on the receiver's shard in a **later block**. It pays an extra block of latency and additional gas.
 
@@ -81,7 +86,7 @@ The second factor is the correction for the worsening mix. It is a modest downwa
 
 Running at 8 shards would have produced **one number, at one shard count**. Measuring the two regimes separately produces **a function of shard count**, which:
 
-- answers the mainnet question today (8 shards) and tomorrow's (NEAR has been increasing shard count: 4 → 6 → 8–9)
+- answers the mainnet question today (10 shards) and tomorrow's (NEAR has been increasing shard count: 4 → 6 → 8 → 10)
 - makes the underlying mechanism explicit rather than buried in an average
 - lets a reader check the reasoning against their own assumptions about $S$
 
