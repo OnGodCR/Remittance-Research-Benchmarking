@@ -286,3 +286,33 @@ No further Lightning testing is scheduled. Four candidates were assessed against
 - **Hop-count versus latency — rejected.** A real protocol property, but it feeds no comparison the paper makes.
 - **Fee structure / channel-open cost — not new work.** Already required by §6.3; handled in amendment 6.
 - **Liquidity topology comparison (even versus hub-and-spoke funding) — parked, not rejected.** The one candidate with a genuine remittance tie: real providers concentrate liquidity along the corridors they serve. It roughly doubles the Lightning matrix and competes with NEAR and Phases 5-6, which are under real constraint from the GCP quota and the 6 November credit expiry. Revisit only if those finish with time and budget to spare.
+
+---
+
+### Amendment 8 — 12 Aug 2026: the warm-up cut is applied on SCHEDULED offset, not submitted offset
+
+**Section affected:** 7 (exclusions, warm-up period).
+
+**What §7 says.** "Exclude transactions whose **submission** offset is < 10.0s."
+
+**What the code does.** `analysis/export.py` filters on `scheduled_offset >= 10.0`.
+
+**Why this was not caught earlier.** Submission offset is scheduled offset plus scheduling lag, and lag cannot be negative, so `scheduled >= 10` always implies `submitted >= 10`. The code's rule is therefore a strict superset of the pre-registered one: everything §7 excludes, the code also excludes. The two differ only for transactions *scheduled* just before the 10s mark that were *submitted* just after it, and those are dropped rather than kept.
+
+**Magnitude, measured across all 236 runs in the raw dataset (7,377,810 valid submitted payments):**
+
+| | |
+|---|---|
+| Payments kept by §7 but dropped by the code | **1,140 (0.0155%)** |
+| The reverse | 0 (impossible while lag ≥ 0) |
+| Runs touched | 108 of 236; median 2 payments per run |
+| Worst single run | 189 payments, **0.22%** of that run |
+| Concentration | 950 of 1,140 sit at the 300/sec step, where lag is largest |
+
+**Resolution: the code's behaviour stands, and §7 is amended to match it** — for a reason that makes it the better rule rather than merely the implemented one.
+
+Filtering on *submission* time conditions the sample on an outcome. A transaction scheduled at 9.8s is retained only if it was **delayed** past 10.0s, so the rule preferentially keeps exactly those transactions that experienced lag while discarding their punctual neighbours. That is a selection effect, it grows with load, and it acts hardest at 300/sec — the step where the knee is and where the study's headline claim lives. Filtering on the *schedule* is independent of what later happened to the transaction.
+
+**No reported figure changes.** At 0.0155% overall and 0.22% in the worst single run, this cannot move an achieved throughput of 270.5/sec or a failure rate of 9.97%. It is recorded because a discrepancy between the locked text and the implementation is the kind of thing a reviewer is entitled to find already disclosed, not because the numbers are in doubt.
+
+**Applies uniformly** to all architectures and all runs, past and future, since it describes the export path every result passes through.
