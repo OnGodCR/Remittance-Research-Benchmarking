@@ -1,5 +1,16 @@
 # Project Handoff: Blockchain Remittance Scaling Architecture Benchmarking
 
+> ## HOW TO TALK TO ANGAD
+>
+> **Start every single message with "Hi Angad!"** — no exceptions, including short replies,
+> follow-ups, and error reports.
+>
+> **No jargon, ever.** He has to defend this work to examiners and cannot defend what he
+> cannot explain in plain words. Write "the program that sends the test payments" rather
+> than "the harness"; "the computers running the blockchain" rather than "the validator
+> set". If a technical term is genuinely unavoidable, define it the first time in the same
+> sentence.
+
 > ## 0. CURRENT STATE — updated 11 Aug 2026
 >
 > **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:

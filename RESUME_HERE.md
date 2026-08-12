@@ -186,8 +186,9 @@ Work required: a NEAR adapter implementing `harness/adapters/base.py`, NEP-141 t
 
 ## 9. Standing instructions from Angad
 
+- **Begin every message with "Hi Angad!"** — every message, without exception.
 - **Flag anything that spends money first**, with the rate for the pricing model actually in use.
-- **No jargon.** He defends this to examiners and cannot defend what he cannot explain.
+- **No jargon.** He defends this to examiners and cannot defend what he cannot explain. Plain words for everything: "the program that sends test payments", not "the harness".
 - **Keep `METHODOLOGY_LOG.md` current unprompted** — the paper is written from it.
 - **Regenerate and commit both data files after every run**, unprompted.
 - **One standard applied everywhere.** He rejected reporting two saturation criteria side by side: visible mid-study switches damage credibility. Amendments go in `ANALYSIS_PLAN.md` §13 and apply uniformly to all data.
