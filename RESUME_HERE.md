@@ -128,7 +128,7 @@ Every one cost real time or money.
 7. **macOS `pgrep` has no `-c` flag** — fails with a usage error that reads as "zero processes". Use `pgrep -f X | wc -l`.
 8. **`pkill -f <pattern>` can match your own SSH command line** and kill the connection.
 9. **Copying SQLite needs `VACUUM INTO`.** A plain copy without `-wal`/`-shm` gives "database disk image is malformed".
-10. **Data files exceed GitHub's 100MB limit** and live in Git LFS. Free tier 1GB; re-commit raw at phase boundaries only.
+10. **Data files exceed GitHub's 100MB limit** and live in Git LFS. **The included LFS allowance is 10 GiB of storage and 10 GiB/month of bandwidth** on Free and Pro alike, and billing moved from pre-paid data packs to metered usage (verified against GitHub's billing docs, 12 Aug 2026) — the "1 GB free tier" recorded here earlier was out of date. The full dataset with NEAR projects to ~1.6 GB, so storage is not a constraint. **Bandwidth might be:** every clone pulls the LFS files, so roughly six full clones a month would exhaust the allowance. Still re-commit raw at phase boundaries rather than after every run, since LFS retains each version.
 11. **The 10-minute command timeout** kills long transfers and installs. Run detached and poll.
 12. **Quota: ~50% steps approved, doubling denied.** Limit now 96. History: 32→128 ❌, 32→48 ✅, 48→64 ✅, 64→128 ❌, 64→96 ✅.
 
