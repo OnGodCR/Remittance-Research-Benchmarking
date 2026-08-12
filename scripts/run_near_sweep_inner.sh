@@ -51,12 +51,62 @@ for amount in 200 10 50 500; do
 import sqlite3, sys
 amount, tps, r, phase = float(sys.argv[1]), float(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 c = sqlite3.connect('data/working/runs.sqlite')
-n = c.execute(
+ok = c.execute(
     "SELECT COUNT(*) FROM runs WHERE phase=? AND architecture='near' "
     "AND tx_size_usd=? AND target_tps=? AND repeat_index=? AND invalidated=0 "
     "AND ended_wall IS NOT NULL",
     (phase, amount, tps, r)).fetchone()[0]
-print(n)
+
+# RETRY CAP -- stops an unmeasurable cell from looping forever.
+#
+# The sweep walks the ladder once and exits; the supervisor then restarts it
+# whenever fewer than 140 configurations are complete, and the fresh pass
+# re-runs whatever is still missing. That is what repairs a run invalidated by
+# a transient fault, and it is deliberate.
+#
+# It also means a cell that can NEVER complete is retried forever. On 12 Aug
+# every 300/sec run was invalidated for generator saturation -- p95 scheduling
+# lag ~1.2s, growth +67 to +77ms against the pre-registered 50ms threshold --
+# and the cause is structural, not transient: NEAR's RPC answers slowly once
+# the chain is congested, which holds up the send path. Retrying cannot fix
+# that. Left alone, the supervisor would have spent the rest of the night
+# re-running 20 doomed configurations at ~$3.50/hour, making no progress and
+# reaching no end state.
+#
+# Three attempts is enough to ride out a transient fault (an epoch-boundary
+# blip, one bad liveness sample) and few enough to bound the waste. A capped
+# cell is reported as missing by the supervisor rather than silently forgotten.
+attempts, saturated = c.execute(
+    "SELECT COUNT(*), SUM(COALESCE(invalidation_reason,'') LIKE 'generator saturated%') "
+    "FROM runs WHERE phase=? AND architecture='near' "
+    "AND tx_size_usd=? AND target_tps=? AND repeat_index=? "
+    "AND ended_wall IS NOT NULL",
+    (phase, amount, tps, r)).fetchone()
+saturated = saturated or 0
+
+# A STRUCTURAL failure is not retried at all; a transient one gets 3 tries.
+#
+# The two failure modes need different treatment and the reason string
+# distinguishes them without hard-coding a load level.
+#
+#   transient -- an epoch-boundary liveness blip (observed once in 5,604
+#     samples), a validator briefly behind. Retrying fixes these, and the
+#     second pass exists precisely to do that.
+#
+#   generator saturated -- the offered arrival pattern drifted from the
+#     intended Poisson process. At 300/sec every one of the five $200 repeats
+#     failed this way with p95 scheduling lag ~1.2s, and the cause does not
+#     vary between attempts: NEAR's RPC answers slowly once the chain is
+#     congested, which holds up the send path. A retry reproduces it exactly.
+#
+# Retrying the 20 doomed 300/sec cells three times each would burn about six
+# hours and $21 of a budget with roughly $40 left, and end with the same 20
+# holes. One attempt per cell still records the failure at every transaction
+# size -- enough to show it is not specific to one amount -- and then stops.
+if ok or attempts >= 3 or (attempts >= 1 and saturated == attempts):
+    print(1)
+else:
+    print(0)
 PYEOF
 )
       if [ "${done_already:-0}" -gt 0 ]; then
