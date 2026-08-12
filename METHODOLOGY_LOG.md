@@ -681,3 +681,88 @@ our own client, and the Polygon phantom-knee error would have been repeated in
 the second architecture. The 37% figure also notes that the transaction is
 serialised twice per payment — worth knowing before anyone optimises, though at
 24.6× headroom there is nothing to optimise.
+
+---
+
+## Phase 5 preparation — mainnet calibration inputs, 12 August 2026
+
+### 6a. Zilliqa "x-shards" — checked and RULED OUT as a second sharding data point
+
+claude.md §4 and §9 require this be re-checked at Phase 4: *"if shipped, Zilliqa
+becomes a cheap second sharding data point"*, which would meaningfully soften
+§12's caveat about generalising from one implementation.
+
+**Checked 12 Aug 2026. It is not shipped, and it is no longer on the roadmap.**
+
+- The x-shards roadmap page (`roadmap.zilliqa.com/pillars/x-shards`) now **301
+  redirects** to the general roadmap, which covers four phases from Q2 2026 to
+  Q2 2027 — credential infrastructure, regulated flows, cross-chain settlement,
+  proving the business model — and **does not mention x-shards at all**.
+- The developer documentation describes the EVM execution layer and Scilla. It
+  documents no x-shard, and the only sharding-related API is
+  `GetShardingStructure`, a Zilliqa 1.0 holdover.
+
+**Secondary sources say otherwise and should not be believed.** Several exchange
+and "what is ZIL in 2026" articles state x-shards shipped. They are marketing
+copy, they cite nothing, and they contradict both of Zilliqa's own properties.
+This is worth recording precisely because the easy version of this check —
+searching and reading the top results — returns the wrong answer.
+
+**Consequence for the paper.** The sharding arm rests on **one** implementation,
+NEAR's Nightshade. §12's existing caveat stands unsoftened, and the reason is now
+evidenced rather than assumed: the only affordable alternative does not have
+shipped sharding to measure. No Zilliqa budget is required.
+
+### 6b. Mainnet calibration inputs, pulled on one date
+
+`analysis/pull_mainnet_pricing.py` pulls every mainnet figure the cost and
+calibration sections need, together, and writes `docs/mainnet_pricing.json`.
+ANALYSIS_PLAN §6.3 and §11 both require them dated to a single pull; gathered
+piecemeal they drift, and the paper would price two architectures at two
+exchange rates without saying so.
+
+Gas prices come from each chain's own RPC rather than an explorer front page:
+same number, no API key, and it cannot be a stale cached widget.
+
+**Snapshot, 12 August 2026 01:37 UTC:**
+
+| | |
+|---|---|
+| NEAR gas price | 100,000,000 yoctoNEAR/gas (the protocol floor — mainnet uncongested) |
+| NEAR protocol version | **86 — the same version our testbed runs** |
+| NEAR shards | **10** (layout V3) |
+| NEAR validators | **422, exactly 10 per shard** |
+| Polygon gas price | 273.508 Gwei (block 91,862,423) |
+| NEAR / USD | $1.65 |
+| POL / USD | $0.075258 |
+
+**A stale-feed trap, worth stating.** CoinGecko's `matic-network` feed still
+returns a price ($0.126) but **has not updated since February 2026**, because
+MATIC migrated to POL. A script taking it at face value would price Polygon with
+a six-month-old rate roughly 68% too high. The published Polygon cost correctly
+used **POL at $0.0774**; the puller now records each feed's `last_updated_at` and
+flags anything over 24 hours old rather than trusting it.
+
+**Polygon's cost figure is robust to the re-pull.** At today's 273.508 Gwei and
+POL $0.075258, 28,538 gas prices at **$0.000587**, against the published
+$0.000598 at 270.927 Gwei and $0.0774. Both round to **$0.0006**, so the headline
+is unchanged and no published figure needs revising.
+
+### 6c. Correction: NEAR mainnet runs 10 shards, not 8–9
+
+`docs/near_methodology/shard_scaling.md` was written against a planning
+assumption of 8–9 shards. Measured directly, mainnet runs **10**. The document
+and `README.md` are corrected.
+
+**This makes the cross-shard blend larger, not smaller.** $P(\text{cross-shard})
+= (S-1)/S$ rises from 87.5% at $S=8$ to **90.0% at $S=10$**, so our 4-shard
+measurement (75%) understates mainnet's cross-shard share by even more than
+previously stated. The bias remains **conservative** — we understate mainnet cost
+and latency rather than overstating them — which is the safe direction, and the
+$c(S)$ scaling method is unaffected in form.
+
+**A second gap, newly measured:** mainnet carries **10 validators per shard**
+against our **2**, the protocol minimum. This does not affect throughput scaling
+— per-shard capacity is set by block gas limit and timing, not producer count —
+but it is a further reason the NEAR adversarial arm is harsher than any mainnet
+failure model, and must be stated alongside the quota caveat.

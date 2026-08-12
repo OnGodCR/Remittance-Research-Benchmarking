@@ -1,0 +1,48 @@
+{
+  "pulled_utc": "2026-08-12T01:37:31Z",
+  "pulled_epoch": 1786498651,
+  "sources": {
+    "near_gas_and_config": "https://rpc.mainnet.near.org",
+    "polygon_gas": "https://polygon-bor-rpc.publicnode.com",
+    "token_prices": "https://api.coingecko.com/api/v3/simple/price"
+  },
+  "near": {
+    "gas_price_yocto_per_gas": 100000000,
+    "protocol_version": 86,
+    "epoch_length_blocks": 43200,
+    "shard_count": 10,
+    "shard_layout_version": "V3",
+    "validators": 422,
+    "validators_per_shard": {
+      "1": 10,
+      "4": 10,
+      "6": 10,
+      "7": 10,
+      "8": 10,
+      "9": 10,
+      "10": 10,
+      "11": 10,
+      "12": 10,
+      "13": 10
+    }
+  },
+  "polygon": {
+    "gas_price_wei": 273507711004,
+    "gas_price_gwei": 273.507711004,
+    "block_number": 91862423
+  },
+  "prices": {
+    "NEAR": {
+      "usd": 1.65,
+      "last_updated_at": 1786498540,
+      "age_seconds": 122,
+      "stale": false
+    },
+    "POL": {
+      "usd": 0.075258,
+      "last_updated_at": 1786498540,
+      "age_seconds": 122,
+      "stale": false
+    }
+  }
+}
