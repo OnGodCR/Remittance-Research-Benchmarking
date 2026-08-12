@@ -104,6 +104,11 @@ NON_RESULT_PHASES = {
     "phase-4-smoke",
     "phase-4-lagtest",
     "phase-4-launchtest",
+    # Controlled A/B, 12 Aug 2026: identical configuration run with background
+    # traffic on and off, to establish whether NEAR's ~3% dropped-transaction
+    # rate is caused by competing load or by our setup. Two runs, no repeats --
+    # diagnostic by construction.
+    "phase-4-noisetest",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
