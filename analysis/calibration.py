@@ -87,6 +87,12 @@ MAINNET_OBSERVED = {
 MIN_ACHIEVED_FRACTION = 0.90
 MAX_FAILURE_PCT = 5.0
 
+#: Below this block utilisation, `capacity = observed / utilisation` stops being
+#: a measurement and becomes an extrapolation dominated by its own error. At 5%
+#: the multiplier is 20x; at NEAR mainnet's 0.04% it is 2,500x. Polygon's 28.5%
+#: sits comfortably above it.
+MIN_UTILISATION_FOR_CAPACITY = 0.05
+
 
 def sustainable_throughput(df: pd.DataFrame, arch: str, amount: float = 200.0):
     """Highest offered load meeting the pre-registered bar, and what it achieved."""
@@ -163,7 +169,34 @@ def main() -> int:
         else:
             capacity = m["tps"] / m["utilisation"] if m["utilisation"] else float("nan")
             how = (f"derived: {m['tps']:.1f} tx/sec at "
-                   f"{100*m['utilisation']:.1f}% block utilisation")
+                   f"{100*m['utilisation']:.4g}% block utilisation")
+
+        # DIVIDING BY A NEARLY-EMPTY CHAIN'S UTILISATION IS NOT A MEASUREMENT.
+        #
+        # `capacity = observed / utilisation` is only meaningful while the
+        # denominator is large enough that the ratio is not dominated by its
+        # own error. NEAR mainnet was measured at 0.04% utilisation, so the
+        # derivation multiplies an 8-block sample by ~2,500 to reach "12,000
+        # tx/sec", and the resulting capability gap of 0.013x says far more
+        # about how idle NEAR is than about what our testbed can do.
+        #
+        # Polygon at 28.5% is fine: the multiplier is ~3.5.
+        #
+        # Refusing to print the number is the point. A figure this unstable
+        # would be quoted, and it is exactly the kind of derived quantity a
+        # reviewer takes apart first.
+        if not args.mainnet_peak and m["utilisation"] < MIN_UTILISATION_FOR_CAPACITY:
+            print(f"\n  mainnet capacity           : NOT DERIVABLE")
+            print(f"    Blocks were {100*m['utilisation']:.4g}% full, so "
+                  f"capacity = observed / utilisation multiplies the sample by "
+                  f"~{1/m['utilisation']:,.0f}x.")
+            print(f"    That amplifies any sampling error by the same factor, "
+                  f"and the result ({capacity:,.0f} tx/sec) would describe how "
+                  f"idle the chain is,")
+            print(f"    not what it can do. **Report the demand ratio only for "
+                  f"this architecture**, or supply an explorer-sourced")
+            print(f"    sustained peak with --mainnet-peak and re-run.")
+            continue
         gap = achieved / capacity if capacity else float("nan")
         print(f"\n  mainnet capacity           : {capacity:,.0f} tx/sec ({how})")
         print(f"  CAPABILITY GAP = {gap:.3f}x")
