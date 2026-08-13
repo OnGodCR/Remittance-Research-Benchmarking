@@ -53,7 +53,34 @@ TABLES = ["runs", "transactions", "samples", "node_events"]
 
 
 def table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
-    return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+    """Columns to copy, EXCLUDING any auto-assigned integer primary key.
+
+    `node_events.id` is `INTEGER PRIMARY KEY`, i.e. a rowid alias that SQLite
+    fills in per database. Both databases therefore number their events from 1,
+    and copying the column across collides the moment the destination already
+    holds any events of its own:
+
+        sqlite3.IntegrityError: UNIQUE constraint failed: node_events.id
+
+    Which is exactly what happened merging NEAR (174 events) into a master that
+    already held Polygon's 121. Omitting the column lets SQLite assign fresh
+    ids. Nothing references them -- `export.py` keys its exclusion rules on
+    `run_id` and `source`, never on `id`.
+
+    Compound keys like `(run_id, seq)` are NOT excluded: those carry meaning,
+    they are unique per run, and a collision in them would be a real duplicate
+    that the caller's run-id check should have caught.
+    """
+    cols = []
+    for _, name, decl_type, _, _, pk in conn.execute(f"PRAGMA table_info({table})"):
+        if pk == 1 and (decl_type or "").upper() == "INTEGER":
+            # Rowid alias. Confirm it is the ONLY key column before dropping it,
+            # so a compound key beginning with an integer is never silently lost.
+            keys = [r for r in conn.execute(f"PRAGMA table_info({table})") if r[5]]
+            if len(keys) == 1:
+                continue
+        cols.append(name)
+    return cols
 
 
 def main() -> int:
