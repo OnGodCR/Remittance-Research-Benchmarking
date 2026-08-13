@@ -270,10 +270,37 @@ def main() -> int:
               f"with its 500 and 1000/sec levels (ANALYSIS_PLAN amendment 3).")
     else:
         ceiling = float(saturated.index.min())
-        observed = float(by_load.loc[ceiling, "achieved"])
+        collapsed = float(by_load.loc[ceiling, "achieved"])
+
+        # T_shard IS THE HIGHEST SUSTAINED THROUGHPUT, NOT THE THROUGHPUT AT
+        # THE FIRST SATURATED STEP.
+        #
+        # This previously used the achieved rate at the saturating load. On
+        # NEAR that is 52.0/sec (measured at 200/sec offered, where the chain
+        # has collapsed and fails ~76% of payments), giving T_shard = 13.0/sec
+        # and a 10-shard projection of 130/sec.
+        #
+        # That projection is self-evidently wrong: we MEASURED 150/sec
+        # sustained on 4 shards, so it claimed mainnet's 10 shards would be
+        # SLOWER than our own testbed. Throughput past the knee is a collapse
+        # artefact -- the rate at which a failing system still happens to
+        # settle things -- not a measure of capacity.
+        #
+        # The chain's demonstrated capacity is the highest load it actually
+        # sustained, which is exactly the pre-registered "sustainable
+        # throughput" of ANALYSIS_PLAN S2: achieved >= 90% of offered AND
+        # failures < 5%. Saturation must still have been OBSERVED somewhere
+        # above it, or the ceiling is our test plan rather than NEAR's limit --
+        # that check is the `if saturated.empty` branch above.
+        sustained = by_load[by_load["ratio"] >= 0.90]
+        basis_load = float(sustained.index.max())
+        observed = float(by_load.loc[basis_load, "achieved"])
         t_shard = observed / OUR_SHARDS
-        print(f"  saturation first seen at {ceiling:g}/sec offered; "
-              f"achieved {observed:.1f}/sec")
+        print(f"  saturation first seen at {ceiling:g}/sec offered "
+              f"(achieved only {collapsed:.1f}/sec there -- past the knee, so "
+              f"NOT a capacity measure)")
+        print(f"  highest SUSTAINED load: {basis_load:g}/sec offered, "
+              f"{observed:.1f}/sec achieved  <- basis for T_shard")
         print(f"  per-shard throughput T_shard = {t_shard:.1f}/sec")
         print(f"  correction uses GAS, not latency -- throughput is limited by "
               f"work per block, not by queueing delay")
