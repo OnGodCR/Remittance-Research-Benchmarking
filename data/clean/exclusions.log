@@ -1,20 +1,20 @@
 ========================================================================
-Exclusion log -- generated 2026-08-10 23:36:44 UTC
+Exclusion log -- generated 2026-08-13 08:13:16 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 8,239,563 across 262 runs
-Payments in clean : 5,717,593 across 155 runs
-Excluded          : 2,521,970 payments
+Payments in raw   : 15,438,089 across 498 runs
+Payments in clean : 9,579,098 across 293 runs
+Excluded          : 5,858,991 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
   scope   : run
   target  : capacity-check
-  affected: 7
+  affected: 14
   reason  : capacity-check validates the pipeline; its numbers are not findings
 
 [non-result phase]
@@ -61,6 +61,24 @@ Excluded          : 2,521,970 payments
 
 [non-result phase]
   scope   : run
+  target  : phase-4-lagtest
+  affected: 5
+  reason  : phase-4-lagtest validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-4-noisetest
+  affected: 3
+  reason  : phase-4-noisetest validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-4-smoke
+  affected: 1
+  reason  : phase-4-smoke validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
   target  : step0-baseline-hw
   affected: 2
   reason  : step0-baseline-hw validates the pipeline; its numbers are not findings
@@ -82,6 +100,498 @@ Excluded          : 2,521,970 payments
   target  : step4-adversarial
   affected: 1
   reason  : step4-adversarial validates the pipeline; its numbers are not findings
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-1a48546a
+  affected: 1
+  reason  : background traffic recorded as enabled but never landed: the noise generator signed with un-primed nonces (py-near _access_key_nonce starts at 0) and every transaction was silently dropped, so the chain carried 0.4 tx/sec against the intended ~88
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-302a4c85
+  affected: 1
+  reason  : supervisor spawned duplicate sweeps and noise generators (setsid double-fork orphaned the tracked PID); background traffic ran at a multiple of the intended 88/sec and concurrent sweeps shared one database
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-5d6d73c8
+  affected: 1
+  reason  : generator saturated: p95 lag 4.010s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-83e822a2
+  affected: 1
+  reason  : collected before the timeout error carried the chain's last response, so accepted-but-lost payments cannot be distinguished from never-included ones
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-96877185
+  affected: 1
+  reason  : sender and recipient were paired by index and both rotate through shards identically, so every transfer was same-shard; measured before destination selection targeted the (S-1)/S mix
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-b9e50c86
+  affected: 1
+  reason  : supervisor spawned duplicate sweeps and noise generators (setsid double-fork orphaned the tracked PID); background traffic ran at a multiple of the intended 88/sec and concurrent sweeps shared one database
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-b9e83b9e
+  affected: 1
+  reason  : collected while settlement was polled with wait_until=FINAL, which blocks the RPC node ~10s per in-flight payment and inflates the failure rate; also predates real on-chain transaction hashes being recorded
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-f58227fe
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r0-f71619b6
+  affected: 1
+  reason  : supervisor spawned duplicate sweeps and noise generators (setsid double-fork orphaned the tracked PID); background traffic ran at a multiple of the intended 88/sec and concurrent sweeps shared one database
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-037e4ab9
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-1dbecbaf
+  affected: 1
+  reason  : sender and recipient were paired by index and both rotate through shards identically, so every transfer was same-shard; measured before destination selection targeted the (S-1)/S mix
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-270a5458
+  affected: 1
+  reason  : superseded: measured with the 64-account sender pool. NEAR orders transactions per access key by nonce, so the sender count is the concurrency ceiling; the pool was enlarged to 900 to reach the 300/sec top step. Config change, not a data fault -- rows retained.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-2d8ed539
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-3ef38fd8
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-551788f5
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-755be3c7
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-b1711f0f
+  affected: 1
+  reason  : background traffic recorded as enabled but never landed: the noise generator signed with un-primed nonces (py-near _access_key_nonce starts at 0) and every transaction was silently dropped, so the chain carried 0.4 tx/sec against the intended ~88
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-d1fc93ab
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r1-f8600bed
+  affected: 1
+  reason  : collected while settlement was polled with wait_until=FINAL, which blocks the RPC node ~10s per in-flight payment and inflates the failure rate; also predates real on-chain transaction hashes being recorded
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-0dbdb38a
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-5ef07589
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-6f3c057e
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-724ba748
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-9e6362d9
+  affected: 1
+  reason  : superseded: measured with the 64-account sender pool. NEAR orders transactions per access key by nonce, so the sender count is the concurrency ceiling; the pool was enlarged to 900 to reach the 300/sec top step. Config change, not a data fault -- rows retained.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r2-ca4e54df
+  affected: 1
+  reason  : sender and recipient were paired by index and both rotate through shards identically, so every transfer was same-shard; measured before destination selection targeted the (S-1)/S mix
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r3-5040c629
+  affected: 1
+  reason  : generator saturated: p95 lag 4.084s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r3-678529c1
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r4-9fdabde8
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps10-r4-e7e980b7
+  affected: 1
+  reason  : generator saturated: p95 lag 4.286s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r0-aa8a9b6b
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r1-258303c8
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r2-1f9cac69
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r3-2f2ec655
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r4-eb4b4a5f
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r0-13095469
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r1-3cbc0aab
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r2-62edcec3
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r3-21fd120b
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r4-eb59cf33
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps200-r0-2283ae5a
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps200-r1-d2913e1f
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps200-r2-8b21c185
+  affected: 1
+  reason  : generator saturated: p95 lag 0.693s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps200-r3-0d5ed784
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps200-r4-8f035530
+  affected: 1
+  reason  : validators in asia-south1 fell permanently behind the chain and stopped producing chunks; NEAR finality requires chunks from every shard, so settlement stalled network-wide and no payment reached FINAL. The liveness watch did not detect it: the validators stayed in the set, kept their peers and were counted as present while stuck syncing.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r0-25ce36d8
+  affected: 1
+  reason  : superseded: measured with the 64-account sender pool. NEAR orders transactions per access key by nonce, so the sender count is the concurrency ceiling; the pool was enlarged to 900 to reach the 300/sec top step. Config change, not a data fault -- rows retained.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r0-e63b525c
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r1-1218979f
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r1-87a72fd1
+  affected: 1
+  reason  : superseded: measured with the 64-account sender pool. NEAR orders transactions per access key by nonce, so the sender count is the concurrency ceiling; the pool was enlarged to 900 to reach the 300/sec top step. Config change, not a data fault -- rows retained.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r2-c4005fc4
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r3-5f4628a1
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps25-r4-fcfeb212
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps300-r0-da25e0cd
+  affected: 1
+  reason  : generator saturated: p95 lag 1.201s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps300-r1-d51c75bc
+  affected: 1
+  reason  : generator saturated: p95 lag 1.225s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps300-r2-25b2de73
+  affected: 1
+  reason  : generator saturated: p95 lag 1.210s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps300-r3-eeb76fe9
+  affected: 1
+  reason  : generator saturated: p95 lag 1.233s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps300-r4-3cfa64e6
+  affected: 1
+  reason  : generator saturated: p95 lag 1.202s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps50-r0-de438aa7
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps50-r1-14147717
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps50-r2-98d50e52
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps50-r3-9fd8f178
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd10-tps50-r4-18380ca3
+  affected: 1
+  reason  : measured before the TIER1 fix: every validator advertised [::1] as its public address, so NEAR's direct validator-to-validator network never formed and all traffic fell back to gossip. Survivable to 50/sec, fatal above it. Not a condition worth reporting.
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps100-r4-002b17a0
+  affected: 1
+  reason  : validator set incomplete during run (liveness watch)
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps200-r2-faae5d79
+  affected: 1
+  reason  : generator saturated: p95 lag 0.773s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps300-r0-2dbb74d2
+  affected: 1
+  reason  : generator saturated: p95 lag 1.241s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps300-r1-365540a7
+  affected: 1
+  reason  : generator saturated: p95 lag 1.224s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps300-r2-2f71d461
+  affected: 1
+  reason  : generator saturated: p95 lag 1.219s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps300-r3-cc9a8ff4
+  affected: 1
+  reason  : generator saturated: p95 lag 1.208s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd200-tps300-r4-cdd35f1a
+  affected: 1
+  reason  : generator saturated: p95 lag 1.264s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps200-r0-194a2ce7
+  affected: 1
+  reason  : validator set incomplete during run (liveness watch)
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps300-r0-42af8937
+  affected: 1
+  reason  : generator saturated: p95 lag 1.212s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps300-r1-03f63b07
+  affected: 1
+  reason  : generator saturated: p95 lag 1.257s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps300-r2-6758842d
+  affected: 1
+  reason  : generator saturated: p95 lag 1.254s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps300-r3-b05c9a29
+  affected: 1
+  reason  : generator saturated: p95 lag 1.193s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd50-tps300-r4-037f714d
+  affected: 1
+  reason  : generator saturated: p95 lag 1.225s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd500-tps300-r0-78eaaa82
+  affected: 1
+  reason  : generator saturated: p95 lag 1.238s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd500-tps300-r1-fe943614
+  affected: 1
+  reason  : generator saturated: p95 lag 1.195s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd500-tps300-r2-5ec2895c
+  affected: 1
+  reason  : generator saturated: p95 lag 1.206s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd500-tps300-r3-e074e37e
+  affected: 1
+  reason  : generator saturated: p95 lag 1.215s
+
+[harness flagged invalid]
+  scope   : run
+  target  : near-baseline-usd500-tps300-r4-66fdd4bf
+  affected: 1
+  reason  : generator saturated: p95 lag 1.217s
+
+[run never completed]
+  scope   : run
+  target  : near-baseline-usd10-tps100-r0-7795bef2
+  affected: 1
+  reason  : no end timestamp: the run was interrupted, so its payments are a truncated and non-random sample of the intended window
+
+[run never completed]
+  scope   : run
+  target  : near-baseline-usd10-tps150-r1-0f9e1c38
+  affected: 1
+  reason  : no end timestamp: the run was interrupted, so its payments are a truncated and non-random sample of the intended window
+
+[run never completed]
+  scope   : run
+  target  : near-baseline-usd50-tps25-r1-f513e017
+  affected: 1
+  reason  : no end timestamp: the run was interrupted, so its payments are a truncated and non-random sample of the intended window
 
 [re-execution of a completed configuration]
   scope   : run
@@ -218,6 +728,6 @@ Excluded          : 2,521,970 payments
 [warm-up period]
   scope   : transaction
   target  : all runs
-  affected: 196,402
+  affected: 329,130
   reason  : first 10s of each run, to exclude cold-start effects
 
