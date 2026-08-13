@@ -10,7 +10,7 @@ such.
 
 ## 1. The design in one paragraph
 
-Three load levels (100, 200, 300/sec) × **$200** × 5 repeats = **15 runs**, with
+Three load levels (**100, 150, 200/sec**) × **$200** × 5 repeats = **15 runs**, with
 validators dropping offline throughout. The fault schedule is **identical to
 Polygon's**: one validator offline at a time, 15–45s down, 20–60s between
 outages, running continuously across all 15 runs rather than restarting per run
@@ -19,6 +19,42 @@ the two arms is supposed to be the architecture, not the fault pattern.
 
 The finding is **the difference between the arms at the same load**, which only
 exists because a clean baseline was measured first.
+
+### Why not Polygon's 100 / 200 / 300 — decided 13 Aug 2026
+
+Polygon's levels were chosen as *below the knee, at the knee, past the knee*,
+and its knee sat at 200/sec. **NEAR's knee is at 150/sec**, so copying the
+absolute numbers would not copy the design.
+
+| NEAR baseline, $200 | Failure rate |
+|---|---|
+| 100/sec | 0.1% |
+| **150/sec** | **0.15%** ← the knee |
+| 200/sec | **76%** |
+| 300/sec | not measurable (generator saturates; see `generator_is_not_the_ceiling.md`) |
+
+The arm exists to separate *degradation under load* from *degradation under node
+failure*. At 200/sec NEAR already fails 76% of payments with the network whole,
+and at 300/sec no valid run exists at all — so Polygon's top two levels would
+have measured nothing for NEAR.
+
+The levels therefore preserve the **structure** rather than the numbers:
+
+| | below knee | at knee | past knee |
+|---|---|---|---|
+| Polygon | 100 (0.5×) | 200 (1.0×) | 300 (1.5×) |
+| NEAR | 100 (0.67×) | **150 (1.0×)** | 200 (1.33×) |
+
+**150/sec is the run that carries the finding**, being the direct analogue of
+Polygon's 200. **200/sec is expected to be uninterpretable** — both arms fail
+there — and is run anyway so the paper can *show* rather than assert that once
+NEAR has collapsed, losing a validator does not measurably worsen it. Angad's
+call, 13 Aug 2026, over a tidier 50/100/150 that would have left NEAR with no
+above-the-knee point where Polygon has one.
+
+**Expect the 200/sec runs to be invalidated for generator saturation**, as four
+of five baseline runs at that load were. They remain in the raw dataset and are
+discussed, not silently dropped.
 
 ---
 
