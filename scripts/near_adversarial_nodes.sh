@@ -56,9 +56,19 @@ GAP_MIN=20;    GAP_MAX=60
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --duration) DURATION="$2"; shift 2 ;;
-    --events)   EVENTS="$2"; shift 2 ;;
-    --restore)  ACTION="restore"; shift ;;
+    --duration)    DURATION="$2"; shift 2 ;;
+    --events)      EVENTS="$2"; shift 2 ;;
+    --restore)     ACTION="restore"; shift ;;
+    # Outage/gap distributions are overridable ONLY for the exploratory
+    # duty-cycle block (13 Aug 2026). The pre-registered arm must keep the
+    # defaults above, which are identical to phase 2's, because the difference
+    # between the arms is supposed to be the architecture and not the fault
+    # schedule. Anything using these flags is exploratory by construction and
+    # must be recorded under its own phase.
+    --outage-min)  OUTAGE_MIN="$2"; shift 2 ;;
+    --outage-max)  OUTAGE_MAX="$2"; shift 2 ;;
+    --gap-min)     GAP_MIN="$2"; shift 2 ;;
+    --gap-max)     GAP_MAX="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
