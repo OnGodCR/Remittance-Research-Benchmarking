@@ -15,25 +15,34 @@
 > permission, given 12 Aug 2026. The one obligation is to **tell him every time**, with what
 > was committed. Work on `main`; this repo has no branch workflow.
 
-> ## 0. CURRENT STATE — updated 11 Aug 2026
+> ## 0. CURRENT STATE — updated 13 Aug 2026
 >
 > **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:
 >
-> 1. **`PHASE4_HANDOFF.md`** — ⚠️ **READ FIRST.** Phase 4 is mid-flight and partly broken; this file has the live cluster state, four identified bugs, and the exact next steps.
-> 2. **`RESUME_HERE.md`** — results so far and the operational traps that have already cost time or money
+> 1. **`RESUME_HERE.md`** — ⚠️ **READ FIRST.** Results so far and the operational traps that have already cost time or money.
+> 2. **`docs/near_methodology/`** — the Phase 4 write-up material, one file per topic. `README.md` indexes it. `generator_is_not_the_ceiling.md` is the one that defends NEAR's headline number.
 > 3. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
 > 4. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
 >
-> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations + 15/15 adversarial). **Phase 3 (Lightning) closed 10 Aug** — reliability and throughput now sourced from Waugh & Holz (2020) rather than self-measured, because our testbed has ~385x fewer channels than the real network and Lightning capacity is additive across channels. Cost per transaction and an illustrative settlement time were retained. See `LIGHTNING_ANALYSIS.md`. **Phase 4 (NEAR) is IN PROGRESS and has produced 0 of 140 valid runs.**
+> **Progress:** Phase 1 complete. Phase 2 complete (Polygon, 140/140 configurations + 15/15 adversarial). **Phase 3 (Lightning) closed 10 Aug** — reliability and throughput sourced from Waugh & Holz (2020) rather than self-measured, because our testbed has ~385x fewer channels than the real network and Lightning capacity is additive across channels. Cost per transaction and an illustrative settlement time were retained. See `LIGHTNING_ANALYSIS.md`. **Phase 4 (NEAR) collection COMPLETE, 13 Aug.**
 >
-> **Phase 4 status in one paragraph.** A 9-instance cluster (8 validators + generator) has been billing since 10 Aug. The chain itself is healthy — nearcore 2.13.3, protocol 86, 4 shards, 836 verified sender accounts spread evenly across shards. **The measurement harness, not the chain, is what failed:** a race between `submit()` and `await_confirmation()` on the pending-hash dictionary meant transactions were broadcast and settled on chain while the harness discarded every hash and recorded `never broadcast within 60s`. A fix is written but **untested and not deployed**. There is currently **no idle watcher and no hard shutdown cap** on the cluster. See `PHASE4_HANDOFF.md`.
+> **Phase 4 result in one paragraph.** The matrix settled at **140/140 cells: 118 measured, 22 unmeasurable.** NEAR's sustainable throughput at $200 under the full realism stack is **150 payments/second** (achieved 150.1/sec, 0.15% failures). At 200/sec it does not plateau, it **collapses** — 47.5/sec achieved against 200 offered, 76% failures, worse than it manages at 50/sec. At 300/sec no valid run exists at any transaction size: the offered arrival pattern drifts past the pre-registered 50 ms saturation threshold because NEAR's RPC answers slowly once congested. **That ceiling is NEAR's, not our tooling's** — the harness was validated to sustain 300/sec against a null backend under an equivalent in-flight load, p95 scheduling lag 1.2 ms (`docs/near_methodology/generator_is_not_the_ceiling.md`). Every one of the 118 measured cells passed the validator-liveness audit. Adversarial arm ran at **100/150/200**, not Polygon's 100/200/300, because NEAR's knee is in a different place; plus an exploratory low-duty-cycle block to make the arm calibratable.
 >
-> **Headline result:** Polygon Edge sustains **200 payments/second** at $200 under the full realism stack, with the knee between 200 and 300/sec. Details in `RESUME_HERE.md` §3.
+> **Headline results:**
+> - **Polygon Edge sustains 200 payments/second** at $200, knee between 200 and 300. Details in `RESUME_HERE.md` §3.
+> - **NEAR sustains 150 payments/second** at $200 on a 4-shard, 8-validator cluster.
+> - **The failure MODES differ, and that is the more interesting finding.** Polygon degrades gracefully past its knee (270.5/sec achieved at 300 offered, 9.97% failures). NEAR collapses. For a payment system facing predictable demand spikes — payday and holiday clustering — the failure mode matters as much as the ceiling.
 >
-> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), leaving 155 Polygon runs plus NEAR's 155 still to come.
+> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), and NEAR settled at 118 measured + 22 unmeasurable rather than 140 measured.
+>
+> **Four amendments were added on 12-13 Aug and all four matter to anyone reading results** (`ANALYSIS_PLAN.md` §13):
+> - **9** — runs that never recorded an end are excluded. Without it, a truncated run measured during a fault would have been kept *and* the good re-run discarded, because amendment 4 keeps the earlier of two.
+> - **10** — Lightning cost used one pooled route length for every amount; route length actually varies by amount. $200 moved $0.0509 → $0.0523, $500 $0.1267 → $0.1467. Also disclosed: **$50 was never run on Lightning**, and $200/$500 rest on 3 and 2 runs against a 5-repeat minimum.
+> - **11** — success now means settled **within 60 seconds**, not merely settled. Polygon's adapter already stopped at the deadline; NEAR's recorded late finalisations as successes, which understated failure at the knee by up to 69% of "confirmed" payments.
+> - Neither 9 nor 11 moves any published Polygon figure — all seven load steps still reproduce exactly.
 >
 > **Two constraints discovered in Phase 4 that belong in the paper**, not just in ops notes:
-> - **NEAR orders transactions per access key by nonce**, so a sender account cannot hold two payments in flight. The sender pool size *is* the concurrency ceiling — roughly N/2 per second at ~2s inclusion. Reaching 300/sec needs ~836 funded accounts. This is the sharding analogue of Polygon's nonce-pool problem and is a real property of the architecture.
+> - **NEAR orders transactions per access key by nonce**, so payments from one sender queue behind each other. 836 funded accounts were provisioned for this reason. **This turned out NOT to be the binding limit** — the collapse at 200/sec is finality falling behind, not sender-pool exhaustion: the failures are `reached EXECUTED, not FINAL`, meaning payments were accepted and executed but never finalised inside 60s. Still a real architectural property worth stating; just not the ceiling.
 > - **8 validators across 4 shards leaves exactly 2 per shard**, the protocol minimum. Losing one node drops a shard to a single validator, so **NEAR's adversarial arm is harsher than Polygon's**, where 3 of 4 validators survived. That is a quota artifact and must be stated as such when the two are compared.
 
 **Purpose of this document**: This is a full context handoff for Claude Code, which will handle the scripting, infrastructure deployment, and technical debugging for the simulation portion of this research project. Read this whole document before starting any work. It explains not just *what* to build, but *why*, so you can make good judgment calls when something isn't explicitly specified.

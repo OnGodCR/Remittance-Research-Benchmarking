@@ -1,12 +1,36 @@
 # Phase 4 (NEAR) — Handoff, 11 August 2026
 
-**Written at an agent switch. Read this before touching anything in Phase 4.**
+> ## ⚠️ SUPERSEDED — 13 August 2026
+>
+> **Phase 4 collection is COMPLETE.** This file describes a cluster that was
+> mid-flight and partly broken on 11 Aug. All four bugs it lists were fixed, and
+> the matrix has since settled at **140/140 cells (118 measured, 22
+> unmeasurable)** with the adversarial arm run.
+>
+> **Do not use this file for current state.** It is kept because its bug
+> write-ups and operational traps are still accurate and still worth reading
+> before touching the cluster — not because anything in "what to do next" still
+> applies.
+>
+> **Current read order:** `RESUME_HERE.md` → `docs/near_methodology/README.md` →
+> `METHODOLOGY_LOG.md` → `ANALYSIS_PLAN.md` §13.
+>
+> **What happened after this file was written** (all in `docs/near_methodology/`):
+> - The harness race was fixed; settlement now uses one shared 60s budget.
+> - The TIER1 `[::1]` bug was found and fixed — it had cost 23 runs recorded as
+>   valid with zero settled payments. **This was its third recurrence.**
+> - NEAR's ceiling is **150 payments/sec** at $200; it *collapses* rather than
+>   degrades above that, unlike Polygon.
+> - The 300/sec cells are unmeasurable at every transaction size, and the
+>   harness was validated to 300/sec against a null backend to prove that
+>   ceiling belongs to NEAR (`generator_is_not_the_ceiling.md`).
+> - Four analysis-plan amendments (9, 10, 11 and the arm redesign) — see
+>   `claude.md` §0.
+
+**Written at an agent switch. Historical record of what was broken on 11 Aug.**
 
 This document is deliberately blunt about what is broken and what was gotten wrong. Its
 purpose is that you do not rediscover four bugs the hard way.
-
-**Read order:** this file → `RESUME_HERE.md` → `METHODOLOGY_LOG.md` → `ANALYSIS_PLAN.md`.
-For paper-writing context, `HANDOFF.md`. For NEAR-specific formulas, `docs/near_methodology/`.
 
 ---
 
