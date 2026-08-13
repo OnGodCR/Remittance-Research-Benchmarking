@@ -233,6 +233,37 @@ finality, each costing blocks.
 against mainnet's 10 shards and 422 validators, with 2 producers per shard — the
 protocol minimum. Scaling method in `docs/near_methodology/shard_scaling.md`.
 
+**Node failures — NEAR is far more fragile than Polygon:**
+
+| Offered | Baseline | With node failures | Lost |
+|---|---|---|---|
+| 100/sec | 100.0/sec, 0.16% | 68.4/sec [39.1, 95.3], 31.7% | **32%** |
+| 150/sec | 150.1/sec, 0.15% | 35.4/sec [3.8, 69.3], 76.4% | **76%** |
+| 200/sec | 47.5/sec, 76.3% | 0.1/sec [0.0, 0.3], 99.9% | **100%** |
+
+Polygon lost 26% at its knee; NEAR loses 76% at its own. **The intervals are very
+wide** because outage timing is random — report the range, never the mean alone.
+The structural cause is 2 producers per shard (protocol minimum), so one validator
+down halves the affected shard. That is a quota artefact of our cluster, not a
+property of sharding, and must be stated wherever the comparison appears.
+
+**Cost per payment: $0.000365** — 2.214x10^12 gas over 2,423,969 confirmed
+payments, priced at mainnet rates. **The cheapest of the three** (Polygon $0.0006,
+Lightning $0.0523), though all three are far under the $0.10 threshold, so cost
+does not discriminate between the two on-chain architectures.
+
+**Exploratory downtime block: the calibration argument did NOT work.** Cutting
+outage frequency 10x (43% -> 4% downtime) produced no distinguishable improvement
+(35.4/sec vs 47.9/sec, intervals overlapping almost completely). There is no
+measured relationship to extrapolate toward mainnet's 0.1%. Claims about real-world
+failure behaviour must rest on the hostility ratios as bounds. See
+`NEAR_ANALYSIS.md` S6.
+
+**Shard projection: 4 shards -> 10 gives ~372/sec**, assuming shards execute
+independently. A projection with stated assumptions, not a measurement -- and
+Polygon has no equivalent, because its throughput does not scale with validator
+count. Never place 372 and Polygon's 200 in the same column.
+
 **Phase 4 documentation** lives in `docs/near_methodology/`, indexed by its
 `README.md`. Beyond the two files above: `adversarial_arm.md` (the three
 asymmetries against Polygon and the four-hour expulsion cost),
@@ -263,6 +294,13 @@ asymmetries against Polygon and the four-hour expulsion cost),
 ---
 
 ## 10. Documents
+
+**Results write-ups, one per architecture, plus the comparison:**
+- `POLYGON_ANALYSIS.md` — Polygon Edge results
+- `NEAR_ANALYSIS.md` — **new 13 Aug** — NEAR results, cost, adversarial arm, shard projection
+- `LIGHTNING_ANALYSIS.md` — Lightning, and why its data source changed
+- `COMPARISON.md` — **new 13 Aug** — the three-way evidence table for Phase 6. Assembles what was measured and flags where the columns are NOT the same kind of evidence. Deliberately stops short of a recommendation, which is Phase 6 and Angad's work.
+
 
 | File | Contents |
 |---|---|
