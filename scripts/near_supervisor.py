@@ -341,8 +341,28 @@ def start_noise() -> int | None:
         log(f"noise: {NOISE_KEYS} missing -- cannot start background traffic")
         return None
     if _running_count("noise_near") > 0:
-        log("start_noise: background traffic already running; refusing a second")
-        return None
+        # ALREADY RUNNING IS SUCCESS, NOT FAILURE.
+        #
+        # This returned None, and main() reads None as "traffic could not
+        # start" and refuses to measure. That is correct when traffic is
+        # genuinely absent and wrong when it is already flowing.
+        #
+        # The two conditions meet whenever the sweep exits while the noise
+        # process is still alive -- which is exactly what happens at the end of
+        # every pass. Observed 13 Aug 05:00: the first pass had finished, noise
+        # was healthy with 2.18M transactions sent and zero failures, one cell
+        # was still missing, and the supervisor sat in "blocked" restating that
+        # traffic could not start. It would have stayed there indefinitely,
+        # because nothing in the loop ever stops the noise it is waiting on.
+        #
+        # Returning the live PID makes the caller's check mean what it reads
+        # as: "is background traffic flowing?"
+        # Prefer the PID file, but fall back to /proc: a stale or missing file
+        # alongside a live process would otherwise reproduce the same deadlock
+        # through a different route.
+        existing = noise_pid() or _pid_matching("noise_near")
+        log(f"start_noise: background traffic already running (pid {existing})")
+        return existing
     logfile = BASE / "noise.log"
     proc = subprocess.Popen(
         [str(BASE / ".venv" / "bin" / "python"), "-u", "-m", "harness.noise_near",
@@ -366,6 +386,27 @@ def stop_noise() -> None:
     except (ProcessLookupError, PermissionError):
         pass
     NOISE_PIDFILE.unlink(missing_ok=True)
+
+
+def _pid_matching(pattern: str) -> int | None:
+    """PID of the first live process whose command line contains `pattern`.
+
+    Used only as a fallback when a PID file is stale but the process it should
+    describe is demonstrably alive. Never used to decide whether to START
+    something -- that stays with the PID files plus _running_count, because
+    matching on a command line is how a check once reported a sweep running
+    that did not exist (PHASE4_HANDOFF.md bug 4).
+    """
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            cmd = (entry / "cmdline").read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        if pattern in cmd:
+            return int(entry.name)
+    return None
 
 
 def _running_count(pattern: str) -> int:
