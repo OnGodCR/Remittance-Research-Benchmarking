@@ -1,14 +1,28 @@
-# Resume Here — complete state, updated 11 August 2026
+# Resume Here — complete state, updated 13 August 2026
 
-> ## ⚠️ READ `PHASE4_HANDOFF.md` FIRST
+> ## PHASE 4 COLLECTION IS COMPLETE
 >
-> **A 9-instance NEAR cluster is RUNNING and billing right now**, with **no idle watcher and
-> no hard shutdown cap**. It has produced **0 of 140 valid runs**. The chain is healthy; the
-> measurement harness had a race condition that discarded every transaction hash. A fix is
-> written but untested and not deployed.
+> **All three architectures now have data.** The NEAR matrix settled at **140/140
+> cells: 118 measured, 22 unmeasurable**, every measured cell having passed the
+> validator-liveness audit. The adversarial arm ran at 100/150/200, plus an
+> exploratory low-duty-cycle block.
 >
-> §2 of this document ("Nothing is running") describes the state on **9 August** and is
-> **no longer true**. Everything about Phases 1–3 below remains accurate.
+> **NEAR sustains 150 payments/second** at $200 under the full realism stack
+> (achieved 150.1/sec, 0.15% failures).
+>
+> **The finding worth building a paragraph around is the failure MODE, not the
+> ceiling.** Polygon degrades gracefully past its knee — 270.5/sec achieved when
+> offered 300, 9.97% failures. NEAR *collapses*: offered 200, it achieves 47.5/sec
+> with 76% failures, which is worse than it manages when offered 50. Ask it for
+> more, get less. For a payment system facing payday and holiday clustering — the
+> exact peak scenario this study cites — that difference matters as much as the
+> headline number.
+>
+> **Phase 5 is next**: merge, clean, confidence intervals, calibration ratios,
+> shard scaling. See §7c.
+>
+> `PHASE4_HANDOFF.md` is **superseded** — kept for its bug write-ups, not for
+> current state. §2 below describes 9 August and is long out of date.
 
 **Read this, then `METHODOLOGY_LOG.md` (every decision and parameter) and `ANALYSIS_PLAN.md` (the locked analysis rules). Between them you should not need conversation history.**
 
@@ -22,11 +36,11 @@
 | 2 — Realism techniques on Polygon | ✅ **Complete — 140/140 configurations** |
 | 2b — Adversarial arm (Polygon) | ✅ **Complete — 15/15 runs** |
 | 3 — Lightning | ✅ **Closed 10 Aug** — data source switched to Waugh & Holz (2020); cost + illustrative settlement time retained |
-| 4 — NEAR sharding | ⚠️ **IN PROGRESS, 0/140 valid runs** — cluster live and billing; see `PHASE4_HANDOFF.md` |
-| 5 — Calibration + confidence intervals | ❌ Not started |
+| 4 — NEAR sharding | ✅ **Complete 13 Aug — 140/140 cells (118 measured, 22 unmeasurable)** + adversarial arm + exploratory low-duty block |
+| 5 — Calibration + confidence intervals | ⏳ **Next** — merge, clean, intervals, calibration ratios, shard scaling |
 | 6 — Cross-architecture comparison | ❌ Not started |
 
-**Dataset: 5,717,593 payments across 155 runs (Polygon only)** (140 main matrix + 15 adversarial), committed and pushed via Git LFS. 211 runs collected in total; 56 excluded under the pre-registered rules.
+**Dataset: Polygon 5,717,593 payments across 155 runs** (140 matrix + 15 adversarial), committed via Git LFS. **NEAR adds 118 measured cells plus the adversarial arm** — merged into the canonical files in Phase 5. Lightning remains in the raw file only; its reliability and throughput come from published measurement, not from us (`LIGHTNING_ANALYSIS.md`).
 
 ### Realism techniques
 
@@ -38,22 +52,31 @@
 | 4 | Hardware matched to real validators | ✅ | ✅ (`n2-standard-8`) |
 | 5 | Lightning liquidity topology | — | Phase 3 only |
 | 6 | Adversarial nodes | ✅ | ✅ full arm, 15/15 |
-| 7 | Calibration against mainnet | ✅ | Pricing + topology pulled 9 Aug; ratios pending |
+| 7 | Calibration against mainnet | ✅ | Polygon ratios computed (demand 2.52x, capability 0.719x); NEAR ratios pending in Phase 5 |
 | 8 | Five repeats | ✅ | ✅ |
 
 ---
 
-## 2. What is running  *(superseded 11 Aug — this section said "Nothing is running")*
+## 2. What is running  *(updated 13 Aug)*
 
-**A 9-instance NEAR cluster IS running and billing**: `near-validator-0..7` + `near-generator`,
-`n2-standard-8`, across us-east4-c / asia-south1-a / asia-southeast1-a / europe-west2-b.
-Roughly **$75–85 of the $300 credit** spent. **The idle watchers are disabled and the hard
-lifetime cap is gone** — there is currently nothing that will shut this cluster down.
-Full detail, and the four bugs found, in **`PHASE4_HANDOFF.md`**.
+**Nothing should be running.** The 9-instance NEAR cluster
+(`near-validator-0..7` + `near-generator`, `n2-standard-8`, across us-east4-c /
+asia-south1-a / asia-southeast1-a / europe-west2-b) was stopped at the end of
+Phase 4 collection.
 
-**Polygon is finished** — main matrix (140/140) and adversarial arm (15/15). **Lightning is
-closed** (data sourced from Waugh & Holz; see `LIGHTNING_ANALYSIS.md`). **Phase 4 has 0 valid
-runs**: the chain is healthy, but a race in the harness discarded every transaction hash.
+**Verify before assuming**, because a forgotten cluster is the single most
+expensive mistake available here:
+
+```bash
+gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
+```
+
+**Credit position: $180 of $300 consumed as of 12 Aug ~23:00**, checked by Angad
+in the billing console. Phase 4's remaining spend was ~$25-30 on top. Neither
+figure is a live reading — check the console for the real number.
+
+**Polygon is finished** (140/140 + 15/15). **Lightning is closed**
+(`LIGHTNING_ANALYSIS.md`). **NEAR is finished** (§7c).
 
 ---
 
@@ -173,6 +196,48 @@ Two hard requirements:
 2. **The Lightning cluster is already destroyed**, so the ceiling is clear.
 
 Work required: a NEAR adapter implementing `harness/adapters/base.py`, NEP-141 token transfers, settlement at `FINAL` (not `EXECUTED_OPTIMISTIC`), and NEAR mainnet gas pricing pulled at Phase 4 with its own stated date.
+
+---
+
+## 7c. Phase 4 (NEAR) — complete, 13 Aug 2026
+
+**Sustainable throughput at $200, full realism stack** (warm-up cut applied;
+success = settled FINAL within 60s):
+
+| Offered | Achieved | Failures | Verdict |
+|---|---|---|---|
+| 10/sec | 9.8 | 1.37% | sustained |
+| 25/sec | 24.8 | 0.88% | sustained |
+| 50/sec | 49.8 | 0.41% | sustained |
+| 100/sec | 100.2 | 0.12% | sustained |
+| **150/sec** | **150.1** | **0.15%** | **sustained — the ceiling** |
+| 200/sec | 47.5 | 76.3% | collapsed |
+| 300/sec | — | — | no valid run at any amount |
+
+**Amount does not matter**, as predicted for an account-model chain: $10 collapses
+at 200/sec exactly as $200 does. The ceiling is architectural, not value-dependent.
+
+**The 22 unmeasurable cells** are the 200/sec and 300/sec steps where the offered
+arrival pattern drifted past the pre-registered 50 ms saturation threshold. **This
+is not our tooling.** The harness was validated to sustain 300/sec against a null
+backend under an equivalent in-flight load, p95 scheduling lag 1.2 ms. The drift
+comes from NEAR's RPC answering slowly under congestion, which holds up the send
+path. Full evidence and the sentence it licenses in the paper:
+`docs/near_methodology/generator_is_not_the_ceiling.md`.
+
+**Settlement floor: 8.16 s**, mean 11.4 s at low load — much slower than Polygon's
+~3.2 s, and real. It is the protocol: inclusion, then a cross-shard receipt, then
+finality, each costing blocks.
+
+**Caveat that must travel with every NEAR number:** 4 shards and 8 validators
+against mainnet's 10 shards and 422 validators, with 2 producers per shard — the
+protocol minimum. Scaling method in `docs/near_methodology/shard_scaling.md`.
+
+**Phase 4 documentation** lives in `docs/near_methodology/`, indexed by its
+`README.md`. Beyond the two files above: `adversarial_arm.md` (the three
+asymmetries against Polygon and the four-hour expulsion cost),
+`restart_recovery_effect.md`, `finishing_runbook.md`, `cost_per_transaction.md`,
+`settlement_definition.md`.
 
 ---
 
