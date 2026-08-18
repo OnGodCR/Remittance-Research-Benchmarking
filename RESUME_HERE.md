@@ -177,6 +177,8 @@ The avoidable part was an estimation error: after switching spot→on-demand, th
 
 **Lightning's reliability and throughput data comes from Waugh & Holz (2020), not from our simulation.** Lightning capacity is additive across channels; our testbed had 51 against the real network's 19,644 — ~385x fewer. Success depends on how many routing paths exist, so a 51-channel network does not behave like the real one. Structural, not a bug.
 
+> **⚠️ Citation corrected 18 Aug 2026:** the "6,010 nodes / 19,644 channels" figure does NOT appear in Waugh & Holz — zero occurrences in the full text. The paper states **4,826–4,950 nodes and ~31.4–31.8k channels** (Nov 2019). Against our 51 channels the true ratio is **~620x fewer, not 385x** — a stronger argument. 19,644 most likely came from 1ML, which publishes no collection timestamp and disagreed with mempool.space by 40% on 18 Aug 2026 (20,004 vs 33,313 channels). See `LIGHTNING_EVIDENCE.md` §2.
+
 **Polygon did not have this problem** because it is a replicated state machine: throughput is set by the block gas limit and consensus timing, not validator count, so 4 validators measure the same ceiling as 100. That asymmetry is a finding, not an inconsistency — state it in the paper.
 
 **What Lightning still contributes:**

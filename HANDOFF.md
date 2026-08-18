@@ -244,6 +244,8 @@ Four validators in Virginia, Mumbai, Singapore and London. 60-second windows, on
 
 **Lightning's reliability and throughput data is from Waugh & Holz (2020), not from our simulation.** See `LIGHTNING_ANALYSIS.md`. Our testbed had 51 channels against the real network's 19,644, and Lightning capacity is additive across channels, so our numbers would have measured the fixture rather than the architecture.
 
+> **⚠️ Citation corrected 18 Aug 2026:** the "6,010 nodes / 19,644 channels" figure does NOT appear in Waugh & Holz — zero occurrences in the full text. The paper states **4,826–4,950 nodes and ~31.4–31.8k channels** (Nov 2019). Against our 51 channels the true ratio is **~620x fewer, not 385x** — a stronger argument. 19,644 most likely came from 1ML, which publishes no collection timestamp and disagreed with mempool.space by 40% on 18 Aug 2026 (20,004 vs 33,313 channels). See `LIGHTNING_EVIDENCE.md` §2.
+
 **Their finding, verified against the source:** payment success falls from **71.9% at $0.01 to 17.3% at $100**. Node reachability is a *separate* statistic, roughly flat at 25-35%, and must never be described as a size-specific success rate — an earlier draft of this project's documents made exactly that error.
 
 **What is ours:** cost per transaction (**$0.0523 at $200**, from measured route length priced at 1ML mainnet rates), and settlement time under clean conditions (**p50 1.501s**, small-scale illustrative). Channel-open cost is cited.
