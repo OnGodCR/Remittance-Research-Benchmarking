@@ -154,7 +154,7 @@ run_block() {  # arm, slots, repeat, load order
     gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
       --command "cd /opt/benchmark && ./.venv/bin/python -m harness.cli run \
         --config config/phase1.json --tps $tps --window $WINDOW --amount $AMOUNT \
-        --workers $WORKERS --repeat $r --phase phase-6-txpool-$arm --arm txpool-ab \
+        --workers $WORKERS --repeat $r --phase phase-6-txpool-$arm --arm baseline \
         2>&1 | grep -vE 'block watcher|t=[0-9]+s' | tail -3" \
       < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 \
       | grep -v "^Warning:" | tail -3
