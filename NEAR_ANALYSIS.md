@@ -60,10 +60,11 @@ Per `claude.md` §7, past 60s a remittance has functionally failed regardless of
 what the chain eventually does, so these count as failures (`ANALYSIS_PLAN.md`
 §13 amendment 11).
 
-### Settlement floor: 8.16 seconds
+### Settlement floor: 7.90 seconds
 
-Even unloaded, NEAR's fastest settlement is **8.16s**, mean ~11.3s, against
-Polygon's ~3.2s. This is protocol structure, not a defect: inclusion, then a
+The fastest settlement recorded anywhere in NEAR's baseline data is **7.90s**
+(8.49s restricted to $200), median 11.83s up to 150/sec, against Polygon's 1.22s
+minimum and 3.82s median. This is protocol structure, not a defect: inclusion, then a
 cross-shard receipt to the token contract's shard, then finality — each costing
 blocks. **74.3% of payments crossed shards**, against a theoretical 75% for 836
 senders spread over 4 shards with the token on one of them.
