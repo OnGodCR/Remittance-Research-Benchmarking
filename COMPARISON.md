@@ -85,17 +85,17 @@ and past that boundary it does not slow down, it stops.**
 | | p50 | p95 | p99 | fastest observed |
 |---|---|---|---|---|
 | Polygon Edge | 3.26s | 4.29s | 4.60s | 1.41s |
-| NEAR | 11.81s | 16.09s | 21.59s | **8.49s** |
+| NEAR | 11.81s | 16.09s | 21.59s | **8.49s** ($200) / 7.90s (any amount) |
 | Lightning | ~1.5s (small-scale, illustrative) | — | — | — |
 
 **NEAR's 8.49s floor is structural**, not a defect: transaction inclusion, then a
 cross-shard receipt to the token contract's shard, then finality — each costing
 blocks. 74.3% of our payments crossed shards.
 
-Both are far inside the pre-registered p95 < 10s threshold at their sustainable
-loads, except NEAR's p95 at 150/sec (19.20s) which **exceeds it**. Worth stating
-plainly: at its own ceiling NEAR meets the throughput bar but **not** the latency
-bar.
+**Polygon is far inside the pre-registered p95 < 10s threshold at every load it
+sustains. NEAR is outside it at EVERY load, including the lightest** — 12.76s at
+10/sec, never below 12.3s anywhere. See §7b: this is what the pre-registered
+decision rule turns on.
 
 ---
 
@@ -178,6 +178,76 @@ measurement already transfers to mainnet.
 
 **Do not put 372 and 200 in the same column as though they were the same kind of
 number.**
+
+---
+
+## 7b. What the pre-registered decision rule actually selects
+
+`ANALYSIS_PLAN.md` §10, fixed on **7 August 2026 before any Phase 2+ data existed**,
+defines the recommended architecture as the one with the **highest sustainable
+throughput at $200**, among those that at that same load also keep **p95 settlement
+below 10 seconds** and **cost below $0.10**.
+
+Applying it mechanically:
+
+| | Sustainable at $200 | p95 there | Cost | Verdict |
+|---|---|---|---|---|
+| **Polygon Edge** | **200/sec** | **4.77s** | $0.000600 | **QUALIFIES** |
+| NEAR | 150/sec | **19.20s** | $0.000365 | **disqualified — latency** |
+| Lightning | not measured by us | — | $0.0523 | cannot be ranked |
+
+**The rule selects Polygon Edge**, and it does not select it on throughput. It
+selects it because **NEAR fails the latency bar** — and not marginally, and not
+only at its ceiling:
+
+| Offered | Polygon p95 | NEAR p95 |
+|---|---|---|
+| 10/sec | 4.16s ✅ | 12.76s ❌ |
+| 25/sec | 4.17s ✅ | 12.33s ❌ |
+| 50/sec | 4.22s ✅ | 12.43s ❌ |
+| 100/sec | 4.25s ✅ | 13.18s ❌ |
+| 150/sec | 4.38s ✅ | 19.20s ❌ |
+| 200/sec | 4.77s ✅ | 57.85s ❌ |
+
+**NEAR breaches the 10-second bar at every load level tested, including the
+lightest.** Its fastest settlement ever recorded is 7.90s; its p95 never drops
+below 12.3s. This is structural — inclusion, then a cross-shard receipt, then
+finality, each costing blocks — not a symptom of load.
+
+### Why this matters more than a throughput table
+
+Three things make this the strongest single result in the study:
+
+1. **The threshold was fixed before the data existed**, with its reasoning
+   recorded (10s is generous against the 2–5s finality both chains target; it
+   exists so the paper can claim these rails settle in seconds where SWIFT settles
+   in days). It was not chosen to produce this outcome.
+2. **It is a disqualification on a dimension NEAR was not expected to lose on.**
+   The pre-registered expectation was that sharding would win on throughput. It
+   does not lose on throughput — it loses on latency, which the sharded design
+   causes directly through cross-shard receipts.
+3. **It cannot be rescued by the shard projection.** Even if NEAR at 10 shards
+   reaches ~372/sec (§7), shard count does not shorten the finality path. More
+   shards would raise throughput while leaving the p95 latency that disqualifies
+   it unchanged — arguably making it worse, since a larger share of traffic
+   crosses shards.
+
+### The honest caveats on that conclusion
+
+- **§10 explicitly permits a tradeoff answer** rather than a forced winner. NEAR is
+  cheaper ($0.000365 vs $0.0006) and would project higher throughput at mainnet
+  shard count. A defensible write-up reports Polygon as the rule's selection *and*
+  states what NEAR wins on.
+- **Polygon Edge is archived software** (read-only since Dec 2024). The rule
+  selects it on measured behaviour; the Design Science section has to address
+  whether an unmaintained codebase is a defensible recommendation.
+- **Lightning cannot be ranked at all**, because its throughput was never measured
+  by us. Its exclusion from the ranking is a limitation of the evidence, not a
+  finding about Lightning.
+- **NEAR ran at 4 of mainnet's 10 shards with the minimum 2 validators per shard.**
+  The latency result is the one least sensitive to that (finality path length does
+  not shrink with more shards), which is part of why it is the safer conclusion to
+  lean on.
 
 ---
 
