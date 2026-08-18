@@ -50,6 +50,22 @@
 # minutes of each other, so the hardware cancels out. What transfers to the
 # paper is the direction of the effect, not the number.
 #
+# "THE WAITING ROOM" IS TWO SETTINGS, NOT ONE
+#
+# Polygon Edge limits the room in two ways at once: how many transactions it
+# holds in total (4,096) and how many any ONE sender may have waiting in it
+# (128). We send from 46 wallets, so 46 x 128 = 5,888 -- more than 4,096, and
+# the total is what actually bites.
+#
+# Raise only the total to 32,768 and the per-sender limit becomes the real
+# ceiling at 5,888: we would think we had opened the room eight times wider
+# when we had opened it 1.4 times wider. If throughput then failed to move we
+# would publish a confident negative result that was simply false.
+#
+# So both scale by eight together, preserving the ratio the software ships
+# with. The total stays the binding limit in both arms. One real thing
+# changes -- how much room there is -- and nothing shifts underneath it.
+#
 # THREE THINGS THIS DESIGN DOES TO AVOID FOOLING ITSELF
 #
 #   1. The two arms ALTERNATE (A,B then B,A then A,B ...) instead of running

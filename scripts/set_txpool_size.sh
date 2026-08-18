@@ -34,6 +34,30 @@
 # actually identical -- the worst possible outcome, since it would look like
 # a clean negative result.
 #
+# THE WAITING ROOM HAS TWO DOORS, AND BOTH HAVE TO WIDEN
+#
+# Checking the binary turned up something that would have quietly ruined the
+# experiment. There are two limits, not one:
+#
+#   --max-slots     4096   how many transactions the whole room holds
+#   --max-enqueued   128   how many ONE sender may have waiting in it
+#
+# We send from a pool of 46 sender wallets. 46 x 128 = 5,888, which is more
+# than 4,096, so at the shipped defaults the room-wide limit is the one that
+# actually bites. Fine.
+#
+# But raise ONLY the room-wide limit to 32,768 and the per-sender limit
+# becomes the real ceiling at 5,888. We would believe we had opened the room
+# eight times wider when we had opened it 1.4 times wider, and if throughput
+# then failed to move we would report a confident negative result that was
+# simply wrong. That is a worse failure than getting no answer at all.
+#
+# So both limits scale together, keeping the ratio the defaults ship with
+# (4096 / 128 = 32). At eight times: 32,768 slots and 1,024 per sender, where
+# 46 x 1,024 = 47,104 still exceeds 32,768 -- the room-wide limit bites in
+# both arms, exactly as it does at the defaults. One conceptual thing changes
+# -- how much room there is -- and nothing else shifts underneath it.
+#
 # RESTARTS ARE ONE AT A TIME, ON PURPOSE
 #
 # Restarting all four validators together would stop the chain until enough
@@ -51,12 +75,14 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="$REPO/terraform/phase2"
 NODE_PREFIX="bench-p2"
 SLOTS=""
+ENQUEUED=""
 ACTION="set"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --slots) SLOTS="$2"; shift 2 ;;
-    --show)  ACTION="show"; shift ;;
+    --slots)    SLOTS="$2"; shift 2 ;;
+    --enqueued) ENQUEUED="$2"; shift 2 ;;
+    --show)     ACTION="show"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -87,8 +113,8 @@ ssh_node() {
 if [ "$ACTION" = "show" ]; then
   log "Waiting-room size currently configured on each validator"
   for ((i = 0; i < COUNT; i++)); do
-    line=$(ssh_node "$i" "grep -o -- '--max-slots [0-9]*' /etc/systemd/system/edge.service || echo '--max-slots UNSET(default)'")
-    printf '  validator-%d  %s\n' "$i" "$line"
+    line=$(ssh_node "$i" "grep -oE -- '--max-(slots|enqueued) [0-9]+' /etc/systemd/system/edge.service | tr '\n' ' ' || true")
+    printf '  validator-%d  %s\n' "$i" "${line:-UNSET (shipped defaults: slots 4096, enqueued 128)}"
   done
   exit 0
 fi
@@ -96,23 +122,42 @@ fi
 [ -n "$SLOTS" ] || die "give a size: --slots 4096"
 case "$SLOTS" in (*[!0-9]*) die "--slots must be a whole number, got '$SLOTS'" ;; esac
 
+# Keep the per-sender limit in the same proportion the defaults ship with
+# (4096 / 128 = 32), so the room-wide limit stays the one that bites. See the
+# long note at the top -- getting this wrong produces a false negative.
+[ -n "$ENQUEUED" ] || ENQUEUED=$(( SLOTS / 32 ))
+case "$ENQUEUED" in (*[!0-9]*) die "--enqueued must be a whole number, got '$ENQUEUED'" ;; esac
+
+# The room-wide limit MUST be the binding one, in both arms. If the pool of
+# senders could collectively hold less than the room, the per-sender limit
+# would silently become the ceiling and the arms would not differ by what we
+# think they differ by.
+SENDERS=46
+if [ $(( SENDERS * ENQUEUED )) -le "$SLOTS" ]; then
+  die "with $SENDERS senders x $ENQUEUED each = $(( SENDERS * ENQUEUED )), the
+  per-sender limit would bite before the room-wide limit of $SLOTS. That makes
+  the room-wide setting meaningless and the experiment would measure nothing.
+  Raise --enqueued above $(( SLOTS / SENDERS ))."
+fi
+
 # --- the flag must actually exist -----------------------------------------
 #
 # If it does not, the systemd unit will fail to start and the cluster goes
 # down. Worse, if the binary silently ignored an unknown flag we would run
 # two arms that were secretly identical and report a false negative.
-log "Checking that this build of Polygon Edge has the flag at all"
-HELP=$(ssh_node 0 "/usr/local/bin/polygon-edge server --help 2>&1 | grep -c -- '--max-slots' || echo 0")
+log "Checking that this build of Polygon Edge has both flags at all"
+HELP=$(ssh_node 0 "/usr/local/bin/polygon-edge server --help 2>&1 | grep -cE -- '--max-slots|--max-enqueued' || echo 0")
 HELP=$(echo "$HELP" | tr -dc '0-9')
-if [ "${HELP:-0}" -lt 1 ]; then
-  die "this Polygon Edge build has no --max-slots flag. The experiment cannot
-  run as designed -- do NOT fall back to leaving it unset, because that would
-  produce two identical arms that look like a clean negative result."
+if [ "${HELP:-0}" -lt 2 ]; then
+  die "this Polygon Edge build is missing --max-slots and/or --max-enqueued
+  (found $HELP of 2). The experiment cannot run as designed -- do NOT fall
+  back to leaving them unset, because that would produce two identical arms
+  that look like a clean negative result."
 fi
-echo "  present"
+echo "  both present"
 
 # --- rewrite the unit and restart, one validator at a time ----------------
-log "Setting the waiting room to $SLOTS on $COUNT validators, one at a time"
+log "Setting the waiting room to $SLOTS slots / $ENQUEUED per sender on $COUNT validators"
 for ((i = 0; i < COUNT; i++)); do
   ssh_node "$i" "sudo tee /etc/systemd/system/edge.service >/dev/null <<'UNIT'
 [Unit]
@@ -129,6 +174,7 @@ ExecStart=/usr/local/bin/polygon-edge server \
   --libp2p 0.0.0.0:1478 \
   --jsonrpc 0.0.0.0:8545 \
   --max-slots $SLOTS \
+  --max-enqueued $ENQUEUED \
   --seal
 Restart=on-failure
 RestartSec=5
