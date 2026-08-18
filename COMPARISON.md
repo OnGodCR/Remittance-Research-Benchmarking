@@ -50,7 +50,12 @@ architectural difference, not a testing artefact.
 | 100/sec | 100.1 (0.0%) | 100.0 (0.2%) |
 | 150/sec | 150.3 (0.0%) | **150.1 (0.1%)** ← NEAR's ceiling |
 | 200/sec | **200.9 (0.0%)** ← Polygon's ceiling | 47.5 (76.3%) |
-| 300/sec | 270.5 (10.0%) | not measurable |
+| 300/sec | 270.5 (10.0%) | 9.9 (96.7%)† |
+
+† Rule-excluded from the clean dataset (lag growth 57–83 ms vs the 50 ms
+threshold); reported from raw as sensitivity data — all 20 runs consistent at
+94–99.7% failure. See `NEAR_ANALYSIS.md` §1b. The failure curve across NEAR's
+last three steps is **0.15% → 76.3% → 96.7%**.
 
 **Sustainable throughput at $200** (achieved ≥90% of offered AND failures <5%):
 
@@ -69,8 +74,10 @@ architectural difference, not a testing artefact.
 | **Polygon** | 300 offered → 270.5 achieved, 10.0% fail | **degrades gracefully** |
 | **NEAR** | 200 offered → 47.5 achieved, 76.3% fail | **collapses** |
 
-NEAR at 200/sec achieves *less than it does at 50/sec*. Offering more produces
-less.
+NEAR's failure rate goes 0.15% (150/sec) → 76.3% (200) → 96.7% (300). The
+throughput point-estimates fall too (150.1 → 47.5 → 9.9/sec), though the
+200/sec interval is wide ([26.3, 68.7]); the failure curve is what carries
+the finding.
 
 **Context for why this is a remittance question, not a benchmark curiosity:**
 global remittance volume averages ~140–150/sec (≈$905B/year ÷ $200). Peak
@@ -88,14 +95,21 @@ and past that boundary it does not slow down, it stops.**
 | NEAR | 11.81s | 16.09s | 21.59s | **8.49s** ($200) / 7.90s (any amount) |
 | Lightning | ~1.5s (small-scale, illustrative) | — | — | — |
 
-**NEAR's 8.49s floor is structural**, not a defect: transaction inclusion, then a
-cross-shard receipt to the token contract's shard, then finality — each costing
-blocks. 74.3% of our payments crossed shards.
+**NEAR's 8.49s floor is proportional to its block interval, which we set to
+2s (nearcore default: 600ms) because the default could not hold consensus
+across four continents.** The path — inclusion, a cross-shard receipt to the
+token contract's shard for the ~75% of senders not homed there, then finality
+— costs a fixed number of blocks. Execution was never distributed: every
+transfer ran on the single token contract's shard (`NEAR_ANALYSIS.md` §1b).
+Polygon ran at its own ~2s default, so one chain was measured at its default
+cadence and one slowed 3.3x to survive the geography.
 
-**Polygon is far inside the pre-registered p95 < 10s threshold at every load it
-sustains. NEAR is outside it at EVERY load, including the lightest** — 12.76s at
-10/sec, never below 12.3s anywhere. See §7b: this is what the pre-registered
-decision rule turns on.
+**Polygon is far inside the pre-registered p95 < 10s threshold at every load
+it sustains. NEAR is outside it at EVERY load, including the lightest** —
+12.76s at 10/sec, never below 12.3s anywhere — **at the 2s block interval
+this deployment required.** First-order scaling says NEAR at 600ms would pass
+the bar and at ~1.2s would straddle it, so the §7b disqualification is
+conditional on cadence. See §7b's sensitivity note.
 
 ---
 
@@ -162,22 +176,14 @@ blocks were 0.04% full, so deriving capacity multiplies an 8-block sample by
 
 ---
 
-## 7. Scaling NEAR's 4 shards toward mainnet's 10
+## 7. Scaling NEAR's 4 shards toward mainnet's 10 — WITHDRAWN
 
-| Shards | Projected total/sec |
-|---|---|
-| 4 (measured) | 148.8 |
-| 10 (mainnet) | **372.0** |
-
-**A projection with stated assumptions, not a measurement.** It assumes shards
-execute independently and that cross-shard cost does not grow with shard count.
-If it holds, NEAR at mainnet shard count would exceed Polygon's measured 200/sec —
-**but Polygon has no equivalent projection**, because its throughput is set by
-block gas limit and consensus timing rather than validator count, so its 4-validator
-measurement already transfers to mainnet.
-
-**Do not put 372 and 200 in the same column as though they were the same kind of
-number.**
+An earlier version projected **372/sec at 10 shards**. Withdrawn: every payment
+executes on the single shard hosting the token contract (`NEAR_ANALYSIS.md`
+§1b), so the measured 150/sec is a single-execution-shard ceiling and shard
+count cannot scale it. The replacement finding: **for a single-contract
+stablecoin workload — the dominant real remittance pattern — NEAR's sharding
+provides no execution-throughput scaling at any shard count.**
 
 ---
 
@@ -248,6 +254,22 @@ Three things make this the strongest single result in the study:
   The latency result is the one least sensitive to that (finality path length does
   not shrink with more shards), which is part of why it is the safer conclusion to
   lean on.
+
+---
+
+### Configuration sensitivity — read before citing §7b
+
+The latency disqualification above was measured at a **2s block interval**,
+set because nearcore's 600ms default could not hold consensus across four
+continents. Finality costs a fixed block count, so NEAR's latency scales with
+cadence: at 600ms the p95 figures would pass the 10s bar, at ~1.2s they
+straddle it. Throughput may also rise with faster blocks. **Under the
+measured configuration the rule selects Polygon; under a faster-cadence
+reading the outcome is unresolved** — NEAR could pass the latency bar, and if
+its ceiling also rises above 200/sec the selection could flip. The queued
+block-time supplementary test is the only way to settle this. Until it runs,
+state the §7b result as conditional: *"under geographically-realistic
+consensus timing, the rule selects Polygon Edge."*
 
 ---
 
