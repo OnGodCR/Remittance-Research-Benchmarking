@@ -12,14 +12,14 @@
 >
 > **The finding worth building a paragraph around is the failure MODE, not the
 > ceiling.** Polygon degrades gracefully past its knee — 270.5/sec achieved when
-> offered 300, 9.97% failures. NEAR *collapses*: offered 200, it achieves 47.5/sec
-> with 76% failures, which is worse than it manages when offered 50. Ask it for
-> more, get less. For a payment system facing payday and holiday clustering — the
+> offered 300, 9.97% failures. NEAR *collapses*: the failure curve across its last
+> three steps is 0.15% → 76.3% → 96.7% (the 300/sec step reported from raw as
+> sensitivity data; see §7c). For a payment system facing payday and holiday clustering — the
 > exact peak scenario this study cites — that difference matters as much as the
 > headline number.
 >
-> **Phase 5 is next**: merge, clean, confidence intervals, calibration ratios,
-> shard scaling. See §7c.
+> **Phase 5 is done; Phase 6 (comparison + limitations) is in progress**, with
+> supplementary tests queued on a NEW GCP account. See §2 and §7c.
 >
 > `PHASE4_HANDOFF.md` is **superseded** — kept for its bug write-ups, not for
 > current state. §2 below describes 9 August and is long out of date.
@@ -71,9 +71,13 @@ expensive mistake available here:
 gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
 ```
 
-**Credit position: $180 of $300 consumed as of 12 Aug ~23:00**, checked by Angad
-in the billing console. Phase 4's remaining spend was ~$25-30 on top. Neither
-figure is a live reading — check the console for the real number.
+**ACCOUNT MOVE, 14 Aug:** the original account's $300 credit is exhausted. New
+project: **`project-03b5d58e-4d01-42c7-b4f`** ("RemitBridge System Labs"),
+fresh $300 expiring 17 Nov 2026 — **a FULL account: after credits it charges a
+real card**, so budget alerts are mandatory before any deployment. The 9 disk
+snapshots (incl. the validator health log, which exists nowhere else) still
+live on the OLD account/project and remain readable for now. Terminal access
+to the new project requires `angadkochar2@gmail.com` to be granted Editor.
 
 **Polygon is finished** (140/140 + 15/15). **Lightning is closed**
 (`LIGHTNING_ANALYSIS.md`). **NEAR is finished** (§7c).
@@ -212,22 +216,29 @@ success = settled FINAL within 60s):
 | 100/sec | 100.2 | 0.12% | sustained |
 | **150/sec** | **150.1** | **0.15%** | **sustained — the ceiling** |
 | 200/sec | 47.5 | 76.3% | collapsed |
-| 300/sec | — | — | no valid run at any amount |
+| 300/sec† | 9.9 | 96.7% | rule-excluded; reported from raw as sensitivity data |
 
 **Amount does not matter**, as predicted for an account-model chain: $10 collapses
 at 200/sec exactly as $200 does. The ceiling is architectural, not value-dependent.
 
-**The 22 unmeasurable cells** are the 200/sec and 300/sec steps where the offered
-arrival pattern drifted past the pre-registered 50 ms saturation threshold. **This
-is not our tooling.** The harness was validated to sustain 300/sec against a null
-backend under an equivalent in-flight load, p95 scheduling lag 1.2 ms. The drift
-comes from NEAR's RPC answering slowly under congestion, which holds up the send
-path. Full evidence and the sentence it licenses in the paper:
-`docs/near_methodology/generator_is_not_the_ceiling.md`.
+**The 22 rule-excluded cells** (20 at 300/sec, 2 at 200/sec) drifted past the
+50 ms lag-growth threshold — by 7–33 ms at 300/sec, with the null-backend
+validation (p95 lag 1.2 ms at 300/sec) showing the drift comes from NEAR's
+congested RPC, not the harness alone
+(`docs/near_methodology/generator_is_not_the_ceiling.md`). **They are now
+REPORTED, from raw, as marked sensitivity data rather than hidden as
+'unmeasurable'**: all 20 runs at 300/sec are internally consistent at 94–99.7%
+failure, completing the collapse curve 0.15% → 76.3% → 96.7%. The threshold
+itself sits 5 ms above the knee's data cluster (kept runs 22.8–46.8 ms,
+excluded pair 51.9/54.3) — disclosed in `NEAR_ANALYSIS.md` §1b, with a
+both-versions sensitivity showing no conclusion at the knee depends on it.
 
-**Settlement floor: 8.16 s**, mean 11.4 s at low load — much slower than Polygon's
-~3.2 s, and real. It is the protocol: inclusion, then a cross-shard receipt, then
-finality, each costing blocks.
+**Settlement floor: 7.90 s, at a 2s block interval** (nearcore default 600ms —
+unstable across four continents; see `NEAR_ANALYSIS.md` §1b). Latency scales
+with cadence, so every NEAR latency figure — including the decision-rule
+latency disqualification — is conditional on the 2s setting. Also disclosed:
+every transfer executed on the single token contract's shard; sharding
+distributed inclusion, never execution.
 
 **Caveat that must travel with every NEAR number:** 4 shards and 8 validators
 against mainnet's 10 shards and 422 validators, with 2 producers per shard — the
@@ -259,10 +270,11 @@ measured relationship to extrapolate toward mainnet's 0.1%. Claims about real-wo
 failure behaviour must rest on the hostility ratios as bounds. See
 `NEAR_ANALYSIS.md` S6.
 
-**Shard projection: 4 shards -> 10 gives ~372/sec**, assuming shards execute
-independently. A projection with stated assumptions, not a measurement -- and
-Polygon has no equivalent, because its throughput does not scale with validator
-count. Never place 372 and Polygon's 200 in the same column.
+**Shard projection: WITHDRAWN.** All execution lands on the token contract's
+single shard, so 150/sec is a single-execution-shard ceiling and shard count
+cannot scale it. Replacement finding: sharding provides no execution-throughput
+scaling for a single-contract stablecoin workload — the dominant real
+remittance pattern.
 
 **Phase 4 documentation** lives in `docs/near_methodology/`, indexed by its
 `README.md`. Beyond the two files above: `adversarial_arm.md` (the three

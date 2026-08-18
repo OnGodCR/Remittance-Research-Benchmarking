@@ -24,7 +24,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-P="project-c4c87dcb-da41-4caf-922"
+P="project-03b5d58e-4d01-42c7-b4f"
 ACTION="${1:-status}"
 
 Z_GEN=us-east4-c

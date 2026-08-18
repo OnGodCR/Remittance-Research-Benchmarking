@@ -9,7 +9,10 @@ in `ANALYSIS_PLAN.md`.
 us-east4 / asia-south1 / asia-southeast1 / europe-west2, `n2-standard-8`
 (8 vCPU / 32 GB), full realism stack — real intercontinental latency plus injected
 per-region impairment, competing background traffic averaging ~88 tx/sec, NEP-141
-fungible-token transfers, settlement at `FINAL`.
+fungible-token transfers, settlement at `FINAL`. **Consensus timing: block
+production was set to 2s — nearcore's default is 600ms — because the default
+could not hold consensus across four continents (see §1b). Every latency
+figure below is conditional on that cadence.**
 
 ---
 
@@ -26,16 +29,69 @@ of offered AND failures <5%).
 | 100 | 100.0 | [99.3, 100.7] | 0.16% | 11.68s | 13.18s | 15.37s |
 | **150** | **150.1** | **[149.6, 150.6]** | **0.15%** | 12.43s | 19.20s | 23.25s |
 | 200 | 47.5 | [26.3, 68.7] | 76.30% | 35.48s | 57.85s | 59.56s |
-| 300 | — | — | — | — | — | — |
+| 300† | 9.9 | [8.0, 11.7] | 96.69% | 44.85s | 58.45s | 59.50s |
 
 Five repeats per cell, bootstrap intervals resampled over **runs**, not payments.
+
+† **Excluded from the clean dataset by the pre-registered saturation rule and
+reported here from the raw dataset as sensitivity data.** All 20 runs at
+300/sec completed and are internally consistent — failures 94.2–99.7% across
+every run and every amount — but each exceeded the 50 ms lag-growth threshold
+(measured 57–83 ms). Presenting the cell as empty would hide the strongest
+single piece of evidence for the collapse. See §1b.
+
+---
+
+## 1b. Three disclosures that bound every number above
+
+**(a) Block production ran at 2s, not NEAR's 600ms default.** At 600ms this
+4-continent deployment could not hold consensus at all (`ShardStuck`); 2s was
+the fastest stable interval, set in `scripts/deploy_near.sh`. Finality costs a
+fixed number of blocks, so measured settlement scales roughly linearly with
+block interval. First-order sensitivity: at a mainnet-like ~1.2s cadence the
+p95 figures at ≤150/sec (12.3–19.2s) would scale to roughly 7.4–11.5s —
+straddling the pre-registered 10s bar — and at 600ms to roughly 3.7–5.8s,
+passing it. Throughput capacity may also rise with faster blocks. **No latency
+conclusion, including the §10 decision-rule disqualification, transfers to
+another cadence without the queued supplementary test.** Polygon ran at its
+own default (~2s), so this is an instrument asymmetry: one chain at its
+default, one slowed 3.3x to survive the geography.
+
+**(b) Every transfer executed on ONE shard.** The transaction receiver of
+every NEP-141 `ft_transfer` is the single token contract, so all 2.4M
+payments executed on the shard hosting it. The previously reported "74.3%
+cross-shard" compared sender and recipient home shards — a boundary that
+does not lie on the execution path (the recipient's shard holds no state for
+a token transfer). What is true: ~3/4 of payments paid one cross-shard
+receipt hop (sender's shard → token's shard). Sharding distributed
+*inclusion*, never *execution*. This withdraws the 10-shard projection (§8)
+and reframes the headline: **150/sec is effectively a single-execution-shard
+ceiling — and a single token contract is exactly how real stablecoin
+remittances are deployed, so this is a finding about sharding-for-remittances,
+not a rig defect.**
+
+**(c) The saturation rule sits 5 ms above the knee's data.** Kept 200/sec
+runs span 22.8–46.8 ms of lag growth; the two excluded sit at 51.9 and 54.3;
+there is no gap in the distribution. At a 40 ms threshold, 14 of 24 raw
+200/sec runs would vanish. The rule also fired on Polygon (3 runs in the
+10–300 ramp, growth 0.3–45 s, caused by our pre-fix single-process client and
+re-measured cleanly after the fix) — NEAR's 300/sec cells failed on every
+attempt instead. Sensitivity of the knee to the rule: with the two exclusions
+$200 @ 200/sec reads 47.5/sec, 76.3% failures (n=4); with them included it
+reads 44.9/sec, 77.6% (n=5). **Both readings fail the sustainability bar by
+an enormous margin, so no conclusion at the knee depends on the rule.**
 
 ---
 
 ## 2. The finding that matters more than the ceiling: NEAR collapses, Polygon bends
 
-At 200/sec NEAR does not plateau. **It achieves 47.5/sec — less than it manages
-when offered 50/sec.** Ask for more, get less.
+At 200/sec NEAR does not plateau: achieved throughput falls to 47.5/sec
+[26.3, 68.7] while failures rise to 76.3%, and at 300/sec to 9.9/sec with
+96.7% failures. The collapse is unambiguous in the failure curve —
+**0.15% → 76.3% → 96.7%** across three load steps. (Individual 200/sec runs
+ranged 17.1–72.0/sec, so the point comparison against the 49.8/sec figure at
+50/sec should not carry weight on its own; the failure rates carry the
+finding.)
 
 | | Polygon Edge | NEAR |
 |---|---|---|
@@ -60,14 +116,17 @@ Per `claude.md` §7, past 60s a remittance has functionally failed regardless of
 what the chain eventually does, so these count as failures (`ANALYSIS_PLAN.md`
 §13 amendment 11).
 
-### Settlement floor: 7.90 seconds
+### Settlement floor: 7.90 seconds — at a 2s block interval
 
 The fastest settlement recorded anywhere in NEAR's baseline data is **7.90s**
-(8.49s restricted to $200), median 11.83s up to 150/sec, against Polygon's 1.22s
-minimum and 3.82s median. This is protocol structure, not a defect: inclusion, then a
-cross-shard receipt to the token contract's shard, then finality — each costing
-blocks. **74.3% of payments crossed shards**, against a theoretical 75% for 836
-senders spread over 4 shards with the token on one of them.
+(8.49s restricted to $200), median 11.83s up to 150/sec, against Polygon's
+1.22s minimum and 3.82s median. The path is: inclusion on the sender's shard,
+a cross-shard receipt to the token contract's shard (paid by the ~75% of
+senders not homed there), then finality — each step costing blocks. **The
+floor is therefore proportional to the block interval, which we set to 2s
+(§1b): this figure describes NEAR under geographically-realistic consensus
+timing, not NEAR at its default cadence.** Execution itself was never
+distributed — every transfer ran on the token contract's shard (§1b).
 
 ---
 
@@ -214,38 +273,25 @@ capability gap 0.719×.
 
 ---
 
-## 8. Scaling 4 shards to mainnet's 10
+## 8. The 10-shard projection — WITHDRAWN
 
-Per-shard throughput from the **highest sustained** load — 150/sec ÷ 4 shards =
-**37.2/sec per shard** — corrected for the changing cross-shard mix via
-`c(S) = (1/S)·c_same + ((S−1)/S)·c_cross`.
+An earlier version of this section projected **372/sec at mainnet's 10 shards**
+by treating 150/sec as the output of 4 execution shards. **That projection is
+withdrawn.** Every payment in this workload executes on the single shard
+hosting the token contract (§1b), so the measured ceiling is a
+single-execution-shard figure and shard count cannot scale it.
 
-| Shards | Projected total/sec |
-|---|---|
-| 4 (ours) | 148.8 ← reproduces the measurement |
-| 6 | 223.2 |
-| 8 | 297.6 |
-| **10 (mainnet)** | **372.0** |
-
-The gas correction from 4 to 10 shards is **1.0001×** — cross-shard transfers cost
-essentially the same as same-shard ones on NEAR, so the projection is very close to
-linear in shard count.
-
-**Assumptions, both stated because neither can be verified from our data:** that
-shards execute independently (Nightshade's design intent), and that cross-shard
-cost does not itself grow with shard count.
-
-**This projection was wrong in an earlier version** and is worth knowing about: it
-based per-shard throughput on the *collapsed* rate at 200/sec, projecting 130/sec
-for 10 shards — slower than our own 4-shard measurement. Throughput past the knee
-measures a failing system, not capacity.
-
----
+What replaces it is a sharper finding: **for a single-contract stablecoin
+workload — the dominant real-world remittance pattern — NEAR's sharding
+provides no execution-throughput scaling at any shard count.** Distributing
+the workload across several token contracts could recover scaling, at the cost
+of fragmenting liquidity; measuring that is a queued supplementary test.
 
 ## 9. What this arm supports, and what it does not
 
 **Supported:**
-- NEAR sustains 150 payments/sec at $200 on 4 shards under the full realism stack.
+- NEAR sustains 150 payments/sec at $200 under the full realism stack, at a
+  2s block interval, with all execution on one shard (§1b).
 - The ceiling is NEAR's, not the instrument's — the harness was independently
   validated to 300/sec against a null backend at equivalent in-flight load, p95
   scheduling lag 1.2 ms (`docs/near_methodology/generator_is_not_the_ceiling.md`).
@@ -255,8 +301,9 @@ measures a failing system, not capacity.
   the knee.
 
 **Not supported:**
-- Any prediction of NEAR mainnet throughput. §8 is a projection with stated
-  assumptions, not a measurement.
+- Any prediction of NEAR mainnet throughput. The §8 projection is withdrawn:
+  the workload executes on a single shard, so shard-count scaling has no
+  measured support.
 - Any prediction of mainnet behaviour under validator failure. See §5 and §6.
 - A capability gap against mainnet capacity. See §7.
 - Sharding as a general architecture — this is **one implementation, at 4 of its
