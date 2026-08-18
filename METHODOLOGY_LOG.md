@@ -432,6 +432,8 @@ Lightning is the only architecture needing a currency conversion. Polygon and NE
 
 The short version: Lightning capacity is **additive across channels**, and our testbed has 51 against the real network's 19,644 — roughly 385× fewer. Success behaviour depends on how many routing paths exist, so a network with 385× fewer paths does not behave like the real one. This is structural, not a bug, and no amount of debugging or budget within this project closes it.
 
+> **⚠️ Citation corrected 18 Aug 2026:** the "6,010 nodes / 19,644 channels" figure does NOT appear in Waugh & Holz — zero occurrences in the full text. The paper states **4,826–4,950 nodes and ~31.4–31.8k channels** (Nov 2019). Against our 51 channels the true ratio is **~620x fewer, not 385x** — a stronger argument. 19,644 most likely came from 1ML, which publishes no collection timestamp and disagreed with mempool.space by 40% on 18 Aug 2026 (20,004 vs 33,313 channels). See `LIGHTNING_EVIDENCE.md` §2.
+
 **Why Polygon did not have the same problem, and why that is not inconsistency.** Polygon is a replicated state machine: every validator processes every transaction, so throughput is set by the block gas limit and consensus timing rather than by validator count. Four validators and a hundred share the same ceiling. Our 4-validator measurement therefore transfers to mainnet; a 51-channel Lightning measurement does not.
 
 ### What Lightning still contributes

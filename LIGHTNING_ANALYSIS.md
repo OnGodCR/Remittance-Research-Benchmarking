@@ -24,6 +24,8 @@ Lightning's success behaviour depends on how many routing paths exist between a 
 
 **Roughly 385× fewer channels.** A network with 385× fewer paths does not behave like the real one, and no amount of debugging, hardware or budget within this project closes that gap.
 
+> **⚠️ Citation corrected 18 Aug 2026:** the "6,010 nodes / 19,644 channels" figure does NOT appear in Waugh & Holz — zero occurrences in the full text. The paper states **4,826–4,950 nodes and ~31.4–31.8k channels** (Nov 2019). Against our 51 channels the true ratio is **~620x fewer, not 385x** — a stronger argument. 19,644 most likely came from 1ML, which publishes no collection timestamp and disagreed with mempool.space by 40% on 18 Aug 2026 (20,004 vs 33,313 channels). See `LIGHTNING_EVIDENCE.md` §2.
+
 ### Why Polygon did not have this problem
 
 This is the part worth stating carefully, because the asymmetry looks like inconsistency and is not.
