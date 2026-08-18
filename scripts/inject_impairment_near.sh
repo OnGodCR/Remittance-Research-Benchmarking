@@ -46,7 +46,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-PROJECT="project-03b5d58e-4d01-42c7-b4f"
+PROJECT="remittances-benchmarking"
 ACTION="apply"
 case "${1:-}" in
   --clear) ACTION="clear" ;;

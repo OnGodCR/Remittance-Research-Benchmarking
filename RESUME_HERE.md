@@ -68,11 +68,14 @@ Phase 4 collection.
 expensive mistake available here:
 
 ```bash
+# current project (Phase 6 supplementary tests)
+gcloud compute instances list --project remittances-benchmarking
+# old project -- credits exhausted, holds the 9 snapshots
 gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
 ```
 
 **ACCOUNT MOVE, 14 Aug:** the original account's $300 credit is exhausted. New
-project: **`project-03b5d58e-4d01-42c7-b4f`** ("RemitBridge System Labs"),
+project: **`remittances-benchmarking`** (org `remitbridgesystemlabs-org`) ("RemitBridge System Labs"),
 fresh $300 expiring 17 Nov 2026 — **a FULL account: after credits it charges a
 real card**, so budget alerts are mandatory before any deployment. The 9 disk
 snapshots (incl. the validator health log, which exists nowhere else) still

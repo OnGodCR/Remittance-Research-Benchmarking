@@ -47,7 +47,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-PROJECT="project-03b5d58e-4d01-42c7-b4f"
+PROJECT="remittances-benchmarking"
 DURATION=5400
 EVENTS="/tmp/near_node_events.tsv"
 ACTION="run"
