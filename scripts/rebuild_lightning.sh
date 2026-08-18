@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 cd "$(dirname "$0")/.."
-P=project-03b5d58e-4d01-42c7-b4f
+P=remittances-benchmarking
 HOSTS=(ln-host-0 ln-host-1 ln-host-2 ln-host-3)
 ZONES=(us-east4-c asia-south1-a asia-southeast1-a europe-west2-b)
 SSH="gcloud compute ssh --strict-host-key-checking=no --project $P"

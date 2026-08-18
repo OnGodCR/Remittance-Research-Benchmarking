@@ -30,7 +30,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ZONE=us-east4-c
-PROJECT=project-03b5d58e-4d01-42c7-b4f
+PROJECT=remittances-benchmarking
 GEN=bench-p2-generator
 
 # 15 runs x ~320s, plus setup slack.
