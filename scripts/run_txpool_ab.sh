@@ -89,8 +89,23 @@
 # About 3 hours, roughly $4 of machine time at on-demand prices.
 #
 # USAGE
-#   caffeinate -i ./scripts/run_txpool_ab.sh            # keeps the Mac awake
+#   nohup caffeinate -i ./scripts/run_txpool_ab.sh > run.log 2>&1 &
 #   ./scripts/run_txpool_ab.sh --dry-run                # print the plan only
+#   ./scripts/run_txpool_ab.sh --from-repeat 3          # resume after a crash
+#
+# `caffeinate -i` stops the Mac sleeping through the three hours. Do NOT add
+# `setsid` -- macOS does not have it, and the whole run dies instantly with a
+# one-line error that is easy to miss.
+#
+# RESUMING
+#
+# --from-repeat starts at that repeat and finishes the rest. Use it if the
+# orchestrator dies partway. Repeats are independent of each other -- each one
+# sets its own pool size and runs its own three loads -- so resuming at a
+# repeat boundary loses nothing. Resuming INSIDE a repeat is not supported on
+# purpose: a half-finished repeat has one arm measured and the other not, and
+# silently keeping that would break the pairing the whole design rests on.
+# Re-run the whole repeat and let the analysis exclude the earlier partial.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -109,8 +124,15 @@ AMOUNT=200
 WINDOW=300
 WORKERS=8
 DRY_RUN=0
+FROM_REPEAT=0
 
-[ "${1:-}" = "--dry-run" ] && DRY_RUN=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run)     DRY_RUN=1; shift ;;
+    --from-repeat) FROM_REPEAT="$2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
 
 log()  { printf '\033[0;36m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -172,6 +194,7 @@ gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-throug
   < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 | tail -2
 
 for r in 0 1 2 3 4; do
+  [ "$r" -lt "$FROM_REPEAT" ] && { note "repeat $r already done, skipping"; continue; }
   order="${ORDERS[$r]}"
   if [ "${FIRST[$r]}" = "default" ]; then
     run_block default  "$SLOTS_DEFAULT" "$r" "$order"
