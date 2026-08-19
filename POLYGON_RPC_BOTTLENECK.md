@@ -102,6 +102,67 @@ recorded as such: any run using multiple endpoints is not directly comparable
 with the published single-endpoint runs, which is precisely why the comparison
 has to be run on one cluster with both configurations.
 
+## 5b. RESULT — measured 19 Aug 2026, and it is worse than expected
+
+The test in §5 was run. Same cluster, same load, minutes apart, changing only
+where settlement checks are sent.
+
+| Settlement checks via | Achieved | Failures | Schedule slip | Valid |
+|---|---|---|---|---|
+| 1 node (the published method) | 274.9/sec | 8.3% | **+228.6 ms** | **no — saturated** |
+| 4 nodes | **290.5/sec** | **3.1%** | **+0.3 ms** | yes |
+
+Two things happened together. The saturation disappeared -- a 760-fold
+improvement in schedule slip, turning an invalid run into a clean one -- and
+throughput rose while failures fell by nearly two thirds.
+
+**On 4-processor validators, this beats the published 270.5/sec measured on
+8-processor ones.** The published figure was substantially a measure of how
+fast one node can answer questions about payments, not of how fast the
+sidechain can settle them.
+
+### And the ceiling is a cliff, not a plateau
+
+With the bottleneck removed, the load ramp was pushed past 300 for the first
+time. Every run below kept its schedule (slip ≈ 0), so these describe the
+chain, not our tooling. One run each -- exploratory, enough to locate the
+knee, not enough to publish.
+
+| Offered | Achieved | Refused at the door | Accepted then stuck |
+|---|---|---|---|
+| 300 | **290.5** | 0 | 2,758 |
+| 400 | 202.5 | 1,153 | 58,304 |
+| 500 | 108.3 | 44,932 | 72,950 |
+| 600 | 96.5 | 87,121 | 63,885 |
+
+Polygon peaks near 290/sec and then **collapses to a third of that**. It does
+not degrade gently.
+
+**This contradicts one of the paper's headline comparisons.** `RESUME_HERE.md`
+§3 and `COMPARISON.md` state that Polygon degrades gracefully past its knee
+while NEAR collapses, and present that contrast as the more interesting
+finding than either ceiling. That contrast was drawn from a ramp that stopped
+at 300/sec -- which is Polygon's knee, not past it. "Graceful degradation past
+the knee" was a claim about a region that had never been measured.
+
+Both architectures collapse. NEAR's collapse is still steeper (to about 7% of
+peak at twice peak offered, against Polygon's 33%), so a real difference in
+degree survives, but "graceful versus catastrophic" does not.
+
+### The failure mechanism also shifts with load
+
+At 300/sec every failure is a payment accepted and then left unsettled, with
+zero refusals. As load rises the mix inverts: by 600/sec most payments are
+refused at the door. That is the queue filling up -- first the node accepts
+everything and cannot keep up, then the queue saturates and it starts turning
+work away.
+
+Note this differs from the published single-endpoint finding that *every*
+failure was a submission rejection. Relieving the bottleneck lets more
+payments in, which converts refusals into stuck payments. The measurement
+method changes which failure mode is observed, and that must be stated
+whenever either failure mode is reported.
+
 ## 6. What is NOT affected
 
 - The 100/sec and 200/sec runs, in both queue settings, completed cleanly with
