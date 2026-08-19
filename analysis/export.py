@@ -122,6 +122,43 @@ NON_RESULT_PHASES = {
     # rate is caused by competing load or by our setup. Two runs, no repeats --
     # diagnostic by construction.
     "phase-4-noisetest",
+    # ---- Phase 6 supplementary work, 18-19 Aug 2026 ----------------------
+    #
+    # ALL of it is excluded from RESULTS and retained in raw. Two reasons,
+    # and the second applies even to the runs that are individually valid.
+    #
+    # 1. Different hardware. This cluster ran 4-processor validators because
+    #    a new Google account caps the project at 32 processors; every
+    #    published Polygon number came from 8-processor ones. Pooling the two
+    #    would mix hardware into a comparison that is supposed to be about
+    #    architecture.
+    #
+    # 2. Different measuring instrument for some of it. The -endpoint- runs
+    #    spread settlement checks across four nodes instead of one, which is
+    #    the very thing they were built to test. They are evidence ABOUT the
+    #    published measurements, not more of them.
+    #
+    # The smoke phases are throwaway 60-second checks. The txpool phases are
+    # an abandoned experiment: its 300/sec runs auto-invalidated for generator
+    # saturation, and the design carried a selection flaw (the enlarged queue
+    # accepts more payments, so it polls more, so it is likelier to be
+    # excluded -- the treatment influences exclusion). Its 100 and 200/sec
+    # runs are individually clean but answer nothing, since both settings pass
+    # those loads with zero failures.
+    #
+    # What these runs DO support is written up in POLYGON_RPC_BOTTLENECK.md
+    # and ANALYSIS_PLAN.md amendment 14, quoted from the raw data and labelled
+    # exploratory throughout.
+    "phase-6-txpool-smoke",
+    "phase-6-multiendpoint-smoke",
+    "phase-6-txpool-default",
+    "phase-6-txpool-enlarged",
+    "phase-6-txpool-default-g16",
+    "phase-6-txpool-enlarged-g16",
+    "phase-6-endpoint-1",
+    "phase-6-endpoint-4",
+    "phase-6-endpoint-ramp",
+    "phase-6-rpc-diagnostic",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
