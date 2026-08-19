@@ -159,6 +159,10 @@ NON_RESULT_PHASES = {
     "phase-6-endpoint-4",
     "phase-6-endpoint-ramp",
     "phase-6-rpc-diagnostic",
+    "phase-6-endpoints-one",
+    "phase-6-endpoints-four",
+    "phase-6-fallback-check",
+    "phase-6-knee",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
