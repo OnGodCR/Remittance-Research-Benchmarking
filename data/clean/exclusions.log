@@ -1,14 +1,14 @@
 ========================================================================
-Exclusion log -- generated 2026-08-19 10:42:31 UTC
+Exclusion log -- generated 2026-08-19 18:31:55 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 22,463,860 across 590 runs
+Payments in raw   : 24,565,581 across 610 runs
 Payments in clean : 9,579,098 across 293 runs
-Excluded          : 12,884,762 payments
+Excluded          : 14,986,483 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
@@ -112,6 +112,12 @@ Excluded          : 12,884,762 payments
   target  : phase-6-fallback-check
   affected: 2
   reason  : phase-6-fallback-check validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-knee
+  affected: 20
+  reason  : phase-6-knee validates the pipeline; its numbers are not findings
 
 [non-result phase]
   scope   : run
