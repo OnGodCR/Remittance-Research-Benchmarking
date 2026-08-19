@@ -65,6 +65,7 @@ def _worker(worker_index: int, worker_count: int, cfg: RunConfig, run_id: str,
             recipients=adapter_spec["recipients"],
             chain_id=adapter_spec["chain_id"],
             gas_price_wei=adapter_spec["gas_price_wei"],
+            spread_submissions=adapter_spec.get("spread_submissions", False),
         )
 
         store = Store(db_path)

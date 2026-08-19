@@ -83,12 +83,13 @@ class PolygonAdapter(Adapter):
 
     def __init__(
         self,
-        rpc_url: str,
+        rpc_url: str | list[str],
         token_address: str,
         sender_keys: list[str],
         recipients: list[str],
         chain_id: int,
         gas_price_wei: int = 1_000_000_000,
+        spread_submissions: bool = False,
     ):
         """
         Args:
@@ -102,7 +103,50 @@ class PolygonAdapter(Adapter):
                 *consumed*, priced against real mainnet rates later
                 (ANALYSIS_PLAN.md S6.3).
         """
-        self.rpc_url = rpc_url
+        # ONE ENDPOINT OR SEVERAL.
+        #
+        # A plain string keeps every existing run byte-identical in behaviour:
+        # one endpoint, exactly as the published sweep was measured. A list
+        # spreads both submissions and receipt lookups across several nodes.
+        #
+        # WHY THE LIST OPTION EXISTS (19 Aug 2026)
+        #
+        # Measuring where the work actually landed during a 300/sec run showed
+        # the node serving RPC at 84% busy while the three validators doing
+        # only consensus sat at 8-14% and the sending machine idled at 12%.
+        # The ceiling we had been attributing to the architecture was one
+        # node's request service. See POLYGON_RPC_BOTTLENECK.md.
+        #
+        # Using several endpoints is a CHANGE TO THE MEASURING INSTRUMENT, so
+        # runs that use it are not directly comparable with the published
+        # single-endpoint runs and must be labelled to say so. That is the
+        # whole reason both modes live in one adapter: the comparison has to
+        # be run on one cluster, switching only this.
+        # SUBMISSIONS AND SETTLEMENT CHECKS ARE SPREAD SEPARATELY, ON PURPOSE.
+        #
+        # The first attempt spread both, and it failed instantly: lag grew by
+        # 10 SECONDS at a load that had been clean at 0.1 ms. The cause is a
+        # real constraint, not a bug. Each sender wallet must send its
+        # payments strictly in order, so it holds a lock across the round trip
+        # to the node. Locally that round trip is a fraction of a millisecond;
+        # to Mumbai or Singapore it is about 250 ms. One wallet therefore
+        # drops from thousands of payments a second to roughly four, and 46
+        # wallets cannot make up the difference.
+        #
+        # Settlement checks have no such constraint -- they hold no lock and
+        # already run 64 at a time per node, so distance is absorbed by
+        # concurrency rather than multiplied by it.
+        #
+        # This split is also the sharper experiment. The suspicion is that the
+        # node is overwhelmed by SETTLEMENT CHECKING: roughly 300 lookups a
+        # second on top of tracking ~6,600 payments in flight. Moving only
+        # that away tests exactly the suspicion, without adding distance to
+        # the submission path and confounding the answer.
+        self.rpc_urls: list[str] = [rpc_url] if isinstance(rpc_url, str) else list(rpc_url)
+        if not self.rpc_urls:
+            raise ValueError("at least one RPC endpoint is required")
+        self.spread_submissions = spread_submissions
+        self.rpc_url = self.rpc_urls[0]
         self.token_address = AsyncWeb3.to_checksum_address(token_address)
         self.chain_id = chain_id
         self.gas_price_wei = gas_price_wei
@@ -110,6 +154,8 @@ class PolygonAdapter(Adapter):
         self._recipients = [AsyncWeb3.to_checksum_address(r) for r in recipients]
 
         self.w3: AsyncWeb3 | None = None
+        self._w3s: list[AsyncWeb3] = []
+        self._receipt_sems: list[asyncio.Semaphore] = []
         self._senders: list[_Sender] = []
         self._pending: dict[str, asyncio.Future] = {}
         self._watcher: asyncio.Task | None = None
@@ -133,46 +179,24 @@ class PolygonAdapter(Adapter):
     # -- lifecycle --------------------------------------------------------
 
     async def setup(self, context: dict[str, Any]) -> None:
-        provider = AsyncHTTPProvider(self.rpc_url)
-
-        # RAISE THE HTTP CONNECTION LIMIT.
-        #
-        # The underlying HTTP library defaults to 100 simultaneous connections
-        # per session. At 300 payments/second we ask for more than that: up to
-        # 64 concurrent receipt fetches plus in-flight submissions from ~64
-        # sender accounts, all to a single node.
-        #
-        # Exceeding the pool does not error -- requests simply WAIT for a free
-        # connection. That wait is indistinguishable from the chain responding
-        # slowly, so it would have been recorded as settlement latency. It is
-        # the same class of mistake as the serial receipt fetching: our own
-        # client queueing, reported as the architecture's behaviour.
         import aiohttp
-        session = aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(
-                limit=_HTTP_CONNECTION_LIMIT,
-                limit_per_host=_HTTP_CONNECTION_LIMIT,
-                ttl_dns_cache=300,
-            ),
-            timeout=aiohttp.ClientTimeout(total=30),
-        )
-        await provider.cache_async_session(session)
-
-        self.w3 = AsyncWeb3(provider)
-
-        # REQUIRED for proof-of-authority chains, which Polygon Edge is.
-        #
-        # PoA consensus stores validator signatures in each block header's
-        # extraData field, making it far longer than the 32 bytes Ethereum's
-        # spec allows. Without this middleware, web3 rejects every block as
-        # malformed -- so no settlement is ever detected, every payment times
-        # out at 60 seconds, and the run reports 100% failure.
-        #
-        # That failure mode is dangerous precisely because it looks like a
-        # finding: "the architecture failed every transaction" is a plausible
-        # sentence. It was our client refusing to read the blocks.
         from web3.middleware import ExtraDataToPOAMiddleware
-        self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+
+        # One independent connection to each endpoint. Independent on purpose:
+        # sharing a session would funnel every request through one connection
+        # pool and reintroduce, on our side, exactly the single-chokepoint
+        # behaviour this is meant to remove from the node's side.
+        self._w3s = []
+        self._receipt_sems = []
+        for url in self.rpc_urls:
+            w3 = await self._connect(url, aiohttp, ExtraDataToPOAMiddleware)
+            self._w3s.append(w3)
+            # A semaphore PER ENDPOINT, not one shared across them, so each
+            # node sees the same bounded concurrency it saw when there was
+            # only one. Aggregate throughput rises because there are more
+            # nodes, not because we lean harder on each.
+            self._receipt_sems.append(asyncio.Semaphore(_RECEIPT_CONCURRENCY))
+        self.w3 = self._w3s[0]
 
         actual_chain_id = await self.w3.eth.chain_id
         if actual_chain_id != self.chain_id:
@@ -180,6 +204,10 @@ class PolygonAdapter(Adapter):
                 f"connected to chain {actual_chain_id}, expected {self.chain_id} -- "
                 f"wrong network, refusing to run"
             )
+        if len(self._w3s) > 1:
+            where = "submissions and settlement checks" if self.spread_submissions \
+                else "settlement checks only (submissions stay on the nearest node)"
+            print(f"[polygon] spread across {len(self._w3s)} endpoints: {where}")
 
         # Each account's on-chain nonce is fetched once. After this we track it
         # locally: asking the node before every send would double our request
@@ -200,6 +228,48 @@ class PolygonAdapter(Adapter):
         self._last_block = await self.w3.eth.block_number
         self._pending = {}
         self._watcher = asyncio.create_task(self._watch_blocks())
+
+    async def _connect(self, url: str, aiohttp, poa_middleware) -> AsyncWeb3:
+        """Open one configured connection to a single node."""
+        provider = AsyncHTTPProvider(url)
+
+        # RAISE THE HTTP CONNECTION LIMIT.
+        #
+        # The underlying HTTP library defaults to 100 simultaneous connections
+        # per session. At 300 payments/second we ask for more than that: up to
+        # 64 concurrent receipt fetches plus in-flight submissions from ~64
+        # sender accounts, all to a single node.
+        #
+        # Exceeding the pool does not error -- requests simply WAIT for a free
+        # connection. That wait is indistinguishable from the chain responding
+        # slowly, so it would have been recorded as settlement latency. It is
+        # the same class of mistake as the serial receipt fetching: our own
+        # client queueing, reported as the architecture's behaviour.
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=_HTTP_CONNECTION_LIMIT,
+                limit_per_host=_HTTP_CONNECTION_LIMIT,
+                ttl_dns_cache=300,
+            ),
+            timeout=aiohttp.ClientTimeout(total=30),
+        )
+        await provider.cache_async_session(session)
+
+        w3 = AsyncWeb3(provider)
+
+        # REQUIRED for proof-of-authority chains, which Polygon Edge is.
+        #
+        # PoA consensus stores validator signatures in each block header's
+        # extraData field, making it far longer than the 32 bytes Ethereum's
+        # spec allows. Without this middleware, web3 rejects every block as
+        # malformed -- so no settlement is ever detected, every payment times
+        # out at 60 seconds, and the run reports 100% failure.
+        #
+        # That failure mode is dangerous precisely because it looks like a
+        # finding: "the architecture failed every transaction" is a plausible
+        # sentence. It was our client refusing to read the blocks.
+        w3.middleware_onion.inject(poa_middleware, layer=0)
+        return w3
 
     async def health_check(self) -> bool:
         """Refuse to start a run that would produce meaningless data."""
@@ -236,11 +306,16 @@ class PolygonAdapter(Adapter):
                 future.cancel()
         self._pending.clear()
 
-        if self.w3 is not None:
-            provider = self.w3.provider
+        # Close EVERY endpoint, not just the first. A leaked session holds its
+        # connections open, and across a 12-run sweep that accumulates into
+        # sockets the next run cannot use.
+        for w3 in self._w3s:
+            provider = w3.provider
             if hasattr(provider, "disconnect"):
                 await provider.disconnect()
-            self.w3 = None
+        self._w3s = []
+        self._receipt_sems = []
+        self.w3 = None
 
     # -- the measured path ------------------------------------------------
 
@@ -273,7 +348,13 @@ class PolygonAdapter(Adapter):
             }
             try:
                 signed = Account.sign_transaction(tx, sender.key)
-                tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                # Submissions stay on the nearest node unless explicitly told
+                # otherwise. This send happens while holding the wallet's
+                # ordering lock, so its round-trip time directly caps how fast
+                # that wallet can pay -- see the note in __init__.
+                w3 = (self._w3s[seq % len(self._w3s)]
+                      if self.spread_submissions else self._w3s[0])
+                tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
             except Exception as exc:
                 # Roll the counter back. Leaving a gap would stall every
                 # subsequent payment from this account behind a nonce that
@@ -422,14 +503,28 @@ class PolygonAdapter(Adapter):
         # requests at a single node would create exactly the client-side
         # congestion this is trying to avoid, and could be mistaken for the
         # chain slowing down.
-        sem = asyncio.Semaphore(_RECEIPT_CONCURRENCY)
-
-        async def fetch(tx_hash):
-            async with sem:
+        # SPREAD ACROSS ENDPOINTS, each with its own concurrency budget.
+        #
+        # With one endpoint configured this behaves exactly as before. With
+        # several, receipt lookups are dealt round-robin, so each node handles
+        # roughly a 1/N share and keeps the same bounded concurrency it had
+        # when it was handling everything.
+        #
+        # Receipt lookups are the dominant cost here: at 300 payments/sec with
+        # ~2-second blocks, roughly 600 of our transactions land per block, so
+        # this path issues ~300 requests/sec on top of the submissions. That
+        # is what pinned one node at 84% while three others idled.
+        #
+        # A receipt is readable from ANY node once the transaction is in a
+        # block, so which node answers does not change the result -- only who
+        # does the work.
+        async def fetch(index: int, tx_hash):
+            w3 = self._w3s[index % len(self._w3s)]
+            async with self._receipt_sems[index % len(self._receipt_sems)]:
                 try:
-                    return dict(await self.w3.eth.get_transaction_receipt(tx_hash))
+                    return dict(await w3.eth.get_transaction_receipt(tx_hash))
                 except Exception:
                     return None
 
-        results = await asyncio.gather(*(fetch(h) for h in wanted))
+        results = await asyncio.gather(*(fetch(i, h) for i, h in enumerate(wanted)))
         return [r for r in results if r is not None]
