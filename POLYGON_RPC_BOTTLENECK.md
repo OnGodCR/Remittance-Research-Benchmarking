@@ -274,6 +274,68 @@ running a long sweep on one chain, and every benchmark of this kind has them.
 They matter because the number produced was then described as an architectural
 ceiling.
 
+## 5d. THE REPEATED MEASUREMENT — 5 repeats, computed from the raw data
+
+The §5b result was one run per condition. This is the repeated version, 35
+runs collected 19 Aug 2026, every figure recomputed from
+`data/raw/all_runs_raw.parquet` under the pre-registered rules (10-second
+warm-up discarded, success means settled within 60 seconds) rather than read
+off the console.
+
+### The control did its job
+
+| 200/sec | Valid runs | Achieved | Range | Failures |
+|---|---|---|---|---|
+| One endpoint | 5 | 200.9 | 198.7–202.5 | **0.00%** |
+| Four endpoints | 5 | **200.9** | **198.7–202.5** | **0.00%** |
+
+Identical means, identical ranges, zero failures on both sides. At a load
+where nothing is under strain, the two arms are indistinguishable — which is
+the only thing that makes the 300/sec difference interpretable.
+
+That control failed twice during collection and both failures were bugs of
+ours, not the chain's: receipt lookups racing ahead of block propagation, and
+a run starting before the previous one's queue had drained. Neither would have
+been visible without a check that could fail.
+
+### At 300/sec the single endpoint produces no usable measurement at all
+
+| 300/sec | Valid runs | Invalid | Achieved | Failures |
+|---|---|---|---|---|
+| One endpoint | **0** | **6** | — | — |
+| Four endpoints | **5** | 1 | **300.4** (298.3–302.2) | **0.00%** |
+
+Every single-endpoint run at 300/sec auto-invalidated: the sending program
+fell 272–709 ms behind its own schedule, against a 50 ms limit, in all five
+repeats. Four endpoints held 0.1–0.2 ms every time.
+
+**Where both arms produced a number before invalidation, that number was
+identical** — 299.7, 301.1, 298.5, 300.7, 302.0 in matched pairs, with zero
+failures on both sides. The chain was never the constraint at this load. Only
+our ability to observe it was.
+
+**300.4 payments/sec with zero failures, on 4-processor validators, against
+the published 270.5/sec with 9.97% failures on 8-processor ones.**
+
+### The collapse, five repeats each
+
+| Offered | Achieved | Range | Failures |
+|---|---|---|---|
+| 300 | **300.4** | 298.3–302.2 | 0.00% |
+| 400 | 209.8 | 166.0–236.2 | 47.4% |
+| 500 | 141.2 | 134.6–153.0 | 63.8% |
+| 600 | 110.0 | 101.0–119.9 | 69.3% |
+
+Peak is at or above 300; at twice that offered load the chain delivers 110/sec
+— **37% of peak**. Polygon collapses. The knee is somewhere between 300 and
+400 and is being measured separately.
+
+Note the ranges. 300/sec reproduces within 1.3%, and 400/sec within 34%. The
+region immediately past the knee is not merely slower but markedly less
+predictable, which for a payment system is the harder property to design
+around: an operator can size for a firm ceiling, not for one that varies by a
+third between identical runs.
+
 ## 6. What is NOT affected
 
 - The 100/sec and 200/sec runs, in both queue settings, completed cleanly with

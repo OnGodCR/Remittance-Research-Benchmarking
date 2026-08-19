@@ -1,20 +1,20 @@
 ========================================================================
-Exclusion log -- generated 2026-08-13 08:13:16 UTC
+Exclusion log -- generated 2026-08-19 10:42:31 UTC
 ========================================================================
 
 Rules were locked in ANALYSIS_PLAN.md S7 on 7 Aug 2026, before any data
 existed. Nothing here was deleted: every excluded run remains in
 data/raw/all_runs_raw.parquet, flagged.
 
-Payments in raw   : 15,438,089 across 498 runs
+Payments in raw   : 22,463,860 across 590 runs
 Payments in clean : 9,579,098 across 293 runs
-Excluded          : 5,858,991 payments
+Excluded          : 12,884,762 payments
 
 ------------------------------------------------------------------------
 [non-result phase]
   scope   : run
   target  : capacity-check
-  affected: 14
+  affected: 21
   reason  : capacity-check validates the pipeline; its numbers are not findings
 
 [non-result phase]
@@ -76,6 +76,78 @@ Excluded          : 5,858,991 payments
   target  : phase-4-smoke
   affected: 1
   reason  : phase-4-smoke validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-endpoint-1
+  affected: 1
+  reason  : phase-6-endpoint-1 validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-endpoint-4
+  affected: 1
+  reason  : phase-6-endpoint-4 validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-endpoint-ramp
+  affected: 3
+  reason  : phase-6-endpoint-ramp validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-endpoints-four
+  affected: 29
+  reason  : phase-6-endpoints-four validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-endpoints-one
+  affected: 13
+  reason  : phase-6-endpoints-one validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-fallback-check
+  affected: 2
+  reason  : phase-6-fallback-check validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-multiendpoint-smoke
+  affected: 2
+  reason  : phase-6-multiendpoint-smoke validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-txpool-default
+  affected: 15
+  reason  : phase-6-txpool-default validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-txpool-default-g16
+  affected: 1
+  reason  : phase-6-txpool-default-g16 validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-txpool-enlarged
+  affected: 15
+  reason  : phase-6-txpool-enlarged validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-txpool-enlarged-g16
+  affected: 2
+  reason  : phase-6-txpool-enlarged-g16 validates the pipeline; its numbers are not findings
+
+[non-result phase]
+  scope   : run
+  target  : phase-6-txpool-smoke
+  affected: 1
+  reason  : phase-6-txpool-smoke validates the pipeline; its numbers are not findings
 
 [non-result phase]
   scope   : run
