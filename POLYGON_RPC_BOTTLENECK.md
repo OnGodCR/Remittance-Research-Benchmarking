@@ -336,6 +336,59 @@ predictable, which for a payment system is the harder property to design
 around: an operator can size for a firm ceiling, not for one that varies by a
 third between identical runs.
 
+## 5e. WHERE THE KNEE ACTUALLY IS — 20 runs, 5 repeats per step
+
+Every published statement puts Polygon's knee at 300 payments/sec. That was
+never measured as a knee: 300 was simply the top of the pre-registered ramp,
+so it is the last point before the data stops, not the point where the
+architecture stops. With the endpoint bottleneck removed, 300/sec turned out
+to be comfortably clean, so the knee had to be found rather than assumed.
+
+Measured 19 Aug 2026, four endpoints, 5 repeats each, computed from
+`data/raw/all_runs_raw.parquet` under the pre-registered rules:
+
+| Offered | Achieved | Range | Mean failures | Worst run |
+|---|---|---|---|---|
+| **320** | **320.5** | 319.0–322.3 | **0.00%** | **0.00%** |
+| 340 | 337.9 | 331.5–340.1 | 0.70% | 2.61% |
+| 360 | 286.2 | **242.5–351.4** | 20.44% | 32.63% |
+| 380 | 235.1 | 192.0–276.6 | 38.24% | 49.82% |
+
+**320/sec is the highest load that is reliably perfect**: five runs, zero
+failed payments in any of them, throughput within 3.3/sec across repeats.
+
+**340/sec still works but is no longer perfect** — 0.70% of payments lost on
+average, and one repeat lost 2.61%.
+
+**360/sec is where it becomes a coin flip.** Across five identical runs
+throughput ranged from 242.5 to 351.4 — a **45% swing at the same offered
+load** — with failures from a few percent to a third. One repeat nearly kept
+up; two lost a third of everything.
+
+**380/sec is reliably broken**, though still noisy.
+
+### The shape matters more than the number
+
+An earlier note in this document called the knee "a sharp cliff" on the
+strength of one repeat. Five repeats show something different and more useful:
+there is no clean threshold. There is a **band from roughly 340 to 380 where
+behaviour becomes unpredictable**, sitting between a deterministic clean
+region below and a deterministic broken region above.
+
+For a remittance system that band is the dangerous part. A benchmark run once
+at 360/sec could report 351/sec and 2% failures — which reads as healthy — or
+242/sec and 33% failures, which reads as collapse. Both are true. An operator
+sizing capacity from a single measurement in that region would be badly
+misled, in either direction.
+
+**Revised headline for the paper.** On this cluster Polygon Edge sustains
+**320 payments/sec with zero failures**, degrades slightly to 340, and becomes
+unstable above that. The published figure of 270.5/sec with 9.97% failures at
+300 offered describes the single-endpoint measurement setup, not the
+architecture. These are 4-processor validators against the published 8, so the
+absolute numbers are this deployment's, but they are a floor rather than a
+ceiling: better hardware would not be expected to do worse.
+
 ## 6. What is NOT affected
 
 - The 100/sec and 200/sec runs, in both queue settings, completed cleanly with
