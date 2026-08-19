@@ -100,9 +100,60 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
+# ---------------------------------------------------------------------------
+# WAIT FOR THE CHAIN'S QUEUE TO DRAIN BEFORE THE NEXT MEASURED RUN.
+#
+# WHY THIS HAD TO BE ADDED (19 Aug 2026, after it corrupted a run)
+#
+# A 300-second run at 600/sec offers 180,000 payments to a chain that can
+# settle about 100/sec. It ends with a queue of well over a hundred thousand
+# transactions still waiting. The next run then starts on a chain that is
+# still chewing through the previous one.
+#
+# That is exactly what happened. Repeat 1's first run -- a 200/sec control
+# that had been perfectly clean in repeat 0 (199.1/sec, zero failures) --
+# came back at 171.0/sec with 9,452 timeouts, with 8,200 payments in flight
+# where a few hundred would be normal. Nothing was wrong with the endpoints or
+# the chain: it was still draining repeat 0's 600/sec run.
+#
+# Without this wait the experiment would have blamed the endpoint count for a
+# queue left behind by the previous load step -- and because the arms
+# alternate, whichever arm happened to follow a 600/sec run would look worse.
+#
+# The threshold is a level, not zero: background traffic runs continuously by
+# design and keeps a few hundred transactions pending at all times. Zero would
+# never arrive.
+#
+# NOTE FOR THE WRITE-UP: the published sweep ran its loads low-to-high with no
+# drain between them, so its high-load runs inherited whatever the previous
+# step left behind. That is consistent with the 562ms absolute scheduling lag
+# measured in the published 300/sec runs against 63.8ms at 200/sec.
+# ---------------------------------------------------------------------------
+drain_wait() {
+  local threshold=1000 waited=0 cap=900 pending
+  local node
+  node=$(cd "$REPO/terraform/phase2" && tofu output -json validator_private_ips 2>/dev/null \
+         | python3 -c "import sys,json;print(json.load(sys.stdin)[0])")
+  while [ "$waited" -lt "$cap" ]; do
+    pending=$(gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
+      --command "curl -s -m 10 -X POST -H 'Content-Type: application/json' \
+        --data '{\"jsonrpc\":\"2.0\",\"method\":\"txpool_status\",\"params\":[],\"id\":1}' \
+        http://${node}:8545 | python3 -c 'import sys,json;d=json.load(sys.stdin)[\"result\"];print(int(d[\"pending\"])+int(d[\"queued\"]))'" \
+      < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=30 2>/dev/null | tail -1)
+    case "$pending" in (''|*[!0-9]*) pending=0 ;; esac
+    if [ "$pending" -le "$threshold" ]; then
+      [ "$waited" -gt 0 ] && note "queue drained to $pending after ${waited}s"
+      return 0
+    fi
+    sleep 20; waited=$((waited + 20))
+  done
+  note "WARNING: queue still at $pending after ${cap}s -- continuing anyway, flag this run"
+}
+
 one_run() {  # arm(one|four), tps, repeat
   local arm="$1" tps="$2" r="$3" flag=""
   [ "$arm" = "four" ] && flag="--rpc-urls '$ENDPOINTS'"
+  drain_wait
   log "repeat $r / $arm endpoint(s) / $tps per second"
   gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
     --command "cd /opt/benchmark && ./.venv/bin/python -m harness.cli run \
