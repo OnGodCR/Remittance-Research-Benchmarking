@@ -72,7 +72,7 @@ class NearAdapter(Adapter):
 
     def __init__(
         self,
-        rpc_url: str,
+        rpc_url: str | list[str],
         token_contract: str,
         sender_keys: list[dict[str, str]],
         recipients: list[str],
@@ -85,7 +85,40 @@ class NearAdapter(Adapter):
         would queue its own sends and the measured ceiling would be our client,
         not the chain. That mistake produced Polygon's phantom throughput knee.
         """
-        self._rpc_url = rpc_url
+        # ONE ENDPOINT, OR SEVERAL FOR SETTLEMENT CHECKS ONLY.
+        #
+        # A plain string is the published behaviour, unchanged: everything goes
+        # to one node. A list spreads the SETTLEMENT POLLING across nodes while
+        # payments still go out through the nearest one.
+        #
+        # WHY (19 Aug 2026). On Polygon, measuring where the work landed during
+        # a 300/sec run found the node answering RPC at 84% busy while the three
+        # validators doing only consensus sat at 8-14%. Spreading the settlement
+        # checks took that cluster from 274.9/sec (invalid, the sender fell
+        # 228ms behind schedule) to 290.5/sec clean -- beating the published
+        # figure on half the validator hardware. See POLYGON_RPC_BOTTLENECK.md.
+        #
+        # NEAR has the same shape and worse. `await_confirmation` polls EVERY
+        # payment repeatedly until it reads FINAL, and it did so through
+        # `self._accounts[0]._provider` -- one node. At 150/sec with ~10s
+        # settlement that is roughly 1,500 payments being asked about over and
+        # over, all at the same node, on top of submissions and block
+        # production. NEAR's measured 150/sec ceiling and its collapse past that
+        # may be the same artefact, and this is what tests it.
+        #
+        # SUBMISSIONS DELIBERATELY DO NOT SPREAD. NEAR orders transactions per
+        # access key by nonce, so a sender holds its ordering lock across the
+        # submit round trip. Sending that to another continent caps one sender
+        # at roughly four payments a second; on Polygon this produced ten
+        # SECONDS of scheduling lag at a load that was otherwise clean. The
+        # constraint is identical here.
+        self._rpc_urls: list[str] = [rpc_url] if isinstance(rpc_url, str) else list(rpc_url)
+        if not self._rpc_urls:
+            raise ValueError("at least one RPC endpoint is required")
+        self._rpc_url = self._rpc_urls[0]
+        self._poll_providers: list[Any] = []
+        self._poll_seq = 0
+        self._probe_accounts: list[Any] = []
         self._token = token_contract
         self._sender_keys = sender_keys
         self._recipients = recipients
@@ -135,6 +168,7 @@ class NearAdapter(Adapter):
 
     async def setup(self, context: dict[str, Any]) -> None:
         self._accounts = []
+        self._probe_accounts = []
         for key in self._sender_keys:
             acct = Account(key["account_id"], key["private_key"], rpc_addr=self._rpc_url)
             await acct.startup()
@@ -151,6 +185,28 @@ class NearAdapter(Adapter):
                 acct._access_key_nonce[pk], access_key.nonce)
 
             self._accounts.append(acct)
+
+        # ONE POLLING CONNECTION PER ENDPOINT.
+        #
+        # Built from throwaway Account objects purely to obtain their providers:
+        # py-near does not expose a bare provider constructor, and reusing a
+        # SENDER's connection for polling would put settlement checks back on
+        # the same sockets as submissions, which is what this separates.
+        #
+        # Endpoint 0's provider is the sender path's own, so it is reused rather
+        # than duplicated -- with one endpoint configured this list is exactly
+        # [the existing provider] and behaviour is byte-identical to before.
+        self._poll_providers = [self._accounts[0]._provider]
+        probe_key = self._sender_keys[0]
+        for url in self._rpc_urls[1:]:
+            probe = Account(probe_key["account_id"], probe_key["private_key"], rpc_addr=url)
+            await probe.startup()
+            self._poll_providers.append(probe._provider)
+            self._probe_accounts.append(probe)
+        if len(self._poll_providers) > 1:
+            print(f"[near] settlement checks spread across "
+                  f"{len(self._poll_providers)} endpoints "
+                  f"(submissions stay on the nearest node)")
 
         # Read the shard boundaries so every transfer can be classified as
         # same-shard or cross-shard. See `_shard_of` for why this matters more
@@ -170,12 +226,16 @@ class NearAdapter(Adapter):
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()
-        for acct in self._accounts:
+        for acct in self._accounts + self._probe_accounts:
             try:
                 await acct._provider.shutdown()
             except Exception:                      # noqa: BLE001 - teardown must not raise
                 pass
         self._accounts.clear()
+        # Leaked polling connections would accumulate across a sweep and the
+        # next run would start with fewer usable sockets than it thinks.
+        self._probe_accounts.clear()
+        self._poll_providers.clear()
 
     async def health_check(self) -> bool:
         """Three things must hold before a run is worth starting.
@@ -440,7 +500,16 @@ class NearAdapter(Adapter):
         except Exception as exc:                   # noqa: BLE001
             return ConfirmResult(status="failed", error=f"{type(exc).__name__}: {exc}")
 
-        provider = self._accounts[0]._provider
+        # Rotate which node answers this payment's settlement checks. With one
+        # endpoint this is always the same provider, unchanged. The choice is
+        # per PAYMENT rather than per attempt, so a payment's repeated polls all
+        # go to one node and cannot be answered inconsistently mid-flight by
+        # nodes at different heights.
+        #
+        # Finality is a property of the chain, not of a node, so any node can
+        # answer -- only who does the work changes.
+        self._poll_seq += 1
+        provider = self._poll_providers[self._poll_seq % len(self._poll_providers)]
 
         # WHY THE LAST RPC ERROR IS KEPT.
         #
