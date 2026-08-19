@@ -210,6 +210,50 @@ payments in, which converts refusals into stuck payments. The measurement
 method changes which failure mode is observed, and that must be stated
 whenever either failure mode is reported.
 
+## 5c. A SECOND drift: the chain gets slower as it grows
+
+Noticed 19 Aug 2026 while the repeated measurement was running. The 400/sec
+runs, in the order they were measured on one continuously-running chain:
+
+| Order | Achieved | Chain size when run |
+|---|---|---|
+| 1st (repeat 0) | 241.3/sec | smaller |
+| 2nd (repeat 1) | 232.2/sec | ~1.2 GB |
+| 3rd (repeat 2) | **173.7/sec** | ~1.3 GB, 12,600 blocks |
+
+All three runs held their schedule (slip under 0.3 ms), so this is the chain,
+not our tooling. The likeliest cause is state growth: every payment adds to
+the structure the node must search, and Polygon Edge slows as that grows.
+
+**What this protects and what it does not.**
+
+The one-endpoint versus four-endpoint comparison is SAFE: the two arms
+alternate *within* each repeat, minutes apart on a chain of essentially the
+same size, so growth affects both equally and cancels. That is the same
+property that made the alternating design worth the extra restarts.
+
+The collapse curve is NOT safe to average across repeats, because later
+repeats ran on a bigger chain. It should be reported either per repeat with
+the chain size stated, or as a range with the drift disclosed. Averaging the
+three 400/sec figures into "236/sec" would hide a 28% spread that has a known
+cause.
+
+**And it bears on the published study.** The published sweep ran 140 runs on
+one continuously-growing chain, in a fixed low-to-high load order. So its
+high-load runs were measured last, on the biggest chain, immediately after the
+heaviest preceding step. Three separate mechanisms therefore push the
+published 300/sec figure DOWN relative to what the architecture can do:
+
+1. every settlement check funnelled through one node (§2-§5b),
+2. no drain between runs, so each inherited the previous queue (see the note
+   in `scripts/run_endpoint_ab.sh`),
+3. chain-state growth over the sweep, measured here.
+
+None of them were errors at the time -- they are ordinary consequences of
+running a long sweep on one chain, and every benchmark of this kind has them.
+They matter because the number produced was then described as an architectural
+ceiling.
+
 ## 6. What is NOT affected
 
 - The 100/sec and 200/sec runs, in both queue settings, completed cleanly with
