@@ -85,6 +85,53 @@ This is the auditor's objection landing, just not where anyone expected: the
 suspect setting was the transaction queue, and the actual constraint was the
 endpoint in front of it.
 
+## 4b. What the PUBLISHED dataset shows when you look for the same strain
+
+Two checks were run against the study's own database, 19 Aug 2026.
+
+**First, the saturation rule was re-applied to all 498 runs in the study.**
+Zero verdicts changed. The criterion has been applied uniformly and the
+published dataset is internally consistent under it. No published run is
+invalid on this measure.
+
+**Second, absolute scheduling lag was measured, not just its growth.** The
+rule tests whether lag GROWS across a run, deliberately: lag that is large but
+steady shifts every submission by the same offset and does not reduce the
+offered rate, whereas lag that grows means the sender is losing ground. That
+logic is sound. But it means a run can sit permanently far behind schedule and
+still pass.
+
+Published `phase-2-full-stack` runs, valid, $200:
+
+| Offered | Runs | Lag growth | **Absolute p95 lag** |
+|---|---|---|---|
+| 200/sec | 32 | 0.0 ms | **63.8 ms** |
+| 300/sec | 30 | 0.6 ms | **562.8 ms** |
+
+At 300/sec the published runs were submitting roughly **half a second behind
+schedule**, nearly nine times the lag at 200/sec, while passing the growth
+test with 0.6 ms to spare.
+
+This does **not** invalidate them. The rule was pre-registered, it was applied
+correctly, and changing a rule after seeing which runs it would exclude is the
+exact practice the analysis plan exists to prevent. The figures reproduce: the
+published 270.5/sec at 300 offered recomputes from the raw database to 270.5.
+
+What it does show is that the published 300/sec runs were measured on an
+instrument under visible strain, and that the strain appears exactly where
+this document says the bottleneck is. Taken with the direct measurement in
+§5b, the three numbers line up:
+
+| Configuration | Validators | Endpoints | Achieved at 300 offered |
+|---|---|---|---|
+| Published | 8 processors | 1 | 270.5/sec (p95 lag 563 ms) |
+| Tonight | 4 processors | 1 | 274.9/sec (saturated, invalid) |
+| Tonight | 4 processors | 4 | **290.5/sec** (p95 lag ~0) |
+
+Halving the validators changed nothing. Spreading the settlement checks
+changed everything. That is the signature of a limit that lives in one node's
+request service rather than in consensus or block capacity.
+
 ## 5. The test that would settle it
 
 Spread submissions and receipt polling across all four validators' RPC

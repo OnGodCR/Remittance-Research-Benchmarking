@@ -457,3 +457,78 @@ A six-angle literature and network-data sweep was run to establish whether Light
 **6. Four widely-circulated figures identified as uncitable**, and recorded so they are not picked up later: the "~80% success for $500+" series (no primary source), "Stadelmann (2023), 50% success" (**attributed to a real paper that contains no such claim — apparently fabricated**), the "8.6 second median" (untraceable), and a Voltage iGaming pilot claim (unverified). That such figures circulate is itself reportable: the Lightning performance literature is thin enough that secondary sources have filled the gap with numbers that do not exist.
 
 **7. Remittance deployment evidence is weaker than the narrative.** El Salvador's 0.70% crypto-remittance share (Jan–Apr 2026) is an undifferentiated **"crypto wallet" central-bank category with no Lightning breakout**. Alvarez, Argente & Van Patten (*Science*, 2023, n=1,800) find the barrier is demand-side: of Chivo downloaders, 3% received remittances in bitcoin and 89% received none. Chipper Cash claims 50% of its Bitcoin traffic runs on Lightning but publishes no performance data of any kind. River states remittances were **not** a driver of Lightning growth.
+
+---
+
+### Amendment 14 — 19 Aug 2026: Polygon's measured ceiling is a single-endpoint limit; the "graceful degradation" contrast is withdrawn
+
+**What prompted it.** A supplementary test was run to answer an auditor's
+objection that the ~270 payments/sec Polygon ceiling might be an artefact of a
+transaction-queue size we never tuned. It found something else. Measuring
+where the work actually landed during a 300/sec run showed the node serving
+JSON-RPC at 84% busy while the three validators doing only consensus sat at
+8–14% and the sending machine idled at 12%. Full evidence in
+`POLYGON_RPC_BOTTLENECK.md`.
+
+**Four changes follow, and all four affect published claims.**
+
+**1. The ceiling is re-described, not re-measured.** On one cluster, changing
+only where settlement checks are sent: 274.9/sec through one node (invalid,
+the sender fell 228.6 ms behind) against **290.5/sec across four** (clean,
+0.3 ms). That is on 4-processor validators, beating the published 270.5/sec
+measured on 8-processor ones. Halving the validators changed nothing;
+spreading the settlement checks changed everything.
+
+Wherever the paper says Polygon Edge sustains ~270 payments/sec, it must say
+**the measured throughput of this deployment**, with the single-endpoint
+design stated. It is not established as a property of the sidechain
+architecture, and the architecture's real ceiling is higher and unmeasured.
+
+**2. The "Polygon degrades gracefully, NEAR collapses" contrast is
+withdrawn.** With the bottleneck relieved the ramp was pushed past 300 for the
+first time: 290.5 → 202.5 → 108.3 → 96.5 at 300/400/500/600 offered, every run
+holding its schedule. Polygon collapses to a third of peak. The published
+contrast was drawn from a ramp that stopped at 300/sec — Polygon's knee, not
+past it — so "graceful degradation past the knee" described a region never
+measured. Both architectures collapse. NEAR's is steeper (≈7% of peak at twice
+peak offered against Polygon's 33%), so a difference in degree survives and
+should be reported as such.
+
+**3. The failure-mode claim is conditioned on the measurement method.** The
+published finding that *every* Polygon failure was a submission rejection
+holds for the single-endpoint configuration. With settlement checks spread,
+the same cluster at 300/sec produced **zero** rejections and 2,758 payments
+accepted-then-unsettled; by 600/sec rejections dominate again. Relieving the
+bottleneck admits more payments and converts refusals into stuck payments.
+Either failure mode may now only be reported alongside the configuration that
+produced it.
+
+**4. A blind spot in the saturation rule is disclosed, and the rule is NOT
+changed.** The criterion tests whether scheduling lag *grows* across a run.
+Re-applying it to all 498 runs changed zero verdicts, so it has been applied
+uniformly. But absolute lag was never tested, and the published
+`phase-2-full-stack` 300/sec runs sat at **562.8 ms p95 absolute lag** against
+63.8 ms at 200/sec, while passing the growth test with 0.6 ms to spare.
+
+The rule stands. It was pre-registered, it was applied correctly, its logic is
+defensible — steady lag offsets every submission equally and does not reduce
+the offered rate, whereas growing lag means ground is being lost — and
+changing a rule after seeing which runs it would exclude is precisely what
+pre-registration exists to prevent. The published figures reproduce exactly
+from the raw database (270.5/sec at 300 offered). The absolute-lag numbers are
+disclosed here as a limitation so a reviewer meets them in our own words.
+
+**Status of the supplementary runs.** All exploratory: one run per load level,
+4-processor validators rather than the published 8, and a changed measuring
+instrument. They are sufficient to establish that the published framing is
+wrong and insufficient to replace the numbers. Recorded under phases
+`phase-6-endpoint-1`, `phase-6-endpoint-4` and `phase-6-endpoint-ramp`, and
+excluded from results.
+
+**The waiting-room (txpool) experiment that prompted all this is abandoned as
+designed.** Beyond the bottleneck making it unmeasurable at 300/sec, it
+carried a selection flaw worth recording: the enlarged queue accepts payments
+the default refuses, so it generates more settlement checks, so it is more
+likely to trip the saturation rule and be excluded. The treatment influences
+the probability of exclusion, so comparing survivors is biased and no number
+of repeats fixes it.

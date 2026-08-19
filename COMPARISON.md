@@ -73,7 +73,7 @@ last three steps is **0.15% → 76.3% → 96.7%**.
 
 | | Past the knee | Behaviour |
 |---|---|---|
-| **Polygon** | 300 offered → 270.5 achieved, 10.0% fail | **degrades gracefully** |
+| **Polygon** | 300 offered → 270.5 achieved, 10.0% fail | ~~degrades gracefully~~ **WITHDRAWN 19 Aug — collapses too** ‡ |
 | **NEAR** | 200 offered → 47.5 achieved, 76.3% fail | **collapses** |
 
 NEAR's failure rate goes 0.15% (150/sec) → 76.3% (200) → 96.7% (300). The
@@ -300,3 +300,29 @@ consensus timing, the rule selects Polygon Edge."*
 | Calibration ratios | `analysis/calibration.py` |
 | Shard projection | `analysis/shard_scaling.py` |
 | Every exclusion | `data/clean/exclusions.log` |
+
+
+---
+
+## ‡ The degradation-shape comparison is withdrawn (19 Aug 2026)
+
+Polygon's ramp stopped at 300/sec, which is its knee — not past it. Pushed
+further, with the single-endpoint bottleneck relieved:
+
+| Offered | 300 | 400 | 500 | 600 |
+|---|---|---|---|---|
+| Achieved | 290.5 | 202.5 | 108.3 | 96.5 |
+
+Polygon falls to a third of peak. It does not degrade gracefully; that
+conclusion described a region never measured.
+
+**A difference in degree survives and is still worth reporting.** At twice
+peak offered, NEAR delivers ≈7% of its peak and Polygon ≈33%. So NEAR's
+collapse is roughly five times steeper. But the qualitative contrast — one
+architecture degrading gently while the other falls apart — is not supported.
+
+Polygon's ceiling itself is also re-described: 290.5/sec on four endpoints and
+HALF the validator hardware, against 270.5/sec published on one endpoint. See
+`POLYGON_RPC_BOTTLENECK.md` and ANALYSIS_PLAN.md amendment 14. The
+supplementary runs are exploratory — one run per load — sufficient to show the
+published framing is wrong, insufficient to replace the numbers.
