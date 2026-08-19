@@ -222,8 +222,27 @@ runs, in the order they were measured on one continuously-running chain:
 | 3rd (repeat 2) | **173.7/sec** | ~1.3 GB, 12,600 blocks |
 
 All three runs held their schedule (slip under 0.3 ms), so this is the chain,
-not our tooling. The likeliest cause is state growth: every payment adds to
-the structure the node must search, and Polygon Edge slows as that grows.
+not our tooling.
+
+**State growth was the first explanation, and the next data point weakened
+it.** If a growing chain were the driver, every load level should drift down
+together. Measured across the same three repeats:
+
+| Offered | Repeat 0 | Repeat 1 | Repeat 2 | Spread |
+|---|---|---|---|---|
+| 400/sec | 241.3 | 232.2 | 173.7 | **28%** |
+| 500/sec | 145.9 | 155.1 | 146.8 | **6%** |
+
+500/sec is steady across the same chain growth that supposedly cost 400/sec a
+quarter of its throughput. So growth is not doing the work, and the honest
+reading is that **400/sec sits right at the cliff edge, where the system is
+unstable and outcomes scatter**. 500/sec is far enough past it to be reliably
+broken, and 300/sec is comfortably below it -- both reproduce tightly.
+
+That is itself worth reporting: the region immediately past the knee is not
+just lower, it is *less predictable*, which for a payment system is arguably
+the worse property. An operator can plan around a firm ceiling; a ceiling that
+varies 28% run to run is much harder to size for.
 
 **What this protects and what it does not.**
 
@@ -232,11 +251,9 @@ alternate *within* each repeat, minutes apart on a chain of essentially the
 same size, so growth affects both equally and cancels. That is the same
 property that made the alternating design worth the extra restarts.
 
-The collapse curve is NOT safe to average across repeats, because later
-repeats ran on a bigger chain. It should be reported either per repeat with
-the chain size stated, or as a range with the drift disclosed. Averaging the
-three 400/sec figures into "236/sec" would hide a 28% spread that has a known
-cause.
+The collapse curve should be reported as a RANGE, not a mean, at least at
+400/sec. Averaging the three figures into "216/sec" would hide a 28% spread
+that is a property of the system rather than measurement noise.
 
 **And it bears on the published study.** The published sweep ran 140 runs on
 one continuously-growing chain, in a fixed low-to-high load order. So its
@@ -247,7 +264,10 @@ published 300/sec figure DOWN relative to what the architecture can do:
 1. every settlement check funnelled through one node (§2-§5b),
 2. no drain between runs, so each inherited the previous queue (see the note
    in `scripts/run_endpoint_ab.sh`),
-3. chain-state growth over the sweep, measured here.
+3. chain-state growth over the sweep -- plausible but NOT demonstrated here;
+   the 400/sec scatter that first suggested it is better explained by
+   instability at the cliff edge, since 500/sec stayed steady across the same
+   growth.
 
 None of them were errors at the time -- they are ordinary consequences of
 running a long sweep on one chain, and every benchmark of this kind has them.
