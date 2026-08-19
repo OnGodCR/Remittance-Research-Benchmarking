@@ -155,7 +155,8 @@ NEAR_FULL_STACK_REALISM = {
 }
 
 
-def load_polygon_adapter(config_path: Path):
+def load_polygon_adapter(config_path: Path, rpc_override: list[str] | None = None,
+                         spread_submissions: bool = False):
     from .adapters.polygon import PolygonAdapter
 
     config = json.loads(config_path.read_text())
@@ -171,13 +172,20 @@ def load_polygon_adapter(config_path: Path):
             f"config lists {len(config['sender_addresses'])} senders but "
             f"{len(keys)} keys are present. Re-run deploy_and_fund.py."
         )
+    # One endpoint by default -- identical to every published run. A list only
+    # appears when explicitly asked for, because using several changes the
+    # measuring instrument and those runs are not comparable with the
+    # published single-endpoint ones (POLYGON_RPC_BOTTLENECK.md).
+    endpoints = rpc_override or config.get("rpc_urls") or config["rpc_url"]
+
     return PolygonAdapter(
-        rpc_url=config["rpc_url"],
+        rpc_url=endpoints,
         token_address=config["token_address"],
         sender_keys=keys,
         recipients=config["recipients"],
         chain_id=config["chain_id"],
         gas_price_wei=config.get("gas_price_wei", 1_000_000_000),
+        spread_submissions=spread_submissions,
     )
 
 
@@ -246,7 +254,8 @@ def _architecture_of(config_path: Path) -> str:
         return "polygon"
 
 
-def _adapter_spec(config_path: Path) -> dict:
+def _adapter_spec(config_path: Path, rpc_override: list[str] | None = None,
+                  spread_submissions: bool = False) -> dict:
     """Everything a worker process needs to build its own adapter.
 
     Passed as plain data because worker processes are spawned fresh -- an
@@ -257,13 +266,18 @@ def _adapter_spec(config_path: Path) -> dict:
     keys_path = REPO / "keys" / "senders.json"
     if not keys_path.exists():
         raise SystemExit(f"missing {keys_path}. Run scripts/deploy_and_fund.py first.")
+    # The worker processes are where the real load is driven, so the endpoint
+    # list has to reach them. Missing this would have produced a "spread
+    # across four nodes" run that quietly used one -- a null result caused
+    # entirely by plumbing.
     return {
-        "rpc_url": config["rpc_url"],
+        "rpc_url": rpc_override or config.get("rpc_urls") or config["rpc_url"],
         "token_address": config["token_address"],
         "sender_keys": json.loads(keys_path.read_text()),
         "recipients": config["recipients"],
         "chain_id": config["chain_id"],
         "gas_price_wei": config.get("gas_price_wei", 1_000_000_000),
+        "spread_submissions": spread_submissions,
     }
 
 
@@ -274,8 +288,14 @@ async def cmd_run(args: argparse.Namespace) -> int:
     if arch == "near":
         return await _run_near(args)
 
+    override = None
+    if getattr(args, "rpc_urls", None):
+        override = [u.strip() for u in args.rpc_urls.split(",") if u.strip()]
+        print(f"[polygon] endpoint override: {len(override)} node(s)")
+
     if args.workers > 1:
-        spec = _adapter_spec(Path(args.config))
+        spec = _adapter_spec(Path(args.config), rpc_override=override,
+                             spread_submissions=getattr(args, "spread_submissions", False))
         store = Store(args.db)
         cfg = RunConfig(
             architecture="polygon", adapter="polygon-edge",
@@ -290,7 +310,9 @@ async def cmd_run(args: argparse.Namespace) -> int:
 
     from .adapters.polygon import PolygonAdapter
 
-    adapter = load_polygon_adapter(Path(args.config))
+    adapter = load_polygon_adapter(
+        Path(args.config), rpc_override=override,
+        spread_submissions=getattr(args, "spread_submissions", False))
 
     needed = PolygonAdapter.required_pool_size(args.tps)
     have = len(adapter._sender_keys)
@@ -513,6 +535,21 @@ def main() -> int:
                        help="processes to split the load across. Python uses one "
                             "processor core, which capped the harness at ~150/sec "
                             "in the Phase 2 pilot. Use 4+ above 100/sec.")
+    p_run.add_argument("--spread-submissions", action="store_true",
+                       help="also spread SUBMISSIONS across the endpoints, not "
+                            "just settlement checks. Off by default: a wallet "
+                            "holds its ordering lock across the submit round "
+                            "trip, so a distant node caps that wallet at ~4 "
+                            "payments/sec and the run measures distance, not "
+                            "the chain.")
+    p_run.add_argument("--rpc-urls", default=None,
+                       help="comma-separated node endpoints to spread submissions "
+                            "and settlement checks across. Omit for the single "
+                            "endpoint in the config, which is what every published "
+                            "run used. Using several CHANGES THE MEASURING "
+                            "INSTRUMENT -- such runs are not comparable with the "
+                            "published ones and must be labelled to say so. See "
+                            "POLYGON_RPC_BOTTLENECK.md.")
     p_run.set_defaults(func=cmd_run)
 
     p_cap = sub.add_parser("capacity", help="measure the harness's own ceiling")
