@@ -10,6 +10,19 @@
 > **NEAR sustains 150 payments/second** at $200 under the full realism stack
 > (achieved 150.1/sec, 0.15% failures).
 >
+> ### ⚠️ WITHDRAWN 19 Aug 2026 — read `POLYGON_RPC_BOTTLENECK.md` before using
+> ### anything in this section about Polygon's ceiling or its failure mode.
+>
+> Polygon's ~270/sec was measured with every settlement check sent to ONE node.
+> That node ran at 84% busy while the other three validators sat at 8–14%.
+> Spreading the checks across four nodes, on HALF the validator hardware, gave
+> **290.5/sec** — better than the published figure. And past 300, which the
+> published ramp never went: 290.5 → 202.5 → 108.3 → 96.5. **Polygon collapses
+> too.** The "graceful degradation" contrast below came from a ramp that
+> stopped at Polygon's knee rather than going past it. NEAR's collapse is still
+> steeper, so a difference in degree survives; "graceful vs catastrophic" does
+> not. See ANALYSIS_PLAN.md amendment 14.
+>
 > **The finding worth building a paragraph around is the failure MODE, not the
 > ceiling.** Polygon degrades gracefully past its knee — 270.5/sec achieved when
 > offered 300, 9.97% failures. NEAR *collapses*: the failure curve across its last
@@ -120,6 +133,8 @@ Damage scales with existing load: negligible with headroom, severe without. Note
 ⚠️ **The injection is ~130× more hostile than real Polygon** (1 of 4 validators = 25% of the network vs ~1% on mainnet; offline 51% of the time vs a 99.9% uptime target). This measures *sensitivity to validator loss*, not mainnet behaviour. See `METHODOLOGY_LOG.md` §4 technique #6.
 
 **Context:** global remittances average ~140-150/sec. Polygon clears steady-state global demand comfortably, but breaks in the middle of the 200-300/sec peak range the scope defines.
+
+**⚠️ CONDITIONAL ON THE SINGLE-ENDPOINT SETUP (19 Aug 2026).** With settlement checks spread across four nodes, the same cluster at 300/sec produced ZERO rejections and 2,758 accepted-then-unsettled payments — the opposite failure mode. Relieving the bottleneck admits more payments and converts refusals into stuck payments. Report either mode only alongside the configuration that produced it. See `POLYGON_RPC_BOTTLENECK.md` §5b.
 
 **Failures come in two kinds, and only one appears in the clean data.** Across all 140 clean runs every failure was a *submission rejection* (`txpool is full`) — no transaction hash, no gas, never entered the chain, retryable by the sender. Zero accepted payments failed to settle. The 9.97% at 300/sec is an overflow rate at Polygon Edge's *default* queue size, which we did not tune: the ~270/sec committed ceiling is architectural, the exact percentage is queue-dependent.
 
