@@ -212,7 +212,7 @@ def load_lightning_adapter(config_path: Path) -> LightningAdapter:
     )
 
 
-def load_near_adapter(config_path: Path):
+def load_near_adapter(config_path: Path, rpc_override: list[str] | None = None):
     """Build the NEAR adapter from the config the deploy script writes.
 
     Imported lazily for the same reason PolygonAdapter is: py-near is a NEAR
@@ -233,8 +233,12 @@ def load_near_adapter(config_path: Path):
     keys_path = REPO / "keys" / "near_senders.json"
     if not keys_path.exists():
         raise SystemExit(f"missing {keys_path}. Run the NEAR deploy script first.")
+    # One endpoint by default -- identical to the published NEAR runs. A list
+    # spreads SETTLEMENT CHECKS only; submissions stay on the nearest node,
+    # because NEAR orders per access key by nonce and a distant node would cap
+    # each sender at a few payments a second. See the note in the adapter.
     return NearAdapter(
-        rpc_url=config["rpc_url"],
+        rpc_url=(rpc_override or config.get("rpc_urls") or config["rpc_url"]),
         token_contract=config["token_contract"],
         sender_keys=json.loads(keys_path.read_text()),
         recipients=config["recipients"],
@@ -381,7 +385,11 @@ async def _run_near(args: argparse.Namespace) -> int:
     """
     from .adapters.near import NearAdapter
 
-    adapter = load_near_adapter(Path(args.config))
+    near_override = None
+    if getattr(args, "rpc_urls", None):
+        near_override = [u.strip() for u in args.rpc_urls.split(",") if u.strip()]
+        print(f"[near] endpoint override: {len(near_override)} node(s)")
+    adapter = load_near_adapter(Path(args.config), rpc_override=near_override)
 
     needed = NearAdapter.required_pool_size(args.tps)
     have = len(adapter._sender_keys)
