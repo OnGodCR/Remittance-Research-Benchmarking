@@ -519,10 +519,34 @@ class PolygonAdapter(Adapter):
         # block, so which node answers does not change the result -- only who
         # does the work.
         async def fetch(index: int, tx_hash):
-            w3 = self._w3s[index % len(self._w3s)]
-            async with self._receipt_sems[index % len(self._receipt_sems)]:
+            slot = index % len(self._w3s)
+            async with self._receipt_sems[slot]:
                 try:
-                    return dict(await w3.eth.get_transaction_receipt(tx_hash))
+                    return dict(await self._w3s[slot].eth.get_transaction_receipt(tx_hash))
+                except Exception:
+                    if slot == 0:
+                        return None
+
+            # A MISS ON A REMOTE NODE IS NOT A LOST PAYMENT -- RETRY LOCALLY.
+            #
+            # The block watcher reads each block from the nearest node, so that
+            # node demonstrably HAS the block. The others are a continent away
+            # and may be a moment behind, in which case they answer "no such
+            # transaction" for a payment that settled perfectly well.
+            #
+            # Without this fallback that answer is final: the watcher visits
+            # each block once, so the payment is never resolved and eventually
+            # records as a 60-second timeout. It cost 468 phantom failures at
+            # 200/sec -- a load where the single-endpoint arm had exactly zero
+            # -- and it would have been reported as the cost of spreading the
+            # load rather than as a bug in how we spread it. The control arm
+            # existing is the only reason it was caught.
+            #
+            # The fallback is cheap because misses are rare: only the few
+            # lookups that raced ahead of block propagation come back here.
+            async with self._receipt_sems[0]:
+                try:
+                    return dict(await self._w3s[0].eth.get_transaction_receipt(tx_hash))
                 except Exception:
                     return None
 
