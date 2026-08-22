@@ -62,6 +62,12 @@ GEN=near-generator
 GZONE=us-east4-c
 HARD_STOP_UTC="${HARD_STOP_UTC:-11:15}"
 
+# 5 is the pre-registered MINIMUM (ANALYSIS_PLAN.md). 6 was preferred because
+# it splits the running-order advantage 3/3 rather than 3/2, but 6 no longer
+# fits before the shutdown deadline. 5 satisfies the plan; anything below it
+# would not, so the script refuses instead of trimming further.
+REPEATS_WANTED="${REPEATS_WANTED:-5}"
+
 NAMES=(0 1 2 3 4 5 6 7)
 ZONES=(us-east4-c us-east4-c asia-south1-a asia-south1-a asia-southeast1-a asia-southeast1-a europe-west2-b europe-west2-b)
 
@@ -140,8 +146,11 @@ note "all nine armed"
 
 # --- 2. wait for account setup -------------------------------------------
 log "Waiting for account setup to finish"
+# 150 minutes, not 90. Setting up 900 accounts took longer than 90 on 22 Aug
+# and this loop gave up while step 4 of 5 was still running -- then the trap
+# stopped nine healthy machines because "no config" reads as failure.
 waited=0
-while [ "$waited" -lt 5400 ]; do
+while [ "$waited" -lt 9000 ]; do
   state=$(ggen "systemctl is-active near-bootstrap" | tail -1)
   [ "$state" = "active" ] || break
   sleep 60; waited=$((waited + 60))
@@ -180,6 +189,28 @@ fi
 # over ssh from the Mac. The Mac restarted at 04:20 on 22 Aug and killed the
 # first attempt; nothing on the laptop should be able to do that again. From
 # here the Mac only watches, and closing it costs nothing.
+# WILL IT FIT BEFORE THE MACHINES SHUT DOWN?
+#
+# 20 runs at 300s each plus a 120s settle is about 140 minutes, and a sweep
+# guillotined by the shutdown deadline yields a part-finished arm -- worse
+# than nothing, because an unbalanced arm invites exactly the wrong
+# comparison. So this checks the clock and refuses rather than gambling.
+#
+# It does NOT extend the deadline. That is Angad's call, not this script's.
+need_min=$(( (REPEATS_WANTED * 2 * 2 * (300 + 120)) / 60 + 20 ))
+now_min=$(( $(date -u +%H) * 60 + $(date -u +%M) ))
+cap_min=$(( ${HARD_STOP_UTC%%:*} * 60 + ${HARD_STOP_UTC##*:} ))
+[ "$cap_min" -le "$now_min" ] && cap_min=$(( cap_min + 1440 ))
+have_min=$(( cap_min - now_min ))
+log "Time check: need ~${need_min} min, have ${have_min} min before ${HARD_STOP_UTC} UTC"
+if [ "$have_min" -lt "$need_min" ]; then
+  log "NOT ENOUGH TIME -- refusing to start a sweep that would be cut off"
+  note "the cluster is set up and ready; the accounts and keys are on disk"
+  note "ask Angad whether to move the ${HARD_STOP_UTC} UTC deadline, then re-run:"
+  note "  ./scripts/near_ab_orchestrate.sh"
+  exit 1
+fi
+
 log "Sending the experiment to the generator"
 ENDPOINTS=$(cd "$REPO/terraform/phase4" && tofu output -json validators 2>/dev/null | python3 -c "
 import sys, json
@@ -196,17 +227,17 @@ else
     scripts/run_near_endpoint_ab.sh "$GEN:/opt/benchmark/run_ab.sh" --zone "$GZONE" >/dev/null 2>&1 \
     || { log "could not copy the experiment across"; exit 1; }
   ggen "chmod +x /opt/benchmark/run_ab.sh; cd /opt/benchmark && rm -f ab.log && \
-    setsid nohup ./run_ab.sh --local --endpoints '$ENDPOINTS' > ab.log 2>&1 < /dev/null & \
+    setsid nohup ./run_ab.sh --local --repeats $REPEATS_WANTED --endpoints '$ENDPOINTS' > ab.log 2>&1 < /dev/null & \
     sleep 6; pgrep -f '[r]un_ab.sh' >/dev/null && echo STARTED || echo FAILED_TO_START" | tail -1 | sed 's/^/    /'
 fi
 
-log "Watching. 24 runs, about 3 hours."
+log "Watching. $(( REPEATS_WANTED * 4 )) runs."
 last=""
 while ggen "pgrep -f '[r]un_ab.sh' >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; do
   sleep 300
   cur=$(ggen "grep -cE 'achieved' /opt/benchmark/ab.log 2>/dev/null || echo 0" | tail -1)
   line=$(ggen "tail -1 /opt/benchmark/ab.log" | tail -1)
-  [ "$cur" != "$last" ] && { note "$(date -u +%H:%MZ)  runs finished: ${cur:-?}/24   $line"; last="$cur"; }
+  [ "$cur" != "$last" ] && { note "$(date -u +%H:%MZ)  runs finished: ${cur:-?}/$(( REPEATS_WANTED * 4 ))   $line"; last="$cur"; }
 done
 log "The sweep has stopped. Last 25 lines:"
 ggen "tail -25 /opt/benchmark/ab.log"
