@@ -38,6 +38,23 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` searches whole command lines, and when this runs on the
+# generator the shell wrapping it HAS "foo" in its own command line -- so the
+# check matches itself and always says yes. Observed 05:0x on 22 Aug: a status
+# check reported the sweep RUNNING while it had never been started.
+#
+# Two ways that ruins the night. The "is one already going?" test never fires,
+# so the sweep is never launched and the watcher waits on nothing until the
+# machines hit their shutdown time. Worse, `pkill -f 'harness.cli run'` at the
+# top of the sweep MATCHES ITS OWN WRAPPER and kills the sweep on its first
+# instruction.
+#
+# The brackets fix it: the regex [h]arness still matches the text "harness" in
+# a real process, but this line's own text now reads "[h]arness", which the
+# regex does not match. Same trap as RESUME_HERE.md S5 trap 8.
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 PROJECT="$(grep -E '^project_id' terraform/phase4/terraform.tfvars | cut -d'"' -f2)"
@@ -67,9 +84,61 @@ stop_everything() {
   gcloud compute instances stop near-validator-6 near-validator-7 --zone europe-west2-b    --project "$PROJECT" --async --quiet >/dev/null 2>&1
   note "stop requested for all nine; disks and chain state survive"
 }
-trap stop_everything EXIT
 
-# --- 1. wait for account setup -------------------------------------------
+# STOPPING THE MACHINES IS FOR THE JOB ENDING, NOT FOR ME RESTARTING IT
+#
+# The first version stopped the cluster on ANY exit, including being killed.
+# At 04:50 on 22 Aug it was killed on purpose to patch a bug, the trap fired,
+# and all nine machines went down mid-setup at 800 of 900 accounts.
+#
+# So an interrupt now means "a human is intervening" and leaves the machines
+# up; only finishing or failing on its own means "the job is over, stop
+# paying". Nothing is lost either way -- the shutdown time armed inside each
+# machine still stops them at ${HARD_STOP_UTC} UTC no matter what happens here.
+INTERRUPTED=0
+on_signal() {
+  INTERRUPTED=1
+  log "INTERRUPTED -- leaving the nine machines RUNNING on purpose."
+  note "they still stop by themselves at ${HARD_STOP_UTC} UTC"
+  note "to stop them now:  ./scripts/near_cluster_control.sh stop"
+  exit 130
+}
+trap on_signal INT TERM
+trap '[ "$INTERRUPTED" = "1" ] || stop_everything' EXIT
+
+# --- 1. hard shutdown time on every machine, FIRST ------------------------
+#
+# This runs BEFORE the long wait, not after, because the deadline is armed
+# inside each machine's own operating system and a REBOOT WIPES IT. On 22 Aug
+# all nine were restarted mid-setup and came back with no deadline at all --
+# nine machines that would have run until the credit ran out. Arm first, then
+# wait.
+#
+# Serially, not in parallel. Two parallel attempts each had four of the nine
+# fail with "could not parse resource []" -- concurrent gcloud ssh calls
+# contend on the same local configuration. Nine sequential calls take about
+# ninety seconds and always work; a silent miss here is worth far more than
+# the time saved.
+log "Arming the hard shutdown for ${HARD_STOP_UTC} UTC on all nine machines"
+CAP="sudo shutdown -c >/dev/null 2>&1; sudo shutdown -h ${HARD_STOP_UTC} cap >/dev/null 2>&1; sleep 1; cat /run/systemd/shutdown/scheduled 2>/dev/null | head -1"
+ZONES_BY_INDEX=(us-east4-c us-east4-c asia-south1-a asia-south1-a asia-southeast1-a asia-southeast1-a europe-west2-b europe-west2-b)
+armed=0
+r=$(ggen "$CAP" | tail -1)
+case "$r" in USEC=*) armed=$((armed+1)); note "generator    stops at ${HARD_STOP_UTC}" ;;
+             *) note "generator    NOT ARMED: $r" ;; esac
+for i in 0 1 2 3 4 5 6 7; do
+  r=$(gssh "near-validator-$i" "${ZONES_BY_INDEX[$i]}" "$CAP" | tail -1)
+  case "$r" in USEC=*) armed=$((armed+1)); note "validator-$i  stops at ${HARD_STOP_UTC}" ;;
+               *) note "validator-$i  NOT ARMED: $r" ;; esac
+done
+if [ "$armed" -lt 9 ]; then
+  log "ONLY $armed OF 9 MACHINES HAVE A SHUTDOWN DEADLINE -- refusing to continue"
+  note "an unarmed machine can bill indefinitely; fix that before measuring"
+  exit 1
+fi
+note "all nine armed"
+
+# --- 2. wait for account setup -------------------------------------------
 log "Waiting for account setup to finish"
 waited=0
 while [ "$waited" -lt 5400 ]; do
@@ -85,16 +154,6 @@ if [ "$ok" != "yes" ]; then
   exit 1
 fi
 note "config written; accounts ready"
-
-# --- 2. hard shutdown time on every machine ------------------------------
-log "Arming the hard shutdown for ${HARD_STOP_UTC} UTC on all nine machines"
-CAP="sudo shutdown -c 2>/dev/null; sudo shutdown -h ${HARD_STOP_UTC} 'Hard cap.' 2>/dev/null; echo armed"
-ggen "$CAP" | tail -1 | sed 's/^/    generator: /'
-for i in 0 1 2 3 4 5 6 7; do
-  ( r=$(gssh "near-validator-${NAMES[$i]}" "${ZONES[$i]}" "$CAP" | tail -1)
-    printf "    validator-%s: %s\n" "${NAMES[$i]}" "$r" ) &
-done
-wait
 
 # --- 3. network impairment ------------------------------------------------
 log "Applying the network impairment the published runs were measured under"
@@ -130,7 +189,7 @@ print(','.join('http://%s:3030' % v[i]['private_ip'] for i in (0, 2, 4, 6)))
 [ -n "$ENDPOINTS" ] || { log "could not read node addresses"; exit 1; }
 note "endpoints: $ENDPOINTS"
 
-if ggen "pgrep -f run_near_endpoint_ab >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; then
+if ggen "pgrep -f '[r]un_near_endpoint_ab' >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; then
   note "a sweep is ALREADY running on the generator -- watching that one instead"
 else
   gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
@@ -138,12 +197,12 @@ else
     || { log "could not copy the experiment across"; exit 1; }
   ggen "chmod +x /opt/benchmark/run_ab.sh; cd /opt/benchmark && rm -f ab.log && \
     setsid nohup ./run_ab.sh --local --endpoints '$ENDPOINTS' > ab.log 2>&1 < /dev/null & \
-    sleep 6; pgrep -f run_ab.sh >/dev/null && echo STARTED || echo FAILED_TO_START" | tail -1 | sed 's/^/    /'
+    sleep 6; pgrep -f '[r]un_ab.sh' >/dev/null && echo STARTED || echo FAILED_TO_START" | tail -1 | sed 's/^/    /'
 fi
 
 log "Watching. 24 runs, about 3 hours."
 last=""
-while ggen "pgrep -f run_ab.sh >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; do
+while ggen "pgrep -f '[r]un_ab.sh' >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; do
   sleep 300
   cur=$(ggen "grep -cE 'achieved' /opt/benchmark/ab.log 2>/dev/null || echo 0" | tail -1)
   line=$(ggen "tail -1 /opt/benchmark/ab.log" | tail -1)

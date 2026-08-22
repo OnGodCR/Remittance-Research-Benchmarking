@@ -163,6 +163,35 @@ NON_RESULT_PHASES = {
     "phase-6-endpoints-four",
     "phase-6-fallback-check",
     "phase-6-knee",
+    # ---- NEAR endpoint A/B, 22 Aug 2026 ---------------------------------
+    #
+    # Excluded from RESULTS, and the reason is NOT the one above it.
+    #
+    # Reason 1 (different hardware) does NOT apply here. This cluster runs
+    # 8-processor validators in the same cloud project as the published NEAR
+    # campaign -- the hardware matches exactly, which was the whole point of
+    # waiting for the larger processor allowance instead of settling for the
+    # 4-processor cluster the Polygon phase-6 runs used.
+    #
+    # Reason 2 does apply, and on its own is enough. The "four" arm spreads
+    # settlement checks across four machines instead of one, which is the very
+    # thing being tested. It is evidence ABOUT how the published NEAR figures
+    # were measured, not more measurements of the same kind.
+    #
+    # THE "one" ARM IS A DIFFERENT CASE and deserves stating plainly, because
+    # a later reader will ask. It reproduces the published method exactly, at
+    # matched hardware, so it is a genuine replication and could legitimately
+    # be reported. It is held out anyway, for now, because deciding what to
+    # publish AFTER seeing which way the result went is exactly the move
+    # pre-registration exists to prevent.
+    #
+    # If the experiment shows single-endpoint polling was measuring our own
+    # tooling rather than the chain, PROMOTING THESE TO RESULTS IS A DELIBERATE
+    # DECISION FOR ANGAD, recorded as an amendment with its reasoning -- not
+    # something that should happen quietly by an export picking them up.
+    "phase-6-near-endpoints-one",
+    "phase-6-near-endpoints-four",
+    "phase-6-near-smoke",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
