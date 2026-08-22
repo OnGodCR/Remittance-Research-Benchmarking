@@ -49,3 +49,8 @@ terraform/phase4/terraform.tfvars
 terraform/phase4/*.tfstate*
 terraform/phase4/.terraform/
 keys/near_senders.json
+
+# Rebuilt from data/raw/parts/ by analysis/rebuild_raw.py. Not stored directly:
+# GitHub hard-rejects any single large-file-storage object over 2 GiB and this
+# passed it at 610 runs.
+data/raw/all_runs_raw.parquet
