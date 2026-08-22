@@ -24,7 +24,11 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-P="remittances-benchmarking"
+# Read from the infrastructure definitions rather than hardcoded. This said
+# "remittances-benchmarking" from 18 Aug, a project the NEAR cluster has never
+# run in -- a `stop` from the runbook would have reported success while
+# leaving nine machines billing. Run from the repository root.
+P="$(grep -E '^project_id' terraform/phase4/terraform.tfvars | cut -d'"' -f2)"
 ACTION="${1:-status}"
 
 Z_GEN=us-east4-c
