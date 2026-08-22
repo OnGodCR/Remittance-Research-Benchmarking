@@ -90,6 +90,18 @@ SETTLE=120
 DRY_RUN=0
 FROM_REPEAT=0
 
+# --- surviving a laptop restart ------------------------------------------
+# Normally this script sits on the Mac and reaches the generator over ssh for
+# every single run. That makes the Mac a single point of failure for a
+# four-hour job: it restarted at 04:20 on 22 Aug and took the whole sweep with
+# it. With --local the script is copied ONTO the generator and run there, so
+# the only thing the Mac does is watch. Closing the laptop then costs nothing.
+#
+# --endpoints is needed because the generator has no copy of the infrastructure
+# definitions to look the node addresses up from, so they are passed in.
+LOCAL=0
+ENDPOINT_OVERRIDE=""
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run)     DRY_RUN=1; shift ;;
@@ -97,6 +109,8 @@ while [ $# -gt 0 ]; do
     --loads)       LOADS="$2"; shift 2 ;;
     --arms)        ARMS="$2"; shift 2 ;;
     --repeats)     REPEATS="$2"; shift 2 ;;
+    --local)       LOCAL=1; shift ;;
+    --endpoints)   ENDPOINT_OVERRIDE="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -107,18 +121,27 @@ note() { printf '    %s\n' "$*"; }
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60)
 gssh() {
-  gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
-    --command "$1" < /dev/null -- "${SSH_OPTS[@]}" 2>&1 | grep -v "^Warning:"
+  # In --local mode this IS the generator, so there is nothing to ssh into.
+  if [ "$LOCAL" = "1" ]; then
+    bash -c "$1" 2>&1
+  else
+    gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
+      --command "$1" < /dev/null -- "${SSH_OPTS[@]}" 2>&1 | grep -v "^Warning:"
+  fi
 }
 
 # One endpoint per REGION, so the asking is spread across continents rather
 # than across two machines sitting in the same datacentre. Validators are laid
 # out two per region, so indices 0, 2, 4 and 6 are one from each.
+if [ -n "$ENDPOINT_OVERRIDE" ]; then
+  ENDPOINTS="$ENDPOINT_OVERRIDE"
+else
 ENDPOINTS=$(cd "$REPO/terraform/phase4" && tofu output -json validators 2>/dev/null | python3 -c "
 import sys, json
 v = json.load(sys.stdin)
 print(','.join('http://%s:3030' % v[i]['private_ip'] for i in (0, 2, 4, 6)))
 ")
+fi
 [ -n "$ENDPOINTS" ] || die "could not read validator addresses from terraform"
 
 SINGLE=$(echo "$ENDPOINTS" | cut -d, -f1)

@@ -46,7 +46,12 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-PROJECT="remittances-benchmarking"
+# Read from tfvars like deploy_near.sh, not hardcoded: this said
+# "remittances-benchmarking" while the cluster moved to the project that
+# actually holds the processor allowance, and would have silently impaired
+# nothing -- leaving the runs comparing an unimpaired NEAR against an
+# impaired Polygon. Run from the repository root.
+PROJECT="$(grep -E '^project_id' terraform/phase4/terraform.tfvars | cut -d'"' -f2)"
 ACTION="apply"
 case "${1:-}" in
   --clear) ACTION="clear" ;;
