@@ -425,7 +425,52 @@ def _write_parquet(df: pd.DataFrame, path: Path) -> None:
     for col in _LOW_CARDINALITY:
         if col in out.columns:
             out[col] = out[col].astype("category")
-    out.to_parquet(path, compression="zstd", compression_level=9, index=False)
+    # SPLIT THE RAW FILE INTO PARTS. GitHub refuses any single large-storage
+    # file over 2 GiB -- a hard limit, not a quota that can be raised.
+    #
+    # The raw file reached 2.43 GiB on 19 Aug 2026 and the push was rejected.
+    #
+    # A first attempt tried to shrink it instead, on the theory that the
+    # largest column (`error`, half the file) held a handful of repeated
+    # messages. It does not: 1,537,672 distinct values across 24.5M payments,
+    # because the messages embed the transaction hash and the specific failure
+    # -- "not FINAL within 60s | last: InternalError: Transaction DydF6AAn...".
+    # Compression cannot help with values that are nearly all unique, and the
+    # honest fix is more files rather than smaller ones.
+    #
+    # `data/raw/all_runs_raw.parquet` therefore becomes a DIRECTORY of parts
+    # rather than one file. Parquet readers treat a directory of parts as a
+    # single dataset, so `pd.read_parquet("data/raw/all_runs_raw.parquet")`
+    # keeps working unchanged -- which matters, because that path is quoted in
+    # nine documents and every analysis script.
+    #
+    # Nothing is removed, reordered or altered. The parts concatenate back to
+    # exactly the same rows.
+    #
+    # 6 million rows per part gives roughly 600 MB each: comfortably inside the
+    # limit, with room for NEAR's runs to grow the dataset without anyone
+    # having to revisit this.
+    # COMPRESSION LEVEL 3, NOT 9.
+    #
+    # Level 9 pinned a processor core for roughly twenty minutes per rebuild
+    # and made the laptop audibly hot -- and this file gets rebuilt after every
+    # collection run. Level 3 is several times faster for a few percent more
+    # size, which is a good trade now that the file is split into parts and
+    # nowhere near the 2 GiB per-file limit.
+    PART_ROWS = 6_000_000
+
+    if path.exists() and path.is_file():
+        path.unlink()
+    if path.is_dir():
+        for old in path.glob("part-*.parquet"):
+            old.unlink()
+    path.mkdir(parents=True, exist_ok=True)
+
+    parts = max(1, -(-len(out) // PART_ROWS))
+    for i in range(parts):
+        chunk = out.iloc[i * PART_ROWS : (i + 1) * PART_ROWS]
+        chunk.to_parquet(path / f"part-{i}.parquet",
+                         compression="zstd", compression_level=3, index=False)
 
 
 def write_log(log: list[Exclusion], raw: pd.DataFrame, cleaned: pd.DataFrame) -> None:
