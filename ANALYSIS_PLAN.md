@@ -532,3 +532,160 @@ the default refuses, so it generates more settlement checks, so it is more
 likely to trip the saturation rule and be excluded. The treatment influences
 the probability of exclusion, so comparing survivors is biased and no number
 of repeats fixes it.
+
+---
+
+### Amendment 15 — 21 August 2026: a pre-registered test of whether NEAR's collapse at 200/sec belongs to the chain or to the one machine we asked
+
+**Sections affected:** §2 (the primary outcome metric as it applies to NEAR),
+§3 and §12. **Written before any of these runs produced a number**, which is
+the only reason it belongs in this log rather than in the write-up afterwards.
+
+**No rule changes.** The 10-second warm-up cut (§7), the 60-second settlement
+budget (§6.2 and amendment 11), the lag-growth saturation criterion
+(amendment 1) and NEAR's validator-liveness audit all apply to these runs
+unchanged. A run that trips any of them is excluded exactly as a matrix run
+would be.
+
+**What prompted it.** Amendment 14 found that Polygon's published ceiling was
+not Polygon's. Every question of the form *"has this payment finished yet?"*
+was sent to a single machine, and that machine — not the chain — was what ran
+out of capacity. Sending the same questions to four machines instead of one,
+and changing nothing else, turned a published 270.5 payments/sec with 9.97%
+failures at 300 offered into **300.4/sec with 0.00% failures**, five repeats
+each side, with both arms indistinguishable at the 200/sec control step
+(200.9/sec, no failures, on both). Those five-repeat figures are in
+`POLYGON_RPC_BOTTLENECK.md` §5d; amendment 14 above still quotes the earlier
+single exploratory run (290.5/sec), which it was written from.
+
+**Why NEAR is suspected of the same fault, and why the suspicion is stronger
+here.** NEAR's published collapse — **47.5/sec settled against 200 offered,
+76.30% failing, 95% interval [26.3, 68.7]** — carries a failure reason that
+states in words what Polygon's had to be measured to reveal: **`reached
+EXECUTED, not FINAL`**. The chain accepted the payment and executed it. What
+did not happen inside the 60-second budget was our *seeing* it become final.
+At 200 offered, with the published measurements putting finality around 12
+seconds at the median and 19 at the 95th percentile, roughly 4,000 payments
+are unfinished at any moment, each of them asked after repeatedly — and every
+one of those questions went to a single one of the eight machines running the
+chain. That is a claim about our measuring equipment, not about NEAR, and it
+can be tested in an afternoon.
+
+**The pre-registered prediction: the four-endpoint arm settles materially more
+than 47.5/sec at 200 offered.**
+
+"Materially" is fixed now, before the runs, at **68.7/sec — the upper end of
+the published cell's own 95% interval**. Taking the line from a number already
+in print means it cannot be moved later to suit whatever comes back.
+
+**The design.**
+
+| | |
+|---|---|
+| Arms | `one` — every settlement check to a single machine, as published; `four` — spread one per region across the four continents |
+| Loads | **100/sec** (control) and **200/sec** (the step in question) |
+| Amount | **$200 only**, the World Bank benchmark size |
+| Window | 300s, as everywhere else in the study |
+| Repeats | **6 per arm per load**, with the arms alternating |
+| Gap between runs | 120s, plus a check that the chain is still producing blocks |
+| Phases | `phase-6-near-endpoints-one`, `phase-6-near-endpoints-four` |
+
+**Why 100/sec is run at all.** It is the control, and it is what makes the
+200/sec comparison readable. The published matrix puts $200 at 100/sec at
+100.0/sec settled with 0.16% failures. If the rebuilt cluster does not
+reproduce that in **both** arms, then it differs from the published deployment
+in some way we have not identified, and **no 200/sec figure from this
+experiment may be read against the published one**. The check has to be
+capable of failing: on Polygon it failed twice, and both times the fault was
+ours rather than the chain's — settlement checks running ahead of block
+propagation, and a run started before the previous run's backlog had drained.
+
+**Why six repeats rather than the usual five.** Whichever arm runs second in a
+pair inherits whatever the first arm left unfinished, so a fixed order would
+hand one arm a standing advantage. Six repeats split the favourable position
+exactly three and three; five cannot. §5 sets five as a **minimum**, so six
+satisfies the protocol rather than departing from it.
+
+**Why the sending is not spread as well as the asking.** Only *where the
+answers are sought* changes between arms; both arms submit through one
+machine, as the published runs did. Spreading submission across continents was
+tried on Polygon and made results roughly **ten times worse**: a sender holds
+its account's counter locked for the whole round trip, so a slow
+intercontinental hop holds it longer. NEAR orders transactions per access key
+by nonce and has the identical weakness. Spreading the asking is safe;
+spreading the sending is a different experiment with a known bad answer.
+
+**What would refute the published collapse.** The four-endpoint arm at 200
+offered settles above 68.7/sec, with the one-endpoint arm reproducing the
+published cell beside it. Three gradations, all decided in advance:
+
+1. **Above 68.7/sec but still failing the §2 bar** (achieved below 90% of
+   offered, or 5% or more failures): the published 150/sec ceiling stands, but
+   the *size* of the collapse at 200/sec was partly our own instrument, and
+   the cell must be re-described in every document that quotes it.
+2. **At or above 180/sec with failures under 5%**: 200/sec becomes a
+   sustainable step under §2, and NEAR's published ceiling of 150/sec moves.
+   The rest of the ramp then has to be measured before any new ceiling is
+   claimed — a follow-on at 250 and 300 is already provided for in the run
+   script, and no ceiling may be stated from two load levels.
+3. **Between the two**, i.e. achieved at or above 90% of offered but failures
+   at or above 5%, or the reverse: reported as the mixed result it is, with
+   both figures given, and the ceiling left at 150/sec because §2 requires
+   both conditions and not either.
+
+**What would confirm it, and why that is equally usable.** If the four-endpoint
+arm lands inside the published interval with failures still dominated by
+`reached EXECUTED, not FINAL`, then the collapse is not an artefact of asking
+one machine too many questions. It becomes a property of the architecture as
+deployed — finality genuinely falling behind execution — and the NEAR chapter
+stands as written, now with a specific alternative explanation tested and
+excluded rather than merely unconsidered. **A refutation and a confirmation are
+both results here.** That symmetry is deliberate: the experiment was designed
+so that the outcome we would prefer (our published number survives) and the
+outcome we would not (it does not) are equally reportable, which is what stops
+this being a search for a better number.
+
+**Standing of these runs against the published figures.** Amendment 14's
+Polygon supplementary runs could only *re-describe* the published ceiling,
+never replace it, because they ran one repeat per level on half-size machines.
+This experiment is built to a different standard, and the difference is
+deliberate:
+
+- The eight machines running the chain are `n2-standard-8`, **identical to the
+  published NEAR deployment**, in the same four regions, at the same 2s block
+  cadence, with the same injected impairment, the same competing background
+  traffic and the same 836-account sender pool.
+- Six repeats per cell against the protocol's five.
+- Every pre-registered exclusion rule applied unchanged.
+
+Two honest differences, both stated here rather than left to be found:
+
+- **The machine that sends the payments is twice the size it was** —
+  `n2-standard-16` against the published `n2-standard-8`. It is the measuring
+  instrument, not the system under test, and enlarging it can only move the
+  ceiling away from our own tooling. Its capacity on the smaller machine was
+  measured at 7,379 signed payments/sec (24.6× headroom at 300/sec), so this
+  is precaution, not necessity — but it is a difference from the published
+  runs and it is stated as one.
+- **The token contract cannot be proven byte-identical to the one the published
+  runs used**, because its version was never recorded (see `METHODOLOGY_LOG.md`
+  §11c). Within this experiment it cancels: both arms move the same contract.
+  Across campaigns it does not, so **no absolute gas or cost figure from these
+  runs may be compared with the published NEAR gas figure** until that question
+  is settled.
+
+**Both new phases are held under their own labels and out of the clean results
+dataset**, on the same reasoning that holds out every other phase-6 run: a
+changed measuring method must never be quietly mixed into a published results
+table. If they move a published figure, that happens through a further
+amendment naming what moved and quoting these runs — which the hardware match
+makes legitimate, and which amendment 14's Polygon runs could not support.
+
+⚠️ **Recorded because it is a gap between this text and the code, of the kind
+amendment 8 exists to disclose:** `analysis/export.py` carries an explicit list
+of phase-6 phases to hold out of the clean dataset, and at the time of writing
+**`phase-6-near-endpoints-one` and `phase-6-near-endpoints-four` are not in
+it.** They must be added before the clean dataset is next rebuilt, or these
+runs will flow into the results file and land in the same $200 cells as the
+published five-repeat matrix. Nothing has been exported yet, so no figure is
+affected today.

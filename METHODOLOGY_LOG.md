@@ -4,7 +4,7 @@
 
 **Maintained continuously.** Every new realism technique, threshold, or parameter change is recorded here as it happens, not reconstructed afterwards.
 
-Last updated: **8 August 2026**
+Last updated: **22 August 2026**
 
 ---
 
@@ -1075,3 +1075,283 @@ to notice.
 **Measured pace, for the record:** 336s mean run duration plus a 23s gap = **6.0
 minutes per configuration**, so 140 configurations is **14 hours** of clean
 running.
+
+---
+
+## Phase 6 — the rebuilt NEAR cluster and what rebuilding it exposed, 21–22 August 2026
+
+**Why this is written before there are any numbers.** `ANALYSIS_PLAN.md`
+amendment 15 pre-registers a single experiment: run NEAR again at 100 and 200
+payments per second and change exactly one thing — whether the question *"has
+this payment finished yet?"* is put to one machine or to four. Doing that meant
+rebuilding the NEAR cluster from nothing, and the rebuild turned up four things
+that belong in the permanent record whatever the experiment eventually shows.
+One of them is a fault that would have produced a believable wrong answer rather
+than an obvious failure. **Nothing below reports a result** — the runs were
+still going when this was written.
+
+Throughout, "the machine that sends the test payments" is the ninth machine, the
+one running our own measuring program; the other eight are the computers running
+the blockchain.
+
+### 11a. The cluster was rebuilt at the published specification, not a cheaper one
+
+Nine machines in Google Cloud project **`project-c4c87dcb-da41-4caf-922`** —
+**the same project the published NEAR campaign ran in**. Eight run the
+blockchain, one sends the test payments. Four shards with two blockchain
+machines each: the protocol minimum, and the same shape as the published
+campaign (§ "NEAR cluster size is quota-constrained", 10 Aug).
+
+| | Published NEAR campaign | Rebuild, 21 Aug |
+|---|---|---|
+| Cloud project | `project-c4c87dcb-da41-4caf-922` | identical |
+| Machines running the chain | 8 × `n2-standard-8` (8 processors, 32 GB memory) | identical |
+| Machine sending the payments | 1 × `n2-standard-8` | 1 × `n2-standard-16` |
+| Shards / chain machines per shard | 4 / 2 | identical |
+| Regions | us-east4, asia-south1, asia-southeast1, europe-west2 | identical |
+| Block cadence | 2s | identical |
+
+One row differs, and it is the measuring instrument rather than the thing being
+measured (amendment 15 states the same). Everything that could plausibly move a
+throughput figure — project, regions, machine size, shard layout, block cadence
+— is unchanged.
+
+Processor count: 8 × 8 + 16 = **80 of the 96 this project is allowed**. Machines
+are ordinary on-demand ones rather than the cheaper interruptible kind, because
+this account's interruptible allowance is zero in every region — which also
+matches how the published runs were measured, for the reasons in §5c.
+
+**How it nearly ran at half size, and why it is back where it started.** The
+original account's free credit ran out on **14 Aug**, the day after Phase 4
+collection finished, so the work moved to a new account and a newer cloud
+project. That newer project's request for more processors **sat unanswered for
+four days**, after which a human reviewer confirmed it would not be approved
+automatically. An interim plan was written to run the whole experiment on
+**half-size machines** (`n2-standard-4`) under a 64-processor ceiling.
+
+That plan was abandoned, because there was a better option. The **original**
+project already held a 96-processor allowance and still holds the nine disk
+images from the published campaign, so the work went back to it and the project
+was attached to the **new account's billing**, which carries the remaining
+credit. Money now comes from the newer account; the machines run exactly where
+they always ran. Recorded in `terraform/phase4/terraform.tfvars`, with the
+reasoning kept beside the values.
+
+**Why the size mattered more than it looks.** Half-size machines could only ever
+have produced an *internal* comparison — one setting against another on weaker
+hardware — and its absolute numbers could never have stood beside the published
+150 payments/sec. At full specification the hardware is identical to the
+published runs, so **if the measured ceiling moves, the new figure replaces the
+published one instead of sitting next to it with a caveat.** That is the whole
+point of matching, and it is why amendment 15 is allowed to claim a standing
+that amendment 14's Polygon supplementary runs (one repeat, half-size machines)
+explicitly could not.
+
+**A risk it also retires.** The half-spec plan carried a stated danger: consensus
+across four continents had *already* failed at nearcore's own 600ms default block
+interval on 8-processor machines (amendment 12), and there was a real chance it
+would not hold at all on 4. Running at full specification removes that question
+rather than gambling on it.
+
+### 11b. The node software was built from source, because there is nothing to download
+
+The chain runs **nearcore 2.13.3**, compiled on the payment-sending machine and
+copied to the eight blockchain machines.
+
+| | |
+|---|---|
+| Version | 2.13.3 |
+| Commit | `5af9ca74631e6cf0dae33e77d1a632e94d2952ce` |
+| Commit date | 4 August 2026 |
+| Protocol version spoken | 86 |
+| Oldest protocol version accepted | 83 |
+| Compiler that built it | rustc 1.93.0 |
+| On-disk database format | 49 |
+
+**These are read off the running chain, not copied from the build script.** On
+22 Aug `neard --version` on `near-validator-0` reported: `(release 2.13.3)
+(build 2.13.3) (commit 5af9ca74631e6cf0dae33e77d1a632e94d2952ce) (rustc 1.93.0)
+(min_protocol 83) (protocol 86) (db 49)`. What the deploy script *intended* to
+install and what is actually running are different claims, and only the second
+one is evidence.
+
+**Why not download a ready-made copy.** There is not one. NEAR's release entry
+for 2.13.3 carries no downloadable files, and the storage locations that served
+older versions answer "forbidden". Compiling it is the only way to obtain exactly
+this version, and exactness is the point: `claude.md` §3 requires live,
+maintained production node software pinned to a fixed commit, which aids
+reproducibility rather than harming it.
+
+**Why not fall back to an older version that does have a binary.** The cluster
+was originally pinned to 2.3.1, which speaks protocol version 72. The token
+contract has to be built with a toolkit that speaks the same protocol as the
+node; if it does not, the contract **deploys successfully and then every single
+call fails with a parsing error** — a failure that looks like a broken contract
+and says nothing about versions. Node and contract toolkit have to move together,
+and the toolkit is the harder of the two to pin backwards. `scripts/build_nearcore.sh`
+does the build; it takes 45–90 minutes and is run with the eight blockchain
+machines stopped, so only one machine bills during it.
+
+### 11c. The token contract is now pinned — and cannot be proven identical to the published one
+
+Every NEAR test payment moves a **NEP-141 fungible token** — NEAR's equivalent of
+the ERC-20 stablecoin standard used on Polygon, chosen for the reason in §3.6.
+
+**What was found on 21 Aug.** `scripts/near_bootstrap.py` has always instructed
+the operator to *"run `scripts/build_ft.sh` first"*, and **that script was never
+in this repository.** It existed only on the old payment-sending machine's disk,
+which went when that cluster was destroyed. The rebuild stopped dead at the token
+step.
+
+**The more serious half of the problem.** The contract's version was never
+written down anywhere — not in this log, not in `NEAR_ANALYSIS.md`, not in the
+deploy scripts. Gas consumed per transfer is a **published figure**
+(2.214 × 10¹², `NEAR_ANALYSIS.md` §4, and the $0.000365 cost per payment is
+derived from it), and gas is a property of the contract that actually ran. A
+published number therefore rested on a dependency nobody had recorded.
+
+**What is pinned now**, in `scripts/build_ft.sh`, which is in the repository from
+this date:
+
+| | |
+|---|---|
+| Source | `near-sdk-rs`, tag `near-sdk-v5.29.0` |
+| What is built | `examples/fungible-token` — the reference NEP-141 implementation, the one real NEAR stablecoins derive from, so nobody has to take our word for what the contract does |
+| Compiler flags | `RUSTFLAGS="-C target-cpu=mvp -C link-arg=-s"` |
+| Output | 150,621 bytes of WebAssembly — checked on the machine itself on 22 Aug, not taken from the build log |
+
+`target-cpu=mvp` holds the compiler to WebAssembly's original feature set.
+Without it a current compiler emits newer features and the contract deploys and
+then fails on every call with the same confusing parsing error described in
+§11b. The pinned toolkit release is from within three weeks of the node commit,
+so the two belong to the same era of the protocol rather than being matched by
+guesswork.
+
+**⚠️ The caveat, stated plainly rather than buried.** Because the original
+contract's version was never recorded, **we cannot prove this rebuild is
+byte-identical to the contract behind the published NEAR runs.** The two
+consequences are different from each other and both need saying:
+
+- **Inside the endpoint experiment it does not matter.** Both arms move the same
+  contract on the same chain, so whatever the contract is, it cancels out of the
+  comparison. Amendment 15 says the same.
+- **Across the two campaigns it does matter.** Any absolute gas or cost figure
+  from the rebuilt cluster carries this uncertainty when set against the
+  published 2.214 × 10¹² and $0.000365, and **must not be compared with them as
+  though both had been measured on the same contract.**
+
+Nothing held in this repository can settle it after the fact, so the uncertainty
+stands and should be repeated wherever those two published figures are quoted
+alongside anything measured on the rebuilt cluster.
+
+### 11d. A wrong project name in the impairment script — a near-miss worth recording
+
+`scripts/inject_impairment_near.sh` is the script that adds extra delay, jitter
+and packet loss to the connections between the blockchain machines, so that a
+private cloud network behaves more like the public internet (realism technique
+#2, §4). On 21 Aug it was found with the Google project name **hardcoded to
+`remittances-benchmarking`** — a project the NEAR cluster has never run in.
+
+**First, the reassuring half, because a reader who sees this reported will
+otherwise reasonably wonder about it: the published NEAR figures WERE measured
+with the impairment applied.** The stale name was introduced on **18 Aug**, five
+days after Phase 4 collection finished on 13 Aug. Throughout the published
+campaign this script named `project-c4c87dcb-da41-4caf-922`, which is where the
+cluster was and still is (§11a), so the delay and loss reached the machines they
+were meant to reach. That was checked rather than assumed, because if it had
+gone the other way every published NEAR number would have been measured on a
+clean network while Polygon's was measured on a dirty one, and the headline
+comparison of the paper would have been invalid.
+
+**Why the wrong name was there at all.** When the original account's credit ran
+out on 14 Aug, several scripts were repointed on 18 Aug to the new account's
+project in preparation for Phase 6 work there. **That work never happened** — the
+processor request on the new project was refused (§11a) — so the cluster went
+back to the original project and the 18 Aug edit was left pointing somewhere
+nothing runs.
+
+**What would have happened had it not been caught.** The commands that add delay
+and loss are sent to named machines inside a named project. With the wrong
+project name they reach nothing, and the run proceeds normally with no error that
+anyone reading the results would ever see. The **rebuilt** cluster's runs would
+then have been measured on a clean network, and any comparison drawn from them
+would have been decided partly by network conditions rather than by the designs
+under test.
+
+This is not hypothetical. Exactly that state was found once before, on 12 Aug:
+the impairment tool reported nothing configured on the NEAR machines while every
+Polygon run had recorded impairment in its configuration. That discovery is why
+the script exists at all.
+
+**The fix.** The script now reads the project name out of
+`terraform/phase4/terraform.tfvars`, the same place every other script reads it
+from, so there is one value in one file rather than several copies drifting
+apart.
+
+**Why it is in this log rather than an operations note.** It belongs to the class
+of fault this study keeps meeting: not a crash, but a **plausible-looking wrong
+number**. The same class as the Lightning rebalancer that quietly did nothing
+(Phase 3, fault 2), the `py-near` call that blocked when told not to (§4d), and
+the settlement checks that all went to one machine (amendment 14). A benchmark
+that fails loudly costs an afternoon; one that fails quietly costs a chapter.
+
+**Two other NEAR scripts carried the same stale value, and both are now fixed the
+same way.** `scripts/near_cluster_control.sh` — the operator helper that
+`docs/near_methodology/finishing_runbook.md` points at for `status`, `renew` and
+`stop` — and `scripts/near_adversarial_nodes.sh`, which drives the node-failure
+arm. The control script is the dangerous one, and it is worth stating exactly
+why: **a `stop` issued against a project the machines are not in reports success
+and leaves nine machines billing.** That is the same shape of fault as the
+impairment bug — a command that appears to work and does nothing — with money as
+the consequence instead of a wrong number.
+
+Six older Polygon- and Lightning-era scripts still name the newer project. They
+drive clusters that no longer exist, so nothing turns on them today, but they
+should not be read as a record of where anything actually ran.
+
+### 11e. Two operational lessons from a laptop restart, 04:20 UTC on 22 August
+
+The operator's laptop restarted at about **04:20 UTC on 22 Aug**, part-way through
+the first attempt at the experiment. It cost hours, and it exposed two things
+that had been true for some time without being noticed. Both changed how the
+experiment is run, which is why they are recorded here.
+
+**(a) The eight most expensive machines were set to shut down a day after the
+ninth.** Every machine halts itself at a set time held on the machine itself, so
+that a forgotten cluster cannot bill for days. The eight blockchain machines were
+found carrying a deadline **34 hours** away — the default armed automatically at
+every boot by the deployment's own guard script (`max_lifetime_minutes = 2040`
+in `terraform/phase4/variables.tf`), a figure originally sized to cover the
+14-hour matrix sweep. The payment-sending machine's deadline was about **7
+hours** away, set for this much shorter job.
+
+The consequence of that gap: when the experiment finished, the machine doing the
+measuring would stop on schedule and **the eight machines it had been measuring
+would keep billing for another day.** Those eight are most of the cluster's
+roughly $4.50 an hour, so the overhang is on the order of $90 for machines doing
+nothing at all.
+
+All nine were realigned to a single deadline, and the run script now sets one
+absolute stop time on all nine before it does anything else. The rule this gives
+is **one deadline, in one place, checked on the machines that are not in front of
+you.** The deadline stays armed inside each machine's own operating system rather
+than in the supervising script, precisely because it has to survive the
+supervisor dying — which is what happened at 04:20.
+
+**(b) The laptop could end a three-hour job, and did.** In the first attempt each
+run was driven over a remote connection from the laptop, which made the laptop a
+single point of failure for a multi-hour unattended job. The restart ended it,
+and also destroyed the log, because the log had been written to `/tmp` and macOS
+clears `/tmp` on restart.
+
+The run now happens on the payment-sending machine: the script is copied there
+and started detached from any connection, and **the laptop only watches**, so
+closing it costs nothing. The log is written to the home directory instead of
+`/tmp`. The supervising script also stops all nine machines on its way out
+however it exits — normal finish, error, or interruption — because the way this
+project wastes real money is not a long experiment but a short one that died
+unattended at 3am.
+
+The general lesson, which applies to every remaining phase: **the machine
+watching an experiment must not be able to end it, and the thing that stops the
+cluster must not depend on the thing that started it.**

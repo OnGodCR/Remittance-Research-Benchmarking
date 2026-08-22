@@ -81,18 +81,49 @@ Phase 4 collection.
 expensive mistake available here:
 
 ```bash
-# current project (Phase 6 supplementary tests)
-gcloud compute instances list --project remittances-benchmarking
-# old project -- credits exhausted, holds the 9 snapshots
+# WHERE THE MACHINES ARE (Phase 6 supplementary tests, and every NEAR run
+# ever published) -- 96-processor allowance, billed to the newer account
 gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
+# Phase 2 Polygon machines live here, stopped. Its processor request was
+# refused, so NOTHING new runs here.
+gcloud compute instances list --project remittances-benchmarking
 ```
 
-**ACCOUNT MOVE, 14 Aug:** the original account's $300 credit is exhausted. New
-project: **`remittances-benchmarking`** (org `remitbridgesystemlabs-org`) ("RemitBridge System Labs"),
-fresh $300 expiring 17 Nov 2026 — **a FULL account: after credits it charges a
-real card**, so budget alerts are mandatory before any deployment. The 9 disk
-snapshots (incl. the validator health log, which exists nowhere else) still
-live on the OLD account/project and remain readable for now. Terminal access
+> **⚠️ REVERSED 22 Aug 2026.** These two lines used to be the other way round,
+> labelling `remittances-benchmarking` as "current" and the other as "old --
+> credits exhausted". That is no longer true and it is an expensive thing to
+> believe: a `stop` aimed at the empty project reports success while nine
+> machines keep billing. **Money and machines are now in different places.**
+> The credit sits on the newer *account*, and that account pays for a
+> *project* belonging to the older one. See §"account move" below.
+
+**ACCOUNT MOVE, 14 Aug — then PARTLY REVERSED, 21 Aug.** The original account's
+$300 credit ran out on 14 Aug, the day after Phase 4 collection closed. Work
+moved to a new account and its project **`remittances-benchmarking`** (org
+`remitbridgesystemlabs-org`, "RemitBridge System Labs"), fresh $300 expiring
+17 Nov 2026 — **a FULL account: after credits it charges a real card**, so
+budget alerts are mandatory before any deployment. (Three now exist, at $50 /
+$100 / $200, each also warning on forecast.)
+
+That move did not survive contact with quota. `remittances-benchmarking` was
+granted only 32 processors; a request for more went unanswered for four days
+and a human reviewer then confirmed it would not be auto-approved. NEAR needs
+80. So on 21 Aug the **older project `project-c4c87dcb-da41-4caf-922`, which
+already held a 96-processor allowance, was attached to the NEW account's
+billing.** Compute runs in the old project; the new account pays for it.
+
+**This is the arrangement to keep straight**, because it is the reverse of the
+14 Aug one and every stale note in this repo describes the old shape:
+
+| | Where |
+|---|---|
+| Credit ($274 left, 21 Aug) | new account, billing `01DAB3-71DAC1-49A233` |
+| Machines, 96-processor allowance | **old project** `project-c4c87dcb-da41-4caf-922` |
+| Every published NEAR run | **old project** — same one. Hardware match is exact |
+| Phase 2 Polygon machines | `remittances-benchmarking`, stopped |
+
+The 9 disk snapshots (incl. the validator health log, which exists nowhere
+else) live in the old project and remain readable. Terminal access
 to the new project requires `angadkochar2@gmail.com` to be granted Editor.
 
 **Polygon is finished** (140/140 + 15/15). **Lightning is closed**

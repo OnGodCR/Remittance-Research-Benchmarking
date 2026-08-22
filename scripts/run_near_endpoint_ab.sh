@@ -76,6 +76,23 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` searches whole command lines, and when this runs on the
+# generator the shell wrapping it HAS "foo" in its own command line -- so the
+# check matches itself and always says yes. Observed 05:0x on 22 Aug: a status
+# check reported the sweep RUNNING while it had never been started.
+#
+# Two ways that ruins the night. The "is one already going?" test never fires,
+# so the sweep is never launched and the watcher waits on nothing until the
+# machines hit their shutdown time. Worse, `pkill -f 'harness.cli run'` at the
+# top of the sweep MATCHES ITS OWN WRAPPER and kills the sweep on its first
+# instruction.
+#
+# The brackets fix it: the regex [h]arness still matches the text "harness" in
+# a real process, but this line's own text now reads "[h]arness", which the
+# regex does not match. Same trap as RESUME_HERE.md S5 trap 8.
+
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$(grep -E '^project_id' "$REPO/terraform/phase4/terraform.tfvars" | cut -d'"' -f2)"
 GEN=near-generator
@@ -218,8 +235,8 @@ one_run() {  # arm(one|four), tps, repeat
 # rejected. Observed on Polygon, 19 Aug 2026: a control run came back at 0.0
 # payments/sec with all 23,959 failing. Nothing was wrong with the chain.
 log "Clearing any leftover run on the generator"
-gssh "pkill -f 'harness.cli run' 2>/dev/null; sleep 2; \
-  pgrep -f 'harness.cli run' >/dev/null && echo '  WARNING: a run is still active' || echo '  clear'" | tail -1
+gssh "pkill -f '[h]arness.cli run' 2>/dev/null; sleep 2; \
+  pgrep -f '[h]arness.cli run' >/dev/null && echo '  WARNING: a run is still active' || echo '  clear'" | tail -1
 
 # BACKGROUND TRAFFIC MUST BE PRESENT, AND THERE MUST BE EXACTLY ONE OF IT.
 #
@@ -229,14 +246,14 @@ gssh "pkill -f 'harness.cli run' 2>/dev/null; sleep 2; \
 # this experiment is for. So: start one only if none is running.
 log "Checking background traffic (exactly one generator must be running)"
 gssh "cd /opt/benchmark && \
-  if pgrep -f 'harness.noise_near' >/dev/null; then \
-    echo \"background traffic already running (\$(pgrep -cf 'harness.noise_near') process(es))\"; \
+  if pgrep -f '[h]arness.noise_near' >/dev/null; then \
+    echo \"background traffic already running (\$(pgrep -cf '[h]arness.noise_near') process(es))\"; \
   else \
     setsid nohup ./.venv/bin/python -u -m harness.noise_near \
       --config config/phase4.json --keys keys/near_noise_senders.json \
       --duration 30000 >> noise.log 2>&1 < /dev/null & \
     sleep 10; \
-    pgrep -f 'harness.noise_near' >/dev/null && echo 'background traffic STARTED' \
+    pgrep -f '[h]arness.noise_near' >/dev/null && echo 'background traffic STARTED' \
       || echo 'BACKGROUND TRAFFIC FAILED -- check /opt/benchmark/noise.log'; \
   fi" | tail -2
 
