@@ -242,6 +242,30 @@ done
 log "The sweep has stopped. Last 25 lines:"
 ggen "tail -25 /opt/benchmark/ab.log"
 
+# --- 5b. the block-cadence test ------------------------------------------
+#
+# Runs AFTER the endpoint experiment, on the same cluster, because it needs
+# the same accounts and because restarting the nodes at a new cadence would
+# have disturbed the endpoint runs mid-flight.
+#
+# Driven from here rather than from the generator: changing the cadence means
+# reaching all eight computers, and the generator holds no credentials for
+# that. It is resumable with --from-repeat if this Mac restarts.
+if [ "${SKIP_BLOCKTIME:-0}" != "1" ]; then
+  need2=$(( 20 * (300 + 120) / 60 + 30 ))
+  now2=$(( $(date -u +%H) * 60 + $(date -u +%M) ))
+  cap2=$(( ${HARD_STOP_UTC%%:*} * 60 + ${HARD_STOP_UTC##*:} ))
+  [ "$cap2" -le "$now2" ] && cap2=$(( cap2 + 1440 ))
+  if [ $(( cap2 - now2 )) -lt "$need2" ]; then
+    log "Not enough time for the block-cadence test -- skipping it"
+    note "needs ~${need2} min, has $(( cap2 - now2 )). Run it later with:"
+    note "  ./scripts/run_near_blocktime.sh"
+  else
+    log "Starting the block-cadence test (20 runs)"
+    ./scripts/run_near_blocktime.sh --endpoints "$ENDPOINTS" 2>&1
+  fi
+fi
+
 # --- 6. bring the results home -------------------------------------------
 log "Pulling the results database back"
 gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
