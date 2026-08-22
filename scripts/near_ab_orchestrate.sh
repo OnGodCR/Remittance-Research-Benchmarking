@@ -220,20 +220,38 @@ print(','.join('http://%s:3030' % v[i]['private_ip'] for i in (0, 2, 4, 6)))
 [ -n "$ENDPOINTS" ] || { log "could not read node addresses"; exit 1; }
 note "endpoints: $ENDPOINTS"
 
-if ggen "pgrep -f '[r]un_near_endpoint_ab' >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; then
+# COPYING AND LAUNCHING AS THE RIGHT USER
+#
+# /opt/benchmark belongs to root. Logging in over ssh lands as a personal
+# account, so a direct copy into that directory fails -- which is exactly what
+# happened at 20:57 on 22 Aug: setup had finished, impairment was applied, the
+# chain was healthy, and the whole run died on the copy. The file goes to /tmp
+# first, then root installs it.
+#
+# Launching under systemd rather than setsid, for the same reason the account
+# setup runs that way: it runs as root so it can write results, it survives the
+# ssh session closing, and "is it still going?" becomes a state systemd
+# reports rather than a pattern match that can find itself.
+if ggen "systemctl is-active near-ab-sweep 2>/dev/null" | tail -1 | grep -qx active; then
   note "a sweep is ALREADY running on the generator -- watching that one instead"
 else
   gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
-    scripts/run_near_endpoint_ab.sh "$GEN:/opt/benchmark/run_ab.sh" --zone "$GZONE" >/dev/null 2>&1 \
+    scripts/run_near_endpoint_ab.sh "$GEN:/tmp/run_ab.sh" --zone "$GZONE" >/dev/null 2>&1 \
     || { log "could not copy the experiment across"; exit 1; }
-  ggen "chmod +x /opt/benchmark/run_ab.sh; cd /opt/benchmark && rm -f ab.log && \
-    setsid nohup ./run_ab.sh --local --repeats $REPEATS_WANTED --endpoints '$ENDPOINTS' > ab.log 2>&1 < /dev/null & \
-    sleep 6; pgrep -f '[r]un_ab.sh' >/dev/null && echo STARTED || echo FAILED_TO_START" | tail -1 | sed 's/^/    /'
+  ggen "sudo install -m 755 /tmp/run_ab.sh /opt/benchmark/run_ab.sh && \
+    sudo systemctl reset-failed near-ab-sweep 2>/dev/null; \
+    sudo rm -f /opt/benchmark/ab.log; \
+    sudo systemd-run --unit=near-ab-sweep --working-directory=/opt/benchmark \
+      --property=StandardOutput=append:/opt/benchmark/ab.log \
+      --property=StandardError=append:/opt/benchmark/ab.log \
+      /opt/benchmark/run_ab.sh --local --repeats $REPEATS_WANTED --endpoints '$ENDPOINTS' 2>&1 | tail -1" | tail -1 | sed 's/^/    /'
+  sleep 15
+  ggen "systemctl is-active near-ab-sweep" | tail -1 | sed 's/^/    sweep: /'
 fi
 
 log "Watching. $(( REPEATS_WANTED * 4 )) runs."
 last=""
-while ggen "pgrep -f '[r]un_ab.sh' >/dev/null && echo yes || echo no" | tail -1 | grep -q yes; do
+while ggen "systemctl is-active near-ab-sweep 2>/dev/null" | tail -1 | grep -qx active; do
   sleep 300
   cur=$(ggen "grep -cE 'achieved' /opt/benchmark/ab.log 2>/dev/null || echo 0" | tail -1)
   line=$(ggen "tail -1 /opt/benchmark/ab.log" | tail -1)
