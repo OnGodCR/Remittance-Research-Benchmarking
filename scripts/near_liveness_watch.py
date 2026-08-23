@@ -84,12 +84,23 @@ def rpc(url: str, method: str, params, timeout: float = 8.0):
 #: Every validator's RPC, so each one's own view of the chain tip can be
 #: checked. Asking only the node we submit through cannot see a validator that
 #: has fallen behind: it stays in the set, keeps its peers, and is counted.
+# These addresses belonged to the 11 Aug cluster. The 21 Aug rebuild changed
+# every one of them except node0's, so on the rebuilt cluster this map would
+# report seven phantom outages per sample and fail every run's health audit.
+# The orchestrator writes the live map to /opt/benchmark/peer_rpcs.json from
+# the infrastructure state before anything is measured; that file, when
+# present, REPLACES this map, which is kept only so the script can still
+# interpret logs from the original campaign.
 PEER_RPCS = {
     "node0": "10.40.0.10", "node1": "10.40.0.2",
     "node2": "10.40.1.2",  "node3": "10.40.1.3",
     "node4": "10.40.2.3",  "node5": "10.40.2.2",
     "node6": "10.40.3.3",  "node7": "10.40.3.2",
 }
+import json as _json, os as _os
+if _os.path.exists("/opt/benchmark/peer_rpcs.json"):
+    with open("/opt/benchmark/peer_rpcs.json") as _fh:
+        PEER_RPCS = _json.load(_fh)
 
 
 def peer_heights(timeout: float = 4.0) -> dict:

@@ -26,15 +26,16 @@ console.
 | 22 Aug 04:00-11:15 | NEAR rebuild, account setup, killed by the 11:15 shutdown | 7.2 | ~32 | ~58 |
 | 22 Aug 19:12-00:44 | NEAR setup completed + endpoint A/B, 20 runs | 5.5 | ~25 | ~83 |
 | 23 Aug 00:44-00:51 | generator alone, to recover the results database | 0.1 | ~0 | ~83 |
-| 23 Aug 00:51- | NEAR restarted for the block-cadence test | open | — | — |
+| 23 Aug 00:51-02:56 | Block-cadence attempt — **discarded**: collected without the network impairment (stale addresses; ops audit) | 2.1 | ~9 | ~92 |
+| 23 Aug 03:30- | Corrected campaign: endpoint A/B (6 repeats, pre-registered) + block cadence, impairment verified per-machine | open | est ~35 | — |
 
 ## Planned
 
 | Work | Est. hours | Est. cost |
 |---|---|---|
-| Block-cadence test (running) | 3.0 | ~14 |
+| Corrected campaign (running) | 7.7 | ~35 |
 | Original-contract test | 0.8 | ~4 |
 | Polygon at full spec | 4.0 | ~10 |
-| **Projected total** | | **~$111** |
+| **Projected total** | | **~$141** |
 
 Leaves roughly $190 of the $300 unspent.
