@@ -5,6 +5,27 @@
 
 > **Corrected 12 Aug 2026.** This document said mainnet ran "8–9 shards", carried over from planning. Queried directly (`EXPERIMENTAL_protocol_config` on `rpc.mainnet.near.org`, 12 Aug 2026, protocol version 86, shard layout **V3**): mainnet runs **10 shards** with **422 validators, 10 per shard**. Every figure below is updated. The correction makes the cross-shard blend *larger*, so the conservative direction of our bias is unchanged — see §2.
 
+> ## ⚠️ THE PRODUCT OF THIS DOCUMENT IS WITHDRAWN — 14 Aug 2026 (ANALYSIS_PLAN §13, amendment 12.2)
+>
+> The method below is still readable as method, and the 4-vs-10 shard gap it
+> describes is still a real caveat that must travel with every NEAR number.
+> **But the projection it was built to produce — scaling NEAR's measured
+> throughput up to a 10-shard mainnet, and the ~372/sec figure that came out of
+> it — is withdrawn and must not be quoted.**
+>
+> Why: the method assumes capacity grows with shard count because work spreads
+> across shards. It does not, for the workload we measured. **Every NEP-141
+> transfer executed on the single shard holding the token contract.** Sharding
+> distributed *inclusion* and never distributed *execution*, so adding shards
+> adds no capacity to a single-contract stablecoin workload at any shard count.
+> That replacement finding is the one to cite.
+>
+> Amendment 12.2 also discredits `route_hops` as a measure of execution
+> placement, which several calculations below rely on.
+>
+> Nothing here is deleted, because the reasoning is what a reader needs in order
+> to understand why the projection failed.
+
 ---
 
 ## 1. The problem in one paragraph

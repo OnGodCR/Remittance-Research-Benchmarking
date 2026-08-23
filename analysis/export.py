@@ -192,6 +192,21 @@ NON_RESULT_PHASES = {
     "phase-6-near-endpoints-one",
     "phase-6-near-endpoints-four",
     "phase-6-near-smoke",
+    # ---- NEAR block-cadence test, 23 Aug 2026 ----------------------------
+    #
+    # Held out for the plainest possible reason: HALF OF THESE RUNS WERE
+    # DELIBERATELY MEASURED ON A CHAIN CONFIGURED DIFFERENTLY FROM EVERY
+    # PUBLISHED RUN. The -1200ms runs made a block every 1.2 seconds; every
+    # published NEAR figure was measured at 2 seconds. Pooled into the results
+    # file they would land in the same $200 cells as the published matrix and
+    # silently mix two chain configurations into one average.
+    #
+    # The -2000ms arm is the matched control and is NOT reportable either: it
+    # exists to be compared against its 1200ms twin on this cluster, and at
+    # n=1 and n=2 surviving runs the pair is below the five-repeat minimum in
+    # ANALYSIS_PLAN S8. See amendment 16.
+    "phase-6-near-blocktime-2000ms",
+    "phase-6-near-blocktime-1200ms",
     # The full Lightning matrix is excluded from RESULTS, not deleted.
     #
     # Decided 10 Aug 2026 (ANALYSIS_PLAN.md S13, amendment 5): Lightning's
