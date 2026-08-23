@@ -219,7 +219,10 @@ one_run() {  # arm(one|four), tps, repeat
   if [ "$arm" = "four" ]; then urls="$ENDPOINTS"; else urls="$SINGLE"; fi
   settle_and_check
   log "repeat $r / $arm endpoint(s) / $tps per second"
-  gssh "cd /opt/benchmark && ./.venv/bin/python -u -m harness.cli run \
+  # sudo: the results database belongs to root. Without it the harness exits
+  # in seconds having recorded nothing, while every progress line looks
+  # normal -- exactly what emptied the first block-cadence attempt.
+  gssh "cd /opt/benchmark && sudo ./.venv/bin/python -u -m harness.cli run \
       --config config/phase4.json --tps $tps --window $WINDOW --amount $AMOUNT \
       --repeat $r --phase phase-6-near-endpoints-$arm --arm baseline \
       --rpc-urls '$urls' 2>&1 | grep -E 'achieved|lag growth|endpoint override' | tail -3" \
@@ -235,7 +238,7 @@ one_run() {  # arm(one|four), tps, repeat
 # rejected. Observed on Polygon, 19 Aug 2026: a control run came back at 0.0
 # payments/sec with all 23,959 failing. Nothing was wrong with the chain.
 log "Clearing any leftover run on the generator"
-gssh "pkill -f '[h]arness.cli run' 2>/dev/null; sleep 2; \
+gssh "sudo pkill -f '[h]arness.cli run' 2>/dev/null; sleep 2; \
   pgrep -f '[h]arness.cli run' >/dev/null && echo '  WARNING: a run is still active' || echo '  clear'" | tail -1
 
 # BACKGROUND TRAFFIC MUST BE PRESENT, AND THERE MUST BE EXACTLY ONE OF IT.

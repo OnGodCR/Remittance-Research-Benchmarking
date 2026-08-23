@@ -65,8 +65,22 @@ NAMES=(near-validator-0 near-validator-1 near-validator-2 near-validator-3
        near-validator-4 near-validator-5 near-validator-6 near-validator-7)
 ZONES=(us-east4-c us-east4-c asia-south1-a asia-south1-a
        asia-southeast1-a asia-southeast1-a europe-west2-b europe-west2-b)
-IPS=(10.40.0.10 10.40.0.2 10.40.1.2 10.40.1.3
-     10.40.2.3 10.40.2.2 10.40.3.3 10.40.3.2)
+# The addresses are DERIVED, not hardcoded. The 21 Aug rebuild assigned new
+# internal addresses to seven of the eight machines, and the hardcoded list
+# from the 11 Aug cluster matched only validator-0 -- so seven-eighths of the
+# delay and packet-loss rules pointed at addresses nobody holds, while the
+# script printed APPLIED for every machine. Found by the 23 Aug ops audit,
+# verified against the infrastructure state. The 21 Aug fix to this same
+# script corrected the project name and missed the addresses; this closes the
+# whole class by reading the state instead of copying from it.
+IPS=($(cd "$(dirname "${BASH_SOURCE[0]}")/../terraform/phase4" && \
+  tofu output -json validators | python3 -c "
+import sys, json
+print(' '.join(v['private_ip'] for v in json.load(sys.stdin)))"))
+if [ "${#IPS[@]}" -ne "${#NAMES[@]}" ]; then
+  echo "error: expected ${#NAMES[@]} validator addresses from the infrastructure state, got ${#IPS[@]}" >&2
+  exit 1
+fi
 
 # IDENTICAL to phase 2's profile (METHODOLOGY_LOG.md §4 technique #2), applied
 # per REGION, so each corridor pays what it paid for Polygon. Two validators per
@@ -125,10 +139,18 @@ apply)
       cmd="$cmd && sudo tc filter add dev ens4 protocol ip parent 1:0 prio 1 \
            u32 match ip dst ${IPS[$k]}/32 flowid 1:3"
     done
-    cmd="$cmd; echo APPLIED \$(tc qdisc show dev ens4 | grep -c netem)"
+    # Verify the FILTERS, not just the delay rule: the delay rule existing says
+    # nothing about whether any live machine's traffic is matched by it. Each
+    # machine must carry one filter per peer -- seven.
+    cmd="$cmd; echo APPLIED \$(tc qdisc show dev ens4 | grep -c netem) FILTERS \$(sudo tc filter show dev ens4 parent 1:0 | grep -c 'match ')"
     out=$(run_on "$i" "$cmd" | tail -1)
     printf '  %-18s %-22s +%sms ±%sms, %s%% loss  -> %s\n' \
       "${NAMES[$i]}" "${CORRIDOR[$i]}" "$d" "$j" "$l" "$out"
+    case "$out" in
+      *"FILTERS $((COUNT - 1))") : ;;
+      *) echo "error: ${NAMES[$i]} does not carry $((COUNT - 1)) peer filters -- impairment is NOT correctly applied" >&2
+         exit 1 ;;
+    esac
   done
   echo
   log "Impairment active. Record these values with the results -- they are an"

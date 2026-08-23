@@ -168,6 +168,32 @@ note "config written; accounts ready"
 log "Applying the network impairment the published runs were measured under"
 ./scripts/inject_impairment_near.sh 2>&1 | tail -6
 
+# --- 3b. the validator health watcher, with LIVE addresses ----------------
+#
+# The watcher proves every measured run had all 8 machines participating --
+# the audit the paper says every cell passed. It carried the OLD cluster's
+# hardcoded addresses (same fault as the impairment script), so on this
+# cluster it would have reported seven phantom outages per sample and failed
+# every run. The live map is written from the infrastructure state and the
+# watcher restarted on it.
+log "Starting the validator health watcher"
+(cd "$REPO/terraform/phase4" && tofu output -json validators | python3 -c "
+import sys, json
+v = json.load(sys.stdin)
+print(json.dumps({'node%d' % i: x['private_ip'] for i, x in enumerate(v)}, indent=2))
+") > /tmp/peer_rpcs.json
+gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
+  /tmp/peer_rpcs.json "$GEN:/tmp/peer_rpcs.json" --zone "$GZONE" >/dev/null 2>&1
+gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
+  scripts/near_liveness_watch.py "$GEN:/tmp/near_liveness_watch.py" --zone "$GZONE" >/dev/null 2>&1
+ggen "sudo install -m 644 /tmp/peer_rpcs.json /opt/benchmark/peer_rpcs.json && \
+  sudo install -m 755 /tmp/near_liveness_watch.py /opt/benchmark/scripts/near_liveness_watch.py && \
+  sudo systemctl stop near-liveness 2>/dev/null; \
+  { sudo systemctl reset-failed near-liveness 2>/dev/null || true; } && \
+  sudo systemd-run --unit=near-liveness --working-directory=/opt/benchmark \
+    /opt/benchmark/.venv/bin/python -u scripts/near_liveness_watch.py >/dev/null 2>&1; \
+  sleep 4; systemctl is-active near-liveness" | tail -1 | sed 's/^/    watcher: /'
+
 # --- 4. is the chain whole? ----------------------------------------------
 log "Checking the chain"
 CHK="curl -s -m 10 -X POST -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}' http://localhost:3030 | python3 -c 'import sys,json;d=json.load(sys.stdin)[\"result\"];print(d[\"sync_info\"][\"latest_block_height\"], len(d[\"validators\"]))'"
@@ -197,9 +223,17 @@ fi
 # comparison. So this checks the clock and refuses rather than gambling.
 #
 # It does NOT extend the deadline. That is Angad's call, not this script's.
-need_min=$(( (REPEATS_WANTED * 2 * 2 * (300 + 120)) / 60 + 20 ))
-now_min=$(( $(date -u +%H) * 60 + $(date -u +%M) ))
-cap_min=$(( ${HARD_STOP_UTC%%:*} * 60 + ${HARD_STOP_UTC##*:} ))
+# 10# everywhere a zero-padded hour or minute enters arithmetic: bash reads
+# "08" and "09" as broken base-8 numbers and CRASHES -- and a crash here fired
+# the exit trap and would have stopped nine machines mid-experiment. Two full
+# hours of every day plus two minutes of every hour were mined.
+if [ "${SKIP_ENDPOINT:-0}" = "1" ]; then
+  need_min=5
+else
+  need_min=$(( (REPEATS_WANTED * 2 * 2 * (300 + 120)) / 60 + 20 ))
+fi
+now_min=$(( 10#$(date -u +%H) * 60 + 10#$(date -u +%M) ))
+cap_min=$(( 10#${HARD_STOP_UTC%%:*} * 60 + 10#${HARD_STOP_UTC##*:} ))
 [ "$cap_min" -le "$now_min" ] && cap_min=$(( cap_min + 1440 ))
 have_min=$(( cap_min - now_min ))
 log "Time check: need ~${need_min} min, have ${have_min} min before ${HARD_STOP_UTC} UTC"
@@ -242,8 +276,8 @@ else
     scripts/run_near_endpoint_ab.sh "$GEN:/tmp/run_ab.sh" --zone "$GZONE" >/dev/null 2>&1 \
     || { log "could not copy the experiment across"; exit 1; }
   ggen "sudo install -m 755 /tmp/run_ab.sh /opt/benchmark/run_ab.sh && \
-    sudo systemctl reset-failed near-ab-sweep 2>/dev/null; \
-    sudo rm -f /opt/benchmark/ab.log; \
+    { sudo systemctl reset-failed near-ab-sweep 2>/dev/null || true; } && \
+    sudo rm -f /opt/benchmark/ab.log && \
     sudo systemd-run --unit=near-ab-sweep --working-directory=/opt/benchmark \
       --property=StandardOutput=append:/opt/benchmark/ab.log \
       --property=StandardError=append:/opt/benchmark/ab.log \
@@ -253,12 +287,31 @@ else
 fi
 
 log "Watching. $(( REPEATS_WANTED * 4 )) runs."
-last=""
-while ggen "systemctl is-active near-ab-sweep 2>/dev/null" | tail -1 | grep -qx active; do
+# Only systemd's own words "inactive" or "failed" mean the sweep stopped. A
+# failed ssh read used to end this loop too -- and the script then declared
+# the sweep finished and let the block-cadence leg restart all eight nodes
+# UNDER a still-running sweep. Five consecutive unreadable checks are treated
+# as stopped, loudly, as a last resort.
+last=""; misses=0
+while :; do
+  state=$(ggen "systemctl is-active near-ab-sweep 2>/dev/null" | tail -1)
+  case "$state" in
+    active)
+      misses=0
+      cur=$(ggen "grep -cE 'achieved' /opt/benchmark/ab.log 2>/dev/null || echo 0" | tail -1)
+      line=$(ggen "tail -1 /opt/benchmark/ab.log" | tail -1)
+      [ "$cur" != "$last" ] && { note "$(date -u +%H:%MZ)  runs finished: ${cur:-?}/$(( REPEATS_WANTED * 4 ))   $line"; last="$cur"; }
+      ;;
+    inactive|failed)
+      [ "$state" = "failed" ] && log "the sweep unit reports FAILED -- results may be partial"
+      break ;;
+    *)
+      misses=$(( misses + 1 ))
+      note "could not read the sweep's state ($misses in a row)"
+      [ "$misses" -ge 5 ] && { log "five unreadable checks in a row -- treating the sweep as stopped"; break; }
+      ;;
+  esac
   sleep 300
-  cur=$(ggen "grep -cE 'achieved' /opt/benchmark/ab.log 2>/dev/null || echo 0" | tail -1)
-  line=$(ggen "tail -1 /opt/benchmark/ab.log" | tail -1)
-  [ "$cur" != "$last" ] && { note "$(date -u +%H:%MZ)  runs finished: ${cur:-?}/$(( REPEATS_WANTED * 4 ))   $line"; last="$cur"; }
 done
 log "The sweep has stopped. Last 25 lines:"
 ggen "tail -25 /opt/benchmark/ab.log"
@@ -275,8 +328,8 @@ fi
 # that. It is resumable with --from-repeat if this Mac restarts.
 if [ "${SKIP_BLOCKTIME:-0}" != "1" ]; then
   need2=$(( 20 * (300 + 120) / 60 + 30 ))
-  now2=$(( $(date -u +%H) * 60 + $(date -u +%M) ))
-  cap2=$(( ${HARD_STOP_UTC%%:*} * 60 + ${HARD_STOP_UTC##*:} ))
+  now2=$(( 10#$(date -u +%H) * 60 + 10#$(date -u +%M) ))
+  cap2=$(( 10#${HARD_STOP_UTC%%:*} * 60 + 10#${HARD_STOP_UTC##*:} ))
   [ "$cap2" -le "$now2" ] && cap2=$(( cap2 + 1440 ))
   if [ $(( cap2 - now2 )) -lt "$need2" ]; then
     log "Not enough time for the block-cadence test -- skipping it"
@@ -290,9 +343,22 @@ fi
 
 # --- 6. bring the results home -------------------------------------------
 log "Pulling the results database back"
-gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
-  "$GEN:/opt/benchmark/bench.db" "data/near_ab_bench.db" --zone "$GZONE" >/dev/null 2>&1 \
-  && note "saved to data/near_ab_bench.db" \
-  || note "WARNING: could not copy the database back"
+# The harness writes data/working/runs.sqlite -- the old path here named a
+# file that never existed, so this step "failed harmlessly" on every single
+# run and the data only survived because someone noticed. VACUUM INTO first:
+# copying a database file while it is being written to yields a corrupt copy
+# (repo trap 9).
+ggen "sudo rm -f /tmp/results_copy.sqlite && \
+  sudo /opt/benchmark/.venv/bin/python -c \"import sqlite3; sqlite3.connect('/opt/benchmark/data/working/runs.sqlite').execute(\\\"VACUUM INTO '/tmp/results_copy.sqlite'\\\")\" && \
+  sudo chmod 644 /tmp/results_copy.sqlite && echo COPY_READY" | tail -1
+mkdir -p data/near_supplementary
+if gcloud compute scp --strict-host-key-checking=no --quiet --project "$PROJECT" \
+    "$GEN:/tmp/results_copy.sqlite" "data/near_supplementary/latest_runs.sqlite" --zone "$GZONE" >/dev/null 2>&1 \
+    && [ -s "data/near_supplementary/latest_runs.sqlite" ]; then
+  note "saved to data/near_supplementary/latest_runs.sqlite ($(du -h data/near_supplementary/latest_runs.sqlite | cut -f1))"
+else
+  log "WARNING: THE RESULTS DID NOT COPY BACK. They survive on the stopped disk;"
+  note "do NOT destroy the infrastructure before fetching them by hand."
+fi
 
 log "Done. The trap now stops every machine."

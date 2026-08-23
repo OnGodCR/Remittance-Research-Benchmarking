@@ -133,10 +133,23 @@ c['min_block_production_delay']={'secs':$secs,'nanos':$nanos};\
 c['max_block_production_delay']={'secs':$maxs,'nanos':0};\
 c['max_block_wait_delay']={'secs':$waits,'nanos':0};\
 open(p,'w').write(json.dumps(d,indent=2))"
+  # Every machine must confirm, and a failure retries once then STOPS the
+  # leg: one machine left at the old speed is a mixed-cadence cluster that
+  # can still pass the block-production check, and 20 runs would be measured
+  # on a configuration that matches nothing.
   for i in 0 1 2 3 4 5 6 7; do
-    gssh "near-validator-${NAMES[$i]}" "${ZONES[$i]}" \
-      "sudo python3 -c \"$py\" && sudo systemctl restart neard && echo ok" | tail -1 \
-      | sed "s/^/    validator-${NAMES[$i]}: /"
+    r=$(gssh "near-validator-${NAMES[$i]}" "${ZONES[$i]}" \
+      "sudo python3 -c \"$py\" && sudo systemctl restart neard && echo ok" | tail -1)
+    if [ "$r" != "ok" ]; then
+      note "validator-${NAMES[$i]}: no confirmation (${r:0:60}) -- retrying once"
+      sleep 8
+      r=$(gssh "near-validator-${NAMES[$i]}" "${ZONES[$i]}" \
+        "sudo python3 -c \"$py\" && sudo systemctl restart neard && echo ok" | tail -1)
+    fi
+    case "$r" in
+      ok) note "validator-${NAMES[$i]}: ok" ;;
+      *)  die "cadence change failed on validator-${NAMES[$i]} -- refusing to measure a mixed-speed cluster" ;;
+    esac
   done
   note "waiting 90s for the cluster to settle after the restart"
   sleep 90
@@ -174,6 +187,30 @@ one_run() {  # cadence_ms, tps, repeat
       --repeat $r --phase phase-6-near-blocktime-${ms}ms --arm baseline \
       --rpc-urls '$ENDPOINTS' 2>&1 | grep -E 'achieved|lag growth|p95' | tail -3" | tail -3
 }
+
+# A LEFTOVER RUN WILL DESTROY THIS ONE -- same reasoning, same wording as the
+# endpoint sweep: a run still executing on the generator shares the funded
+# accounts with the new one, their per-account counters collide, and every
+# payment is rejected (observed 19 Aug: 0.0/sec, 23,959 failures).
+log "Clearing any leftover run on the generator"
+ggen "sudo pkill -f '[h]arness.cli run' 2>/dev/null; sleep 2; \
+  pgrep -f '[h]arness.cli run' >/dev/null && echo '  WARNING: a run is still active' || echo '  clear'" | tail -1
+
+# Background traffic must be present and there must be exactly one of it --
+# these runs are compared against runs that had it, and a silent dead noise
+# generator would measure a quiet chain as if it were the same experiment.
+log "Checking background traffic"
+NOISE_N=$(ggen "pgrep -cf '[h]arness.noise_near' 2>/dev/null || echo 0" | tail -1)
+case "$NOISE_N" in
+  1) note "background traffic running (1 process)" ;;
+  0) log "background traffic is NOT running -- starting it"
+     ggen "cd /opt/benchmark && sudo rm -f noise.log && \
+       sudo systemd-run --unit=near-noise --working-directory=/opt/benchmark \
+         /opt/benchmark/.venv/bin/python -u -m harness.noise_near --config config/phase4.json >/dev/null 2>&1; \
+       sleep 5; pgrep -cf '[h]arness.noise_near' || echo 0" | tail -1 | sed 's/^/    now running: /'
+     ;;
+  *) die "$NOISE_N background traffic generators running -- refusing to measure a doubled load" ;;
+esac
 
 CURRENT=""
 for r in $(seq 0 $((REPEATS - 1))); do
