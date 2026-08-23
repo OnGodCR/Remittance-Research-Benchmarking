@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # Runs ON THE GENERATOR. The full NEAR matrix, detached and RESUMABLE.
 #
@@ -58,7 +68,7 @@ PYEOF
 " > sweep.log 2>&1 < /dev/null &
 
 sleep 20
-if pgrep -f "harness.cli run" > /dev/null || grep -q "###" sweep.log 2>/dev/null; then
+if pgrep -f "[h]harness.cli run" > /dev/null || grep -q "###" sweep.log 2>/dev/null; then
   echo "sweep RUNNING"
   grep -E "^###" sweep.log | tail -2
 else

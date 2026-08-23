@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # ONE ENDPOINT VS FOUR — the proper, repeated measurement
 #
@@ -175,8 +185,8 @@ one_run() {  # arm(one|four), tps, repeat
 # the harness; two senders were fighting over the same wallets.
 log "Clearing any leftover run on the generator"
 gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
-  --command "pkill -f 'python -m harness.cli run' 2>/dev/null; sleep 2; \
-    pgrep -f 'python -m harness.cli run' >/dev/null && echo '  WARNING: a run is still active' \
+  --command "pkill -f '[p]python -m harness.cli run' 2>/dev/null; sleep 2; \
+    pgrep -f '[p]python -m harness.cli run' >/dev/null && echo '  WARNING: a run is still active' \
       || echo '  clear'" \
   < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 | tail -1
 
@@ -185,7 +195,7 @@ gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-throug
   --command "cd /opt/benchmark && setsid nohup ./.venv/bin/python -m harness.noise \
       --config config/phase1.json --duration 13000 --keys keys/noise_senders.json \
       > /tmp/noise.log 2>&1 < /dev/null & \
-    sleep 8 && (pgrep -f 'harness.noise' >/dev/null && echo 'background traffic RUNNING' \
+    sleep 8 && (pgrep -f '[h]harness.noise' >/dev/null && echo 'background traffic RUNNING' \
       || echo 'BACKGROUND TRAFFIC FAILED')" \
   < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 | tail -2
 

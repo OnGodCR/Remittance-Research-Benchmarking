@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # Replace the Polygon idle watcher with a NEAR-aware one, and fix the p2p bind.
 #
@@ -92,7 +102,7 @@ setsid nohup /usr/local/bin/idle-watch.sh 45 >/dev/null 2>&1 < /dev/null &
 cat > /usr/local/bin/bench-heartbeat.sh <<'EOF'
 #!/usr/bin/env bash
 while true; do
-  if pgrep -f "neard|harness.cli|near_bootstrap" >/dev/null; then
+  if pgrep -f "[n]neard|harness.cli|near_bootstrap" >/dev/null; then
     touch /var/run/bench-active
   fi
   sleep 120

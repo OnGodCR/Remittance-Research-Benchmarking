@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # The adversarial arm: 3 load levels x $200 x 5 repeats, with validators
 # dropping offline throughout.
@@ -55,15 +65,15 @@ gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-throug
       done
       echo \$? > ADV_DONE
     ' > adv.log 2>&1 < /dev/null & \
-    sleep 15 && (pgrep -f 'harness.cli run' >/dev/null && echo 'runs RUNNING' || echo 'FAILED to start') && \
-    (pgrep -f 'harness.noise' >/dev/null && echo 'background traffic RUNNING' || echo 'noise FAILED')" \
+    sleep 15 && (pgrep -f '[h]harness.cli run' >/dev/null && echo 'runs RUNNING' || echo 'FAILED to start') && \
+    (pgrep -f '[h]harness.noise' >/dev/null && echo 'background traffic RUNNING' || echo 'noise FAILED')" \
   -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 | tail -3
 
 log "Starting node outages (runs for the whole arm, from this machine)"
 nohup "$REPO/scripts/adversarial_nodes.sh" --phase phase2 --duration "$TOTAL_SECONDS" \
   > /tmp/adversarial.log 2>&1 < /dev/null &
 sleep 20
-if pgrep -f "adversarial_nodes.sh" >/dev/null; then
+if pgrep -f "[a]adversarial_nodes.sh" >/dev/null; then
   log "Node outages active -- at most one validator down at a time"
   grep -E "DOWN|back up" /tmp/adversarial.log | tail -2 || true
 else
