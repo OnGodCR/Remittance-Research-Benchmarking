@@ -220,6 +220,9 @@ print(','.join('http://%s:3030' % v[i]['private_ip'] for i in (0, 2, 4, 6)))
 [ -n "$ENDPOINTS" ] || { log "could not read node addresses"; exit 1; }
 note "endpoints: $ENDPOINTS"
 
+if [ "${SKIP_ENDPOINT:-0}" = "1" ]; then
+  log "Skipping the endpoint sweep (already collected, 20 runs)"
+else
 # COPYING AND LAUNCHING AS THE RIGHT USER
 #
 # /opt/benchmark belongs to root. Logging in over ssh lands as a personal
@@ -259,6 +262,7 @@ while ggen "systemctl is-active near-ab-sweep 2>/dev/null" | tail -1 | grep -qx 
 done
 log "The sweep has stopped. Last 25 lines:"
 ggen "tail -25 /opt/benchmark/ab.log"
+fi
 
 # --- 5b. the block-cadence test ------------------------------------------
 #
