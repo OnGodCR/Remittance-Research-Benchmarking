@@ -2,7 +2,20 @@
 
 **Audience**: the writing partner drafting the research paper. This document is self-contained — you should not need to read the codebase to write from it.
 
-**Status**: living document. Updated at the end of every phase. Last updated **9 August 2026** — Phase 2 complete (Polygon, 140/140 configurations); adversarial arm in progress; Phases 3-6 not started.
+**Status**: ⚠️ **THIS DOCUMENT IS TWO WEEKS STALE — DO NOT WRITE FROM IT ALONE. Banner added 23 August 2026.**
+
+Its own status line said "Last updated 9 August 2026 — Phases 3-6 not started", and the phase table in §10 still says so, while corrections dated 12 and 18 August sit further down the same file. It was never brought forward after Phase 2.
+
+**What is wrong with it, specifically:**
+
+| | |
+|---|---|
+| **Missing entirely** | Phase 3 (Lightning) and Phase 4 (NEAR). §10 contains **no NEAR results at all** — no 150/sec ceiling, no cost figure, no adversarial arm. A writer using this document as designed produces a paper with no sharding chapter. |
+| **Withdrawn claim, asserted twice** | §10 and §11 both state "the ~270/sec ceiling is architectural". Amendment 14.1 withdrew that on 19 August — it described a single-endpoint measurement setup, not Polygon. Both instances now carry a banner, but note that §11 is the "what the paper must NOT claim" list, so the guardrail list itself was ordering a withdrawn claim. |
+| **Missing conditioning** | §11's "every failure was a submission rejection" needs amendment 14.3's single-endpoint conditioning, which it does not have. |
+| **Contradicted elsewhere** | §11.5 forbids the Lightning volatility framing that `claude.md` §6 and §12 and `COMPARISON.md` require. Nothing records which wins. |
+
+**Read instead, in this order:** `RESUME_HERE.md` (current state), `ANALYSIS_PLAN.md` §13 (amendments 1–16 — the source of truth for what has been withdrawn), `METHODOLOGY_LOG.md` (decisions and parameters), then the per-architecture analyses. Sections 1–9 here are background and remain sound; §10 and §11 are not current.
 
 **How to use this**: Sections 1-9 are settled and can be written from directly. Section 10 fills in as data arrives. Section 11 is the list of things the paper must **not** claim — read it before writing any results prose, because several plausible-sounding sentences would be wrong.
 
