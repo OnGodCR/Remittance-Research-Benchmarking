@@ -754,3 +754,31 @@ and passed at 1200 ms, and the 1.70 ratio tracks the 1.67 cadence ratio as
 theory predicts. **This does not yet meet this plan's five-repeat minimum**
 (n=1 and n=2 survived) and may not be quoted as a result until re-run. It is
 recorded now because it bears directly on the §10 latency disqualification.
+
+**Why a straight re-run is not the fix, with the numbers.** The survivors are
+not the runs where our instrument behaved; they are the runs where its
+misbehaviour happened to be *steady*. Scheduling lag, p95, per run:
+
+| Cadence | Load | Runs | Survived | p95 lag of each run |
+|---|---|---|---|---|
+| 1200 ms | 100/sec | 3 | 1 | 0.10, 0.41, 0.42 |
+| 1200 ms | 150/sec | 3 | 1 | 0.18, 0.55, 0.56 |
+| 2000 ms | 100/sec | 3 | 1 | 0.24, 0.42, 0.42 |
+| 2000 ms | 150/sec | 4 | 2 | 0.31, 0.32, 0.55, 0.55 |
+
+Every run, including all five survivors, sat far above the 50 ms threshold in
+*magnitude*. They passed because amendment 1's rule tests lag **growth**, and
+theirs was high but flat — the blind spot §4 of `RESUME_HERE.md` already
+records. Repeating the sweep unchanged would therefore buy roughly the same
+one-or-two survivors per cell for roughly the same money, so it is not
+scheduled.
+
+**What that does and does not do to the finding.** It rules out reading these
+latencies as precise. It does not overturn the direction or the magnitude: the
+gap between cadences is **5.0 s** (12.20 s against 7.18 s) while the largest
+instrument lag in any surviving run is **0.31 s**, an order of magnitude
+smaller and — note the table — *larger* on the slower cadence, which is the
+direction that would shrink the gap rather than manufacture it. The ratio also
+tracks the cadence ratio (1.70 against 1.67), which an instrument artefact has
+no reason to do. Treat it as a strong preliminary result whose confirmation is
+blocked on the watcher, not on more machine time.
