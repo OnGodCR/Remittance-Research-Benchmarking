@@ -292,10 +292,20 @@ of fragmenting liquidity; measuring that is a queued supplementary test.
 **Supported:**
 - NEAR sustains 150 payments/sec at $200 under the full realism stack, at a
   2s block interval, with all execution on one shard (§1b).
-- The ceiling is NEAR's, not the instrument's — the harness was independently
-  validated to 300/sec against a null backend at equivalent in-flight load, p95
-  scheduling lag 1.2 ms (`docs/near_methodology/generator_is_not_the_ceiling.md`).
-- Past its knee NEAR collapses rather than degrades, unlike Polygon.
+- **⚠️ WITHDRAWN 23 Aug 2026** — this list previously read "the ceiling is
+  NEAR's, not the instrument's", citing the null-backend validation. That test
+  proves the *scheduler* holds 300/sec; its fake backend makes no network calls,
+  so it says nothing about the *watcher*, which on NEAR asks about every waiting
+  payment five times a second. Under correctly applied impairment on 23 Aug,
+  **every one of 24 excluded runs was excluded for our own program falling
+  behind (0.32–0.74s against a 50 ms limit), and none for the chain** — the
+  watcher saturates before the chain does. The 150/sec figure stands on its own
+  rule-clean runs; the attribution of the 200–300/sec behaviour is open
+  (`docs/near_methodology/generator_is_not_the_ceiling.md`).
+- **⚠️ WITHDRAWN by amendment 14.2** — this list previously read "past its knee
+  NEAR collapses rather than degrades, unlike Polygon". Polygon's ramp had
+  simply never been pushed past its own knee; when it was, Polygon also falls to
+  roughly a third of peak.
 - Cost per payment $0.000365, the lowest of the three architectures.
 - Sensitivity to validator loss at 2 producers per shard: 76% of capacity lost at
   the knee.
