@@ -273,10 +273,7 @@ success = settled FINAL within 60s):
 at 200/sec exactly as $200 does. The ceiling is architectural, not value-dependent.
 
 **The 22 rule-excluded cells** (20 at 300/sec, 2 at 200/sec) drifted past the
-50 ms lag-growth threshold — by 7–33 ms at 300/sec, with the null-backend
-validation (p95 lag 1.2 ms at 300/sec) showing the drift comes from NEAR's
-congested RPC, not the harness alone
-(`docs/near_methodology/generator_is_not_the_ceiling.md`). **They are now
+50 ms lag-growth threshold — by 7–33 ms at 300/sec, with the attribution of that drift now an open question — the null-backend validation proved the scheduler holds 300/sec, but its backend makes no network calls, so it cannot rule out our per-payment settlement watcher as a contributor (`docs/near_methodology/generator_is_not_the_ceiling.md`, corrected 23 Aug). **They are now
 REPORTED, from raw, as marked sensitivity data rather than hidden as
 'unmeasurable'**: all 20 runs at 300/sec are internally consistent at 94–99.7%
 failure, completing the collapse curve 0.15% → 76.3% → 96.7%. The threshold
