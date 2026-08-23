@@ -63,7 +63,7 @@ All at `n2-standard-8` (8 vCPU / 32 GB), matching Polygon's published validator 
 
 ### **Sustainable throughput at $200 = 200 payments/second**
 
-The pre-registered primary metric: the highest load step where achieved throughput reaches ≥90% of offered load **and** failures stay under 5%. At 300/sec both conditions fail — 90.2% delivered, 9.97% failures.
+The pre-registered primary metric: the highest load step where achieved throughput reaches ≥90% of offered load **and** failures stay under 5%. At 300/sec the **failure** condition fails: 9.97% against the 5% bar. Delivery does not — 270.5/300 = 90.2%, which meets the ≥90% bar. (Earlier wording said "both conditions fail", which contradicted its own arithmetic; corrected 23 Aug 2026. The verdict is unchanged: 200/sec remains the highest step passing both, and see the withdrawal banner above on what ~270/sec measures.)
 
 ### The knee sits between 200 and 300/sec
 
@@ -86,7 +86,9 @@ So the correct sentence for the clean results is: *the network committed roughly
 
 **The second kind appears only in the adversarial arm** — 7,944 payments, 0.91% of that arm, at 200 and 300/sec only. See §5: it is the more serious finding of the two.
 
-⚠️ **Limitation.** The queue is Polygon Edge's default size; we did not tune it. A larger queue would absorb more backlog and push rejections later, converting them into longer waits and eventually into the second kind of failure. **The ~270/sec committed ceiling is a property of the architecture; the precise 9.97% is a property of the architecture at its default queue setting.**
+⚠️ **Limitation.** The queue is Polygon Edge's default size; we did not tune it. A larger queue would absorb more backlog and push rejections later, converting them into longer waits and eventually into the second kind of failure. ~~**The ~270/sec committed ceiling is a property of the architecture; the precise 9.97% is a property of the architecture at its default queue setting.**~~
+
+**⚠️ WITHDRAWN 19–23 Aug 2026 (ANALYSIS_PLAN §13, amendment 14.1).** The ~270/sec figure describes the SINGLE-ENDPOINT measurement setup, not the architecture. Every settlement question went to one node, and that node — not the chain — was what fell behind. With the same questions spread over four nodes, the same cluster committed **300.4/sec with 0.00% failures**, and the real knee sits near 320–340/sec. Anywhere ~270/sec appears it must carry this conditioning. The re-measurement used 4-processor validators against the published 8, so its absolute numbers are a floor rather than a replacement — see `POLYGON_RPC_BOTTLENECK.md`.
 
 ### Against the architecture-selection thresholds
 

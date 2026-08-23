@@ -689,3 +689,68 @@ it.** They must be added before the clean dataset is next rebuilt, or these
 runs will flow into the results file and land in the same $200 cells as the
 published five-repeat matrix. Nothing has been exported yet, so no figure is
 affected today.
+
+
+---
+
+**16 — The impairment was not applied to the 22–23 Aug supplementary runs; both collections discarded and re-run. Added 23 August 2026.**
+
+**What happened.** `scripts/inject_impairment_near.sh` held the internal
+addresses of the cluster built on 11 Aug. The cluster was rebuilt on 21 Aug and
+seven of the eight addresses changed. The script's delay and packet-loss rules
+therefore matched traffic to machines that no longer existed, while it printed
+`APPLIED` for every machine — it only checked that a delay rule existed, never
+that anything was routed into it. Both supplementary collections of 22–23 Aug
+(the endpoint A/B and a partial block-cadence leg) were measured on an
+essentially unimpaired network and **cannot be compared against published runs
+that paid the full penalty**. Both are discarded, archived rather than deleted
+(`runs_unimpaired_22-23aug.sqlite`). Roughly $9 of machine time.
+
+**Why it is recorded here rather than only in the operations log.** Amendment 15
+pre-registered this experiment on the stated basis that everything except the
+setting under test was held identical to the published campaign. That basis was
+false for those runs. Anyone reading amendment 15 must reach this entry.
+
+**Two further departures from amendment 15's stated design, both found in the
+discarded collection.** It said six repeats per arm; five were run, under
+deadline pressure, undocumented at the time. It also said the rebuilt cluster
+used "the same 836-account sender pool"; the recovered 13 Aug disk image shows
+the published campaign used 836 senders and the rebuild used 900. The 23 Aug
+re-run uses six repeats as pre-registered; the sender-pool difference stands and
+is disclosed.
+
+**The token contract question, settled.** Amendment 15 said the rebuilt contract
+could not be proven byte-identical to the published one and that nothing in the
+repository could settle it. The 13 Aug disk images could, and do: the original is
+**148,137 bytes** (sha256 `b0ec2f43…`), the rebuild **150,621 bytes**
+(`756eb555…`). Different builds, beyond argument. The published gas figure of
+2.214×10¹² belongs to the 148,137-byte build. The original bytes are committed at
+`data/reference/contracts/fungible_token_ORIGINAL_13aug.wasm`.
+
+**The capacity-test claim, narrowed.** `generator_is_not_the_ceiling.md` claimed
+the null-backend validation proved NEAR's measured ceiling belonged to the chain
+and not our tooling. It does not. That backend answers "is this payment done?"
+by sleeping and makes no network calls, whereas NEAR's adapter asks the network
+about every waiting payment five times a second. The test validates the
+scheduler and is silent about the watcher. Amendment 12.5's parenthetical
+attributing NEAR's lag drift to congested RPC "per the null-backend validation"
+is withdrawn on the same grounds.
+
+**What the corrected 23 Aug campaign then showed, and why it matters to this
+plan.** With the impairment verified applied per machine, **all 12 runs at
+200/sec failed the saturation rule in both arms, and every one of the 24
+exclusions across all 44 runs was our own program falling 0.32–0.74s behind a
+50 ms limit. None was the chain.** Impairment slows settlement, more payments
+wait, and a watcher that asks per payment saturates before the chain does. The
+consequence for this plan is concrete: **the endpoint question of amendment 15
+is not answerable at 200/sec with the present watcher**, and no figure from that
+load may be published from either arm until the instrument is no longer the
+binding limit.
+
+**Block cadence (the amendment 12.1 queue), first measurement.** At 2000 ms
+blocks settlement was p50 12.20s / p95 15.07s; at 1200 ms, **p50 7.18s / p95
+8.20s** — the decision rule's 10-second bar is failed at the published cadence
+and passed at 1200 ms, and the 1.70 ratio tracks the 1.67 cadence ratio as
+theory predicts. **This does not yet meet this plan's five-repeat minimum**
+(n=1 and n=2 survived) and may not be quoted as a result until re-run. It is
+recorded now because it bears directly on the §10 latency disqualification.
