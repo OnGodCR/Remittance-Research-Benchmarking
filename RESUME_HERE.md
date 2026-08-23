@@ -1,4 +1,51 @@
-# Resume Here — complete state, updated 13 August 2026
+# Resume Here — complete state, updated 23 August 2026
+
+> ## ⏸️ NOTHING IS RUNNING. ONE DECISION BLOCKS BOTH REMAINING EXPERIMENTS.
+> *Written 23 Aug 2026, 13:30 UTC. Everything below this box predates 19 Aug
+> unless its own banner says otherwise — read this box first.*
+>
+> **Machines:** all nine NEAR machines stopped. Polygon and Lightning stopped.
+> Spend roughly **$123 of the $300 budget** (estimated from machine-hours;
+> `docs/spend_ledger.md`). Budget alert emails are live at $50 / $100 / $200.
+>
+> ### The blocker, in one paragraph
+>
+> The program that sends the test payments also has to notice when each one
+> finishes. On Polygon it reads each new block once and picks out every payment
+> at a time. On NEAR it asks the network about **every waiting payment, five
+> times a second**. Under the network impairment the study requires, settlement
+> slows, more payments wait, and that asking work grows until **our own
+> instrument is the thing that gives out — before the chain does**. Measured
+> 23 Aug: at 200/sec every run failed in both arms, and **all 24 exclusions
+> across 44 runs were our program falling 0.32–0.74 s behind a 50 ms limit.
+> None was the chain.**
+>
+> Two experiments are blocked on this, and **no amount of machine time fixes
+> either**: the endpoint A/B at 200/sec (amendment 15), and the
+> original-contract test, which also targets 200/sec. **The decision is
+> Angad's** — whether to make the instrument cheaper (e.g. asking less often,
+> which coarsens latency resolution and would differ from how the published
+> NEAR runs were measured) or to report the limit as it stands.
+>
+> Per-architecture watching is **not itself unfair** — each chain is watched
+> the way that chain is watched in practice (Angad's ruling, 23 Aug). The
+> problem is only that our instrument saturates first.
+>
+> ### What changed on 22–23 August
+>
+> | | |
+> |---|---|
+> | **Impairment was not being applied** | The script held addresses from the cluster replaced on 21 Aug; seven of eight were dead, and it printed APPLIED anyway. Two collections were measured on an essentially unimpaired network and are **discarded** (archived, not deleted). Now derived from the infrastructure state and verified per machine. Amendment 16. |
+> | **Block cadence may overturn a verdict** | 2000 ms blocks → settlement p50 **12.20 s**; 1200 ms → **7.18 s**. The decision rule's 10-second bar is failed at the published cadence and passed at 1200 ms. **Preliminary — n=1 and n=2 survived, below the five-repeat minimum**, and a straight re-run will not fix it (amendment 16 explains why). |
+> | **The token contract is NOT the published one** | Recovered from the 13 Aug disk image: original **148,137 bytes** (`b0ec2f43…`), rebuild **150,621 bytes** (`756eb555…`). Different builds. The published 2.214×10¹² gas figure belongs to the original, committed at `data/reference/contracts/`. |
+> | **The capacity-test defence was withdrawn** | `generator_is_not_the_ceiling.md` claimed the null-backend test proved NEAR's ceiling belonged to the chain. That backend makes no network calls, so it tests the scheduler and is silent about the watcher. The 150/sec figure stands on its own runs; the 200–300/sec framing does not. |
+> | **Four audits ran** | Fairness, measurement code, analysis pipeline, documentation. The analysis pipeline came back **clean — every published figure recomputes**. The rest produced the fixes above plus documentation corrections, all committed. |
+>
+> ### Read next
+> `ANALYSIS_PLAN.md` §13 amendments **1–16** (source of truth for what has been
+> withdrawn), then `docs/spend_ledger.md`. **`HANDOFF.md` is stale — see its own
+> banner before writing from it.**
+
 
 > ## PHASE 4 COLLECTION IS COMPLETE
 >
