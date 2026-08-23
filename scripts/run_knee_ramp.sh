@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # FIND THE ACTUAL KNEE, BETWEEN 300 AND 400
 #
@@ -119,7 +129,7 @@ drain_wait() {
 
 log "Clearing any leftover run on the generator"
 gcloud compute ssh "$GEN" --zone "$ZONE" --project "$PROJECT" --no-tunnel-through-iap \
-  --command "pkill -f 'python -m harness.cli run' 2>/dev/null; sleep 2; echo cleared" \
+  --command "pkill -f '[p]python -m harness.cli run' 2>/dev/null; sleep 2; echo cleared" \
   < /dev/null -- -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=60 2>&1 | tail -1
 
 log "Starting background traffic"

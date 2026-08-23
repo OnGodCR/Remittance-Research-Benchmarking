@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# A PROCESS CHECK THAT FINDS ITSELF
+#
+# `pgrep -f foo` and `pkill -f foo` search whole command lines, so the shell
+# running the check has "foo" in its own -- the check matches itself. It
+# reports RUNNING when nothing is, and `pkill` kills its own wrapper. This
+# cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
+# instruction. The brackets fix it: the regex [f]oo still matches the text
+# "foo" in a real process, but this line's own text reads "[f]oo", which the
+# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
 # ---------------------------------------------------------------------------
 # Installs a per-node auto-unlock service, and keeps the idle watcher from
 # killing the cluster during setup.
@@ -71,7 +81,7 @@ cat > /usr/local/bin/bench-heartbeat.sh <<'EOF'
 #!/usr/bin/env bash
 # Refresh the heartbeat whenever any LND node is running. Setup counts as use.
 while true; do
-  pgrep -f "/usr/local/bin/lnd " >/dev/null && touch /var/run/bench-active
+  pgrep -f "[/]/usr/local/bin/lnd " >/dev/null && touch /var/run/bench-active
   sleep 120
 done
 EOF
