@@ -21,9 +21,13 @@
 >   valid with zero settled payments. **This was its third recurrence.**
 > - NEAR's ceiling is **150 payments/sec** at $200; it *collapses* rather than
 >   degrades above that, unlike Polygon.
-> - The 300/sec cells are unmeasurable at every transaction size, and the
+> - ~~The 300/sec cells are unmeasurable at every transaction size, and the
 >   harness was validated to 300/sec against a null backend to prove that
->   ceiling belongs to NEAR (`generator_is_not_the_ceiling.md`).
+>   ceiling belongs to NEAR.~~ **BOTH HALVES SUPERSEDED.** Amendment 12.3
+>   reports those cells from raw as sensitivity data rather than calling them
+>   unmeasurable; and the null-backend validation was corrected on 23 Aug —
+>   it proves the scheduler holds 300/sec, not that the ceiling belongs to
+>   NEAR (`generator_is_not_the_ceiling.md`).
 > - Four analysis-plan amendments (9, 10, 11 and the arm redesign) — see
 >   `claude.md` §0.
 

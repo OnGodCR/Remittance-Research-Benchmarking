@@ -264,7 +264,7 @@ success = settled FINAL within 60s):
 | 10/sec | 9.8 | 1.37% | sustained |
 | 25/sec | 24.8 | 0.88% | sustained |
 | 50/sec | 49.8 | 0.41% | sustained |
-| 100/sec | 100.2 | 0.12% | sustained |
+| 100/sec | 100.0 | 0.16% | sustained |
 | **150/sec** | **150.1** | **0.15%** | **sustained — the ceiling** |
 | 200/sec | 47.5 | 76.3% | collapsed |
 | 300/sec† | 9.9 | 96.7% | rule-excluded; reported from raw as sensitivity data |
