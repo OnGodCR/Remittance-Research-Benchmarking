@@ -164,7 +164,12 @@ one_run() {  # cadence_ms, tps, repeat
   note "settling ${SETTLE}s so nothing from the last run is still in flight"
   sleep "$SETTLE"
   log "repeat $r / ${ms}ms blocks / $tps per second"
-  ggen "cd /opt/benchmark && ./.venv/bin/python -u -m harness.cli run \
+  # sudo, because the results file belongs to root. Without it every run in
+  # this leg exited in about four seconds and recorded NOTHING -- 20 runs of
+  # apparent progress, an empty database, and no error anyone would notice
+  # until the data was fetched. Third time the same ownership mismatch has
+  # broken something today.
+  ggen "cd /opt/benchmark && sudo ./.venv/bin/python -u -m harness.cli run \
       --config config/phase4.json --tps $tps --window $WINDOW --amount $AMOUNT \
       --repeat $r --phase phase-6-near-blocktime-${ms}ms --arm baseline \
       --rpc-urls '$ENDPOINTS' 2>&1 | grep -E 'achieved|lag growth|p95' | tail -3" | tail -3
