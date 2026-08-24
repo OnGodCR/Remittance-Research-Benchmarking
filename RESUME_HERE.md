@@ -1,35 +1,54 @@
-# Resume Here — complete state, updated 23 August 2026
+# Resume Here — complete state, updated 24 August 2026
 
-> ## ⏸️ NOTHING IS RUNNING. ONE DECISION BLOCKS BOTH REMAINING EXPERIMENTS.
-> *Written 23 Aug 2026, 13:30 UTC. Everything below this box predates 19 Aug
-> unless its own banner says otherwise — read this box first.*
+> ## ✅ DATA COLLECTION CLOSED — Angad's decision, 24 Aug 2026. INFRASTRUCTURE DELETED.
+> *This box is the handoff. An agent picking the project up cold starts here.*
 >
-> **Machines:** all nine NEAR machines stopped. Polygon and Lightning stopped.
-> Spend roughly **$123 of the $300 budget** (estimated from machine-hours;
-> `docs/spend_ledger.md`). Budget alert emails are live at $50 / $100 / $200.
+> **State:** no machines exist. Both clusters (9 NEAR machines in
+> `project-c4c87dcb-da41-4caf-922`, 5 Polygon machines in
+> `remittances-benchmarking`) were destroyed via terraform on 24 Aug after every
+> byte of data was pulled into this repository. **The only remaining Google
+> Cloud billing is the nine 13-Aug disk snapshots** (rough order $5–10/month) —
+> kept deliberately: they hold the original campaign's disks, including the
+> validator health log and the original token contract, which exist nowhere
+> else. Angad can delete them from the console once the paper is submitted.
+> Spend at closure: **~$124 of $300** (`docs/spend_ledger.md`, closed).
 >
-> ### The blocker, in one paragraph
+> ### What "closed" means for each open question (amendment 17)
 >
-> The program that sends the test payments also has to notice when each one
-> finishes. On Polygon it reads each new block once and picks out every payment
-> at a time. On NEAR it asks the network about **every waiting payment, five
-> times a second**. Under the network impairment the study requires, settlement
-> slows, more payments wait, and that asking work grows until **our own
-> instrument is the thing that gives out — before the chain does**. Measured
-> 23 Aug: at 200/sec every run failed in both arms, and **all 24 exclusions
-> across 44 runs were our program falling 0.32–0.74 s behind a 50 ms limit.
-> None was the chain.**
+> | Question | Status at closure |
+> |---|---|
+> | Block cadence (2000 ms → p50 12.20 s; 1200 ms → 7.18 s; the 10 s bar flips) | **Preliminary sensitivity only** — n=1/n=2 survivors, below the 5-repeat minimum. May be cited only as such. |
+> | Who owns the 200/sec collapse (chain vs our watcher) | **Open.** The published 47.5/76.3% cell keeps its amendment 12/15/16 conditioning wherever quoted. |
+> | Original-contract test | Not run. The original bytes are committed (`data/reference/contracts/`), so it remains runnable. |
+> | Polygon knee at full spec | Not run. The corrected knee (320–340/sec) stands as a floor argued from smaller machines. |
 >
-> Two experiments are blocked on this, and **no amount of machine time fixes
-> either**: the endpoint A/B at 200/sec (amendment 15), and the
-> original-contract test, which also targets 200/sec. **The decision is
-> Angad's** — whether to make the instrument cheaper (e.g. asking less often,
-> which coarsens latency resolution and would differ from how the published
-> NEAR runs were measured) or to report the limit as it stands.
+> ### If work resumes — the exact path
 >
-> Per-architecture watching is **not itself unfair** — each chain is watched
-> the way that chain is watched in practice (Angad's ruling, 23 Aug). The
-> problem is only that our instrument saturates first.
+> 1. Read amendments 1–17 (`ANALYSIS_PLAN.md` §13) — the source of truth for
+>    what is withdrawn — then `METHODOLOGY_LOG.md`.
+> 2. **Rebuild NEAR** (~2 h, ~$4.50/h): `terraform/phase4` apply (tfvars pinned
+>    to the right project at full spec) → `scripts/deploy_near.sh` →
+>    `scripts/build_ft.sh` *or* deploy the committed original contract →
+>    `scripts/near_bootstrap.py --tag c` (fresh account namespace; a reused tag
+>    collides with dead accounts) → `scripts/near_ab_orchestrate.sh`, which
+>    arms every machine's shutdown timer FIRST and refuses to run without all
+>    nine, applies impairment with per-machine filter verification, starts the
+>    health watcher, and runs sweeps on the generator under systemd so a laptop
+>    restart costs nothing.
+> 3. **Gate:** do not measure at 200/sec until the watcher decision is made —
+>    our program's per-payment settlement checking saturates before the chain
+>    does (all 24 exclusions across 44 runs on 23 Aug were the instrument).
+> 4. Data map: results = `data/raw` + `data/clean` (unchanged since 13 Aug);
+>    corrected campaign = `data/near_supplementary/latest_runs.sqlite` +
+>    `c_raw.parquet`; discarded unimpaired runs = `runs_unimpaired_22-23aug.sqlite`
+>    (local, gitignored) with the blocktime-only rows also committed as
+>    `unimpaired_blocktime_raw.parquet` and the endpoint rows as `ab_raw.parquet`.
+> 5. New traps since the §5 list: `claude.md` is lowercase (case-insensitive
+>    filesystem swallows `CLAUDE.md` edits silently); zero-padded hours crash
+>    bash arithmetic (`10#` everywhere); **never attach a boot-disk clone to a
+>    machine** — the duplicate UEFI label throws the next boot into emergency
+>    mode (cost 25 minutes on 24 Aug); `/opt/benchmark` is root-owned, the
+>    harness must run under sudo.
 >
 > ### What changed on 22–23 August
 >

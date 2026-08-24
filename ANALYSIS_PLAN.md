@@ -782,3 +782,44 @@ direction that would shrink the gap rather than manufacture it. The ratio also
 tracks the cadence ratio (1.70 against 1.67), which an instrument artefact has
 no reason to do. Treat it as a strong preliminary result whose confirmation is
 blocked on the watcher, not on more machine time.
+
+
+---
+
+**17 — Data collection closed. Added 24 August 2026.**
+
+Angad closed data collection on 24 Aug 2026, with roughly $124 of the $300
+budget spent. This entry fixes what that decision means so nothing is later
+promoted by drift.
+
+**The matrix of record is unchanged**: the datasets frozen on 13 Aug (Polygon
+140+15, NEAR 118 measured + 22 sensitivity + 15, Lightning per amendment 5)
+remain the paper's evidence base, and every published figure recomputes from
+them.
+
+**The supplementary questions close in the following states.** The block-cadence
+comparison stays a preliminary sensitivity finding — direction and size are
+strong (5.0 s gap against 0.31 s worst instrument error, ratio tracking the
+cadence ratio) but survivorship is n=1/n=2 against the §8 five-repeat minimum,
+so it may be cited only as preliminary, and amendment 16 records why simple
+repetition cannot raise n. The attribution of the published 200/sec cell
+remains open; that cell keeps its conditioning wherever it appears. The
+original-contract test and the full-spec Polygon re-measurement were not run;
+the corrected Polygon knee stands as a floor argued from smaller machines
+(amendment 14).
+
+**Infrastructure is deleted, data is not.** Both clusters and their networks
+were destroyed by terraform on 24 Aug after collection. The discarded
+unimpaired collection that amendment 16 promised as "archived rather than
+deleted" was pulled off the generator's disk before deletion and now lives at
+`data/near_supplementary/runs_unimpaired_22-23aug.sqlite` (repository working
+tree, gitignored for size), with its 15 block-cadence runs additionally
+committed as `unimpaired_blocktime_raw.parquet` and its 20 endpoint runs
+already committed as `ab_raw.parquet` — every discarded payment therefore
+remains inspectable. The nine 13-Aug disk snapshots are retained in
+`project-c4c87dcb-da41-4caf-922` as the only surviving copy of the original
+campaign's machines (validator health log, original contract); they are the
+sole remaining billing item.
+
+**Resumption path** is written in `RESUME_HERE.md`'s top box, including the
+gate: nothing measures at 200/sec until the instrument question is resolved.
