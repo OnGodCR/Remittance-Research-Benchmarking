@@ -28,13 +28,16 @@ console.
 | 23 Aug 00:44-00:51 | generator alone, to recover the results database | 0.1 | ~0 | ~83 |
 | 23 Aug 00:51-02:56 | Block-cadence attempt — **discarded**: collected without the network impairment (stale addresses; ops audit) | 2.1 | ~9 | ~92 |
 | 23 Aug 03:30-10:18 | Corrected campaign, impairment verified: 24 endpoint runs + 13 block-cadence runs | 6.8 | ~31 | ~123 |
+| 24 Aug closeout | Generator alone for the archive pull and teardown, incl. 25 min lost to the boot-disk-clone label clash | 0.8 | ~1 | ~124 |
+| 24 Aug | **LEDGER CLOSED — collection ended by Angad's decision. Both clusters destroyed via terraform.** | — | — | **~$124 of $300** |
 
 ## Planned
 
-| Work | Est. hours | Est. cost |
-|---|---|---|
-| Original-contract test | 0.8 | ~4 |
-| Polygon at full spec | 4.0 | ~10 |
-| **Projected total** | | **~$137** |
+Nothing. Collection closed 24 Aug 2026 with roughly **$176 of the $300 unspent**.
 
-Leaves roughly $190 of the $300 unspent.
+The one remaining billing item is the nine 13-Aug disk snapshots in
+`project-c4c87dcb-da41-4caf-922` (order $5–10/month), kept deliberately as the
+only copy of the original campaign's machines — the validator health log and
+the original token contract live nowhere else. Angad can delete them from the
+console once the paper is submitted. If work resumes, the rebuild path and
+costs are in `RESUME_HERE.md`'s top box.
