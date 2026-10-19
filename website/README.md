@@ -43,6 +43,10 @@ Then open http://localhost:8791.
 
 What a replay keeps from each recorded test: its payment count, its failure rate, its settlement-time distribution (201 points) and a 5-second timeline. Success counts use a normal approximation to a binomial draw, which is far finer than the test-to-test differences shown.
 
+## Moving to remitbridgelabs.org
+
+Planned: this site is to be rebuilt as a page of the RemitBridge website. **`MOVE_TO_REMITBRIDGE.md`** is the full handoff: the decisions to make first, where every file goes, the caveats that must travel with each number, and the checks to run.
+
 ## Publishing
 
 Not published yet. That is Angad's call, ideally once the paper is submitted, because publishing makes the results public.
