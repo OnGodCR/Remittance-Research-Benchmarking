@@ -29,7 +29,7 @@ service-account*.json
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
-data/working/
+gcp-research/data/working/
 
 # Solidity build output -- regenerated from contracts/*.sol on every deploy
 build/
@@ -39,19 +39,19 @@ artifacts/
 .DS_Store
 terraform.tfvars
 
-terraform/phase3/terraform.tfvars
-terraform/phase3/*.tfstate*
-terraform/phase3/.terraform/
+gcp-research/terraform/phase3/terraform.tfvars
+gcp-research/terraform/phase3/*.tfstate*
+gcp-research/terraform/phase3/.terraform/
 
-keys/lightning_endpoints.json
+gcp-research/keys/lightning_endpoints.json
 
-terraform/phase4/terraform.tfvars
-terraform/phase4/*.tfstate*
-terraform/phase4/.terraform/
-keys/near_senders.json
+gcp-research/terraform/phase4/terraform.tfvars
+gcp-research/terraform/phase4/*.tfstate*
+gcp-research/terraform/phase4/.terraform/
+gcp-research/keys/near_senders.json
 
 # Rebuilt from data/raw/parts/ by analysis/rebuild_raw.py. Not stored directly:
 # GitHub hard-rejects any single large-file-storage object over 2 GiB and this
 # passed it at 610 runs.
-data/raw/all_runs_raw.parquet
-data/near_supplementary/*.sqlite
+gcp-research/data/raw/all_runs_raw.parquet
+gcp-research/data/near_supplementary/*.sqlite
