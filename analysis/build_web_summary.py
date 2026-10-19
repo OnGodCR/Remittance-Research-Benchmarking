@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shrink the study's dataset into the one small file the website loads.
+"""Shrink the study's dataset into the one small file the public website loads.
 
 WHY THIS EXISTS
 ---------------
@@ -19,13 +19,13 @@ each run separate in this file is what allows that.
 SAME NUMBERS AS THE PAPER
 -------------------------
 Every per-run and per-cell figure is computed by importing
-`gcp-research/analysis/results.py` -- the script the paper's tables come from --
+`analysis/results.py` -- the script the paper's tables come from --
 rather than re-implementing it. A website that computed its own numbers could
 quietly disagree with the paper. The build then checks the published headline
 figures and refuses to write the file if any fails to reproduce.
 
 USAGE (from the repository root)
-    gcp-research/.venv/bin/python website/build_data.py
+    .venv/bin/python analysis/build_web_summary.py
 """
 
 from __future__ import annotations
@@ -38,14 +38,14 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-ROOT = Path(__file__).resolve().parent.parent
-RESEARCH = ROOT / "gcp-research"
+RESEARCH = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RESEARCH / "analysis"))
 import results  # noqa: E402  the paper's own analysis code
 
 CLEAN = RESEARCH / "data" / "clean" / "all_runs_clean.parquet"
 RAW_NEAR = RESEARCH / "data" / "raw" / "parts" / "raw-near.parquet"
-OUT = Path(__file__).resolve().parent / "data" / "results.json"
+#: Copied to the RemitBridge website's public/data/remitbench/ after each rebuild.
+OUT = RESEARCH / "data" / "web" / "results.json"
 
 COLS = ["run_id", "architecture", "arm", "tx_size_usd", "target_tps",
         "repeat_index", "window_seconds", "succeeded", "latency_s",
@@ -198,7 +198,7 @@ def main() -> None:
     check(agg, s_agg)
 
     payload = {
-        "built_from": "gcp-research/data/clean/all_runs_clean.parquet "
+        "built_from": "data/clean/all_runs_clean.parquet "
                       "(+ 20 NEAR 300/sec runs from data/raw, marked raw-sensitivity)",
         "quantile_points": QUANTILES.tolist(),
         "cells": cells_json(agg, "clean") + cells_json(s_agg, "raw-sensitivity"),
