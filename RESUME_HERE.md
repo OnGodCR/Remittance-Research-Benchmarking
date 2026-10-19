@@ -62,8 +62,8 @@
 >
 > ### Read next
 > `ANALYSIS_PLAN.md` §13 amendments **1–16** (source of truth for what has been
-> withdrawn), then `docs/spend_ledger.md`. **`HANDOFF.md` is stale — see its own
-> banner before writing from it.**
+> withdrawn), then `docs/spend_ledger.md`. **`HANDOFF.md`, the writer's brief, was
+> deleted on 19 Oct 2026 as stale; it is recoverable from git history.**
 
 
 > ## PHASE 4 COLLECTION IS COMPLETE
@@ -433,7 +433,7 @@ asymmetries against Polygon and the four-hour expulsion cost),
 | `POLYGON_ANALYSIS.md` | **Complete Polygon results in one place** — throughput, cost, adversarial arm, limitations, corrections |
 | `METHODOLOGY_LOG.md` | Every decision, parameter, correction, dated. **The paper is written from this.** |
 | `ANALYSIS_PLAN.md` | Locked pre-registered analysis. §13 is the amendment log. |
-| `HANDOFF.md` | Self-contained brief for the writing agent, including claims the paper must NOT make |
+| ~~`HANDOFF.md`~~ | Deleted 19 Oct 2026 as stale (recoverable from git history). Claims the paper must NOT make are in `ANALYSIS_PLAN.md` §13 and `COMPARISON.md` |
 | `claude.md` | Original project scope |
 | `DECISIONS.md` | Technical choices vs. rejected alternatives |
 | `PHASE1.md` | Plain-language walkthrough of phase 1 |
