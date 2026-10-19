@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remittance Rails Benchmark</title>
+<meta name="description" content="How three blockchain designs handle remittance payments under realistic load: the study, the results, and a tool that replays our recorded tests.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="#story">Remittance Rails Benchmark</a>
+    <nav aria-label="Sections">
+      <a href="#story">The study</a>
+      <a href="#results">Results</a>
+      <a href="#replay">Replay a test</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- ================================================================ STORY -->
+<section id="story" class="wrap">
+  <p class="eyebrow">A student research project, summer 2026</p>
+  <h1>Can a blockchain carry the world's remittances?</h1>
+  <p class="lede">People working abroad send home roughly $905 billion a year. At the World Bank's standard $200 payment, that averages out to about 150 payments every second, worldwide, with paydays and holidays pushing well above that. We built three kinds of blockchain payment network, sent them realistic payment traffic, and measured how many payments each could settle, how long it took, and what it cost.</p>
+
+  <div class="tiles" id="hero-tiles"></div>
+
+  <ol class="chapters">
+    <li>
+      <h2>The question</h2>
+      <p>Which way of making a blockchain faster — a <strong>sidechain</strong>, an <strong>off-chain payment network</strong>, or <strong>sharding</strong> — would best raise how many payments a remittance system can settle, and lower what each one costs?</p>
+      <div class="cards three">
+        <div class="card"><span class="dot" style="--c:var(--polygon)"></span><h3>Sidechain: Polygon Edge</h3><p>A separate, smaller blockchain run by a small group of computers that take turns approving batches of payments. Fewer computers have to agree, so they can agree faster.</p></div>
+        <div class="card"><span class="dot" style="--c:var(--near)"></span><h3>Sharding: NEAR</h3><p>One blockchain split into several lanes ("shards") that work at the same time, like opening more checkout counters in a shop.</p></div>
+        <div class="card"><span class="dot" style="--c:var(--lightning)"></span><h3>Off-chain: Lightning</h3><p>Two people lock money into a shared account once, then pass it back and forth privately. Payments hop between accounts like this to reach someone further away, and only the opening and closing go on the blockchain.</p></div>
+      </div>
+    </li>
+
+    <li>
+      <h2>Why we built our own networks</h2>
+      <p>Each of these systems has a free public "practice" network. We tried those first and rejected them: they are shared with strangers and limit how fast you can send. A slow result could mean the design is slow, or just that someone else was busy, and there is no way to tell which.</p>
+      <p>So we rented computers from Google Cloud and ran the <strong>real production software</strong> each network uses, on private networks only we could touch. That gave us full control, at the cost of building everything ourselves. We spent about $124 of a $300 credit in total.</p>
+    </li>
+
+    <li>
+      <h2>Making it realistic</h2>
+      <p>A blockchain on one rack of computers in one building would be unrealistically fast. We added seven layers of realism, one at a time, checking the results still made sense after each:</p>
+      <div class="map-wrap" id="region-map"></div>
+      <ul class="checks">
+        <li><strong>Four real regions on remittance routes.</strong> Virginia (the largest sending country), Mumbai (the largest receiving country), Singapore (the Philippines and South-East Asia route) and London (a major sender to South Asia). The computers running each blockchain were spread across all four, so they really had to talk across oceans.</li>
+        <li><strong>Extra delay, jitter and lost messages</strong>, set from published internet measurements for each route, added on top of the real distance.</li>
+        <li><strong>Background traffic.</strong> A second program sent ordinary, non-remittance transactions alongside ours, about 88 a second, matching how busy the real Polygon network was.</li>
+        <li><strong>Real hardware sizes.</strong> Each computer had 8 processor cores and 32 GB of memory, the published recommendation for running these networks.</li>
+        <li><strong>Computers failing.</strong> In a separate set of tests, we switched one of the computers running the blockchain off and on during the test, to see what an outage does.</li>
+        <li><strong>Checked against the real networks.</strong> We compared our traffic and capacity to what the real public networks actually carry.</li>
+        <li><strong>Every test repeated five times</strong>, so we report ranges rather than a single lucky number.</li>
+      </ul>
+    </li>
+
+    <li>
+      <h2>How one test works</h2>
+      <div class="cards three">
+        <div class="card"><h3>5 minutes, random timing</h3><p>Payments arrive at random moments at a set average rate, the way real customers do, rather than on a fixed beat. Each test lasts 300 seconds.</p></div>
+        <div class="card"><h3>A ramp of 7 load levels</h3><p>10, 25, 50, 100, 150, 200 and 300 payments a second. Each test is sent at one level, at each of four amounts: $10, $50, $200 and $500.</p></div>
+        <div class="card"><h3>Strict rules for "settled"</h3><p>A payment only counts if it is final within 60 seconds. Past that, a remittance has failed whatever the chain does later. The first 10 seconds of every test are ignored while connections warm up.</p></div>
+      </div>
+      <p>Polygon and NEAR moved a test <strong>stablecoin</strong>, a token always worth $1, because that is what real remittances on those networks use. Lightning moved bitcoin, because basic Lightning has no stablecoin. So a Lightning remittance carries exchange-rate risk the other two don't.</p>
+    </li>
+
+    <li>
+      <h2>Cleaning the data, with the rules written first</h2>
+      <p>Before any real data existed, on 7 August 2026, we wrote down the rules for which tests would count. For example, a test is thrown out if our own sending program fell behind schedule, or if a computer was reclaimed mid-test. Writing the rules first means we couldn't quietly drop results we didn't like.</p>
+      <div class="funnel" id="funnel"></div>
+      <p class="muted">Nothing is ever deleted. Every thrown-out test stays in the raw data with the rule that removed it, so anyone can check the two against each other.</p>
+    </li>
+
+    <li>
+      <h2>What we found</h2>
+      <ul class="findings">
+        <li><strong>Polygon Edge settled 200 payments a second</strong> with no failures, 95% of them within 4.8 seconds.</li>
+        <li><strong>NEAR settled 150 a second</strong> with 0.15% failures, but slowly: 95% took up to 19.2 seconds, and none took under about 8. Part of that delay is our setting. NEAR's default 0.6-second block timer could not keep four continents in agreement, so we slowed it to 2 seconds. A small follow-up (only one or two surviving tests) at 1.2 seconds cut the typical wait from 12.2 to 7.2 seconds.</li>
+        <li><strong>Pushed past their limits, both fall over.</strong> NEAR falls faster: at twice its peak load it delivered about 7% of its peak, against about 33% for Polygon. Whether part of NEAR's collapse at 200 a second and above is our own measuring program, rather than NEAR, is still being checked.</li>
+        <li><strong>Sharding did not help a stablecoin.</strong> Every token transfer had to run in the one lane that holds the token's program, so adding lanes cannot speed it up.</li>
+        <li><strong>All three are cheap per $200 payment</strong>: NEAR $0.000365, Polygon $0.0006, Lightning $0.0523. Lightning's fee grows with the amount, so at $500 it passes our 10-cent limit.</li>
+        <li><strong>Lightning's real problem is reliability.</strong> A published study of the real network (Waugh &amp; Holz, 2020) found success falling from 72% for one-cent payments to 17% at $100. Our test network was about 620 times smaller than the real one, so we use their measurement rather than ours.</li>
+        <li><strong>The rule we fixed in advance picks Polygon Edge</strong>: the highest load sustained while 95% of payments settle within 10 seconds and cost stays under 10 cents. That verdict depends on NEAR's block timer, as explained above.</li>
+      </ul>
+    </li>
+
+    <li>
+      <h2>What this cannot tell you</h2>
+      <ul class="checks muted-list">
+        <li>These are <strong>best-case estimates</strong> from controlled, partly realistic networks, not a copy of the real public networks.</li>
+        <li>We tested settling the payment only, <strong>not converting cash to and from crypto</strong> at each end, which may be the hardest part of a real remittance.</li>
+        <li>Connecting to bank systems like SWIFT is discussed in the paper's design proposal; <strong>nothing was built</strong>.</li>
+        <li><strong>One product per design.</strong> NEAR stands in for sharding, Polygon Edge for sidechains. Polygon Edge was frozen by its makers in December 2024; we used its final version on purpose.</li>
+        <li>NEAR ran 4 lanes with 2 computers each, the minimum allowed, because of our cloud account's limit on processor cores.</li>
+      </ul>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================== RESULTS -->
+<section id="results" class="band">
+  <div class="wrap">
+    <h2 class="section-title">Results</h2>
+    <p class="lede">Every number here is computed by the same code that produced the paper's tables, from the cleaned data. The whiskers on each point show the 95% range across the five repeated tests. Hover any point for details.</p>
+
+    <div class="filters" role="group" aria-label="Result filters">
+      <div class="seg" id="ex-arm" aria-label="Conditions"></div>
+      <div class="seg" id="ex-amount" aria-label="Payment amount"></div>
+    </div>
+    <p class="muted small" id="ex-arm-note"></p>
+
+    <div class="chart-grid">
+      <figure class="chart-card">
+        <figcaption><h3>Payments settled per second</h3><p>Against the load we offered. On the dashed line, every payment offered was settled.</p></figcaption>
+        <div class="chart" id="ch-achieved"></div>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><h3>Payments that failed</h3><p>Not final within 60 seconds, as a share of all payments sent.</p></figcaption>
+        <div class="chart" id="ch-failure"></div>
+      </figure>
+      <figure class="chart-card wide">
+        <figcaption><h3>Slow-end waiting time</h3><p>95 out of 100 settled payments finished within this many seconds. The dashed line is the 10-second limit we fixed before testing. NEAR's figures are at the 2-second block timer it needed to span four continents.</p></figcaption>
+        <div class="chart" id="ch-latency"></div>
+      </figure>
+    </div>
+    <div id="ex-notes" class="notes"></div>
+
+    <details class="table-view">
+      <summary>Show these results as a table</summary>
+      <div id="ex-table" class="table-scroll"></div>
+    </details>
+
+    <div class="chart-grid">
+      <figure class="chart-card">
+        <figcaption><h3>Cost per payment</h3><p>Measured work per payment, priced at real public-network prices. Anything over 10 cents breaks the limit we fixed in advance.</p></figcaption>
+        <div id="cost-table" class="table-scroll"></div>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><h3>Lightning: how often a payment gets through</h3><p>Published measurement of the real Lightning network (Waugh &amp; Holz, 2020), not our data. It stops at $100; anything above would be a guess.</p></figcaption>
+        <div class="chart" id="ch-lightning"></div>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- =============================================================== REPLAY -->
+<section id="replay" class="wrap">
+  <h2 class="section-title">Replay a test</h2>
+  <p class="lede">This is not a live blockchain. Every replay is re-drawn from payments we actually recorded, so it shows what our networks did, and nothing beyond. Combinations we never tested are greyed out, because guessing between measured levels is exactly where a system can fall off a cliff.</p>
+
+  <div class="how">
+    <div class="card">
+      <h3>Whole runs <span class="tag">recommended</span></h3>
+      <p>First pick one of the five recorded tests at random, then draw payments from inside it. Payments in the same test shared the same network conditions and the same slow moments, so they belong together. Keeping them together keeps the honest test-to-test variation. The formal name is <em>cluster sampling</em>.</p>
+    </div>
+    <div class="card">
+      <h3>Individual payments</h3>
+      <p>Pour every payment from all five tests into one pile and draw each one independently, like names from a hat. This is <em>simple random sampling</em>. It mixes moments from different tests, so the results look smoother and more certain than the evidence supports. Compare the two below.</p>
+    </div>
+  </div>
+
+  <div class="sim-controls">
+    <div class="ctl"><span>Network</span><div class="seg" id="sim-system"></div></div>
+    <div class="ctl"><span>Conditions</span><div class="seg" id="sim-arm"></div></div>
+    <div class="ctl"><span>Amount</span><div class="seg" id="sim-amount"></div></div>
+    <div class="ctl"><span>Payments offered per second</span><div class="seg" id="sim-load"></div></div>
+    <div class="ctl"><span>Drawing method</span><div class="seg" id="sim-method"></div></div>
+  </div>
+  <div id="sim-notes" class="notes"></div>
+  <div class="actions">
+    <button class="btn primary" id="btn-one">Replay one test</button>
+    <button class="btn" id="btn-many">Replay the whole study 1,000 times</button>
+  </div>
+
+  <div id="sim-one" class="sim-out" hidden>
+    <div class="tiles" id="sim-tiles"></div>
+    <figure class="chart-card wide">
+      <figcaption><h3 id="sim-tl-title">Payments settling, second by second</h3><p id="sim-tl-sub"></p></figcaption>
+      <div class="chart" id="ch-timeline"></div>
+    </figure>
+  </div>
+
+  <div id="sim-many" class="sim-out" hidden>
+    <figure class="chart-card wide">
+      <figcaption><h3>1,000 replays of the five-test study</h3><p>Each replay draws five tests and averages them, as the paper does. Where the averages land shows how sure the evidence lets us be. The shaded band is the paper's own 95% range.</p></figcaption>
+      <div class="chart" id="ch-hist"></div>
+    </figure>
+    <div id="sim-many-text" class="notes"></div>
+  </div>
+</section>
+</main>
+
+<footer class="wrap foot">
+  <p>Built from <code>gcp-research/data/clean/all_runs_clean.parquet</code> by <code>website/build_data.py</code>, which refuses to write the data file unless the paper's headline figures reproduce. Lightning success rates: Waugh, F. &amp; Holz, R. (2020), arXiv:2006.14358.</p>
+</footer>
+
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
