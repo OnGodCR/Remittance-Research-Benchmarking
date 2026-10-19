@@ -15,6 +15,12 @@
 > permission, given 12 Aug 2026. The one obligation is to **tell him every time**, with what
 > was committed. Work on `main`; this repo has no branch workflow.
 
+> ## REPO LAYOUT — changed 19 Oct 2026
+>
+> All study files now live in **`gcp-research/`** (docs, harness, scripts, terraform, data, keys, the Python environment). Every file path named below is relative to that folder — `RESUME_HERE.md` means `gcp-research/RESUME_HERE.md`. Run commands from inside `gcp-research/`; its scripts find their files relative to their own location, so nothing inside it changed.
+>
+> The public website lives in **`website/`**, with its own README. It reads a small summary file built from `gcp-research/data/clean/` by `website/build_data.py`; it never reads the full dataset in the browser.
+
 > ## 0. CURRENT STATE — updated 13 Aug 2026
 >
 > **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:
