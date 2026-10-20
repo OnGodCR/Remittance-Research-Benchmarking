@@ -36,7 +36,7 @@ console.
 Nothing. Collection closed 24 Aug 2026 with roughly **$176 of the $300 unspent**.
 
 The one remaining billing item is the nine 13-Aug disk snapshots in
-`project-c4c87dcb-da41-4caf-922` (order $5–10/month), kept deliberately as the
+`project-c4c87dcb-da41-4caf-922` (about $24/month for ~373 GB stored in the `us` multi-region, corrected 19 Oct 2026 from a first estimate of $5–10), kept deliberately as the
 only copy of the original campaign's machines — the validator health log and
 the original token contract live nowhere else. Angad can delete them from the
 console once the paper is submitted. If work resumes, the rebuild path and
