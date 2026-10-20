@@ -7,7 +7,7 @@
 > `project-c4c87dcb-da41-4caf-922`, 5 Polygon machines in
 > `remittances-benchmarking`) were destroyed via terraform on 24 Aug after every
 > byte of data was pulled into this repository. **The only remaining Google
-> Cloud billing is the nine 13-Aug disk snapshots** (**about $24/month, corrected 19 Oct 2026**: ~373 GB stored in the `us` multi-region, not the $5–10 first estimated; the $300 credit expires 6 Nov 2026, after which they bill the card) —
+> Cloud billing is the nine 13-Aug disk snapshots** (**about $24/month, corrected 19 Oct 2026**: ~373 GB stored in the `us` multi-region, not the $5–10 first estimated; the $300 credit expires 6 Nov 2026, after which they bill the card; **retirement plan: `docs/snapshot_retirement.md`**) —
 > kept deliberately: they hold the original campaign's disks, including the
 > validator health log and the original token contract, which exist nowhere
 > else. Angad can delete them from the console once the paper is submitted.
