@@ -12,7 +12,7 @@
 #
 # WHAT IT DOES, AND WHAT IT COSTS
 # Builds a temporary disk from snap-near-generator, starts a small machine,
-# attaches the disk READ-ONLY, copies the text logs and a manifest of every
+# attaches the disk and mounts it READ-ONLY, copies the text logs and a manifest of every
 # file to data/near_supplementary/rescued_generator_13aug/, then deletes the
 # machine and the disk. About 15 minutes; well under $0.10.
 #
@@ -21,6 +21,13 @@
 #   2. Google itself deletes the machine after 60 minutes (--max-run-duration),
 #      even if this laptop dies mid-run;
 #   3. the disk is set to auto-delete with the machine.
+#
+# The disk is ATTACHED read-write but MOUNTED read-only. Google refuses
+# auto-delete on a disk attached read-only (found on the first real run,
+# 19 Oct), and guard 3 matters more: without it, a laptop dying mid-run
+# leaves a 100 GB disk billing after the machine deletes itself. Nothing is
+# written either way -- the mount is ro,noload -- and the disk is a throwaway
+# copy; the snapshot cannot be changed from here.
 #
 # WHY A DEBIAN MACHINE, AND WHY THE DISK IS ATTACHED AFTER BOOT
 # The snapshot is an Ubuntu boot disk. On 24 Aug, attaching a boot-disk clone
@@ -80,8 +87,13 @@ echo "== 0. preflight"
 if (( DRY == 0 )); then
   gcloud compute snapshots describe "$SNAPSHOT" --project "$PROJECT" --format="value(status)" | grep -qx READY \
     || { echo "snapshot $SNAPSHOT not found or not READY in $PROJECT"; exit 1; }
-  if gcloud compute instances describe "$VM" --project "$PROJECT" --zone "$ZONE" >/dev/null 2>&1; then
-    echo "$VM already exists -- a previous run did not clean up. Delete it first."; exit 1
+  if gcloud compute instances describe "$VM" --project "$PROJECT" --zone "$ZONE" >/dev/null 2>&1 \
+     || gcloud compute disks describe "$DISK" --project "$PROJECT" --zone "$ZONE" >/dev/null 2>&1; then
+    echo "$VM or $DISK already exists -- a previous run did not clean up."
+    echo "Delete them first:"
+    echo "  gcloud compute instances delete $VM --project $PROJECT --zone $ZONE"
+    echo "  gcloud compute disks delete $DISK --project $PROJECT --zone $ZONE"
+    trap - EXIT; exit 1
   fi
   mkdir -p "$DEST"
 fi
@@ -95,9 +107,9 @@ run gcloud compute instances create "$VM" --project "$PROJECT" --zone "$ZONE" \
   --machine-type e2-small --image-family debian-12 --image-project debian-cloud \
   --boot-disk-size 10GB --max-run-duration 60m --instance-termination-action DELETE
 
-echo "== 3. attach the snapshot disk read-only, after boot"
+echo "== 3. attach the snapshot copy after boot (mounted read-only in step 4)"
 run gcloud compute instances attach-disk "$VM" --project "$PROJECT" --zone "$ZONE" \
-  --disk "$DISK" --device-name "$DISK" --mode ro
+  --disk "$DISK" --device-name "$DISK"
 run gcloud compute instances set-disk-auto-delete "$VM" --project "$PROJECT" --zone "$ZONE" \
   --disk "$DISK" --auto-delete
 
