@@ -91,7 +91,7 @@ set -uo pipefail
 #
 # The brackets fix it: the regex [h]arness still matches the text "harness" in
 # a real process, but this line's own text now reads "[h]arness", which the
-# regex does not match. Same trap as RESUME_HERE.md S5 trap 8.
+# regex does not match. Same trap as README.md cloud trap 8.
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$(grep -E '^project_id' "$REPO/terraform/phase4/terraform.tfvars" | cut -d'"' -f2)"

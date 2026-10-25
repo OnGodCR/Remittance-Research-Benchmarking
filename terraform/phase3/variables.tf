@@ -98,7 +98,7 @@ variable "disk_size_gb" {
 
 variable "use_spot" {
   description = <<-EOT
-    Spot everywhere (RESUME_HERE.md S6). Preemption costs about 15 minutes of
+    Spot everywhere (README.md cloud trap 1). Preemption costs about 15 minutes of
     rebuild; on-demand costs 4.5x. The phase 2 lesson was an estimation error
     after switching to on-demand, not a problem with spot itself.
 
@@ -121,7 +121,7 @@ variable "max_lifetime_minutes" {
   description = <<-EOT
     Hard cap, matching phase 2's 900 minutes. Note the phase 2 trap: this timer
     re-arms from each boot, not from creation, so a reboot silently extends the
-    deadline (RESUME_HERE.md S5 trap 3).
+    deadline (README.md cloud trap 3).
   EOT
   type        = number
   default     = 900

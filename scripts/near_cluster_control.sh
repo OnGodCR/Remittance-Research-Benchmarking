@@ -19,7 +19,7 @@
 # A `for` loop wrapping `gcloud compute ssh` or `scp` silently fails to take
 # effect on the remote host, and multi-file scp delivers only a subset. Both
 # report success. Several nodes reported "FAILED" when the install had not run
-# and others reported nothing when it had (PHASE4_HANDOFF.md S2.2). The end
+# and others reported nothing when it had (PHASE4_HANDOFF.md (in git history) S2.2). The end
 # state is verified on each host rather than inferred from an exit code.
 # ---------------------------------------------------------------------------
 set -uo pipefail

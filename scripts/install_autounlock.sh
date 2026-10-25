@@ -8,7 +8,7 @@
 # cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
 # instruction. The brackets fix it: the regex [f]oo still matches the text
 # "foo" in a real process, but this line's own text reads "[f]oo", which the
-# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
+# regex does not match. Repo convention -- see README.md cloud trap 8.
 # ---------------------------------------------------------------------------
 # Installs a per-node auto-unlock service, and keeps the idle watcher from
 # killing the cluster during setup.
@@ -22,7 +22,7 @@
 #
 # On-demand instances would not fix this -- they only make reclamation rarer,
 # at 4.5x the price. Unlocking automatically closes the gap and keeps the
-# cluster on spot, which is the standing instruction (RESUME_HERE.md S6).
+# cluster on spot, which is the standing instruction (README.md cloud trap 1).
 #
 # This is safe ONLY because the password protects nothing: a private regtest
 # chain whose coins we mint, reachable only inside the VPC. Never do this

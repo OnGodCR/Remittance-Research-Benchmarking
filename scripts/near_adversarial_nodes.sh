@@ -94,7 +94,7 @@ on_node() {  # index, command
 if [ "$ACTION" = "restore" ]; then
   log "Restoring every validator"
   # Written out individually: a loop wrapping gcloud ssh silently fails to take
-  # effect on the remote host (PHASE4_HANDOFF S2.2).
+  # effect on the remote host (PHASE4_HANDOFF.md (in git history) S2.2).
   on_node 1 "sudo systemctl start neard" >/dev/null; echo "  validator-1 started"
   on_node 2 "sudo systemctl start neard" >/dev/null; echo "  validator-2 started"
   on_node 3 "sudo systemctl start neard" >/dev/null; echo "  validator-3 started"

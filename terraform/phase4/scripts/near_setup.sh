@@ -6,7 +6,7 @@
 # IDEMPOTENT BY REQUIREMENT.
 #
 # GCP re-runs startup scripts on EVERY boot, not just at creation
-# (RESUME_HERE.md S5 trap 2). On Polygon that reset ownership and made
+# (README.md cloud trap 2). On Polygon that reset ownership and made
 # `secrets init` refuse to overwrite validator keys, so four validators exited
 # 1 after a reboot. On Lightning, re-running wallet creation would have
 # destroyed channel state. Here the equivalent hazard is regenerating a

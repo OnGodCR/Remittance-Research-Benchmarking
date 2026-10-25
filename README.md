@@ -18,13 +18,34 @@ Read in this order.
 
 | File | What it is |
 |---|---|
-| [RESUME_HERE.md](RESUME_HERE.md) | **Start here.** Current state, results, and what is withdrawn or open |
-| [COMPARISON.md](COMPARISON.md) | The cross-architecture evidence table, with where every number comes from |
+| [COMPARISON.md](COMPARISON.md) | **Start here.** The cross-architecture evidence table, with where every number comes from |
 | [METHODOLOGY_LOG.md](METHODOLOGY_LOG.md) | Every decision and exact parameter, with dates |
 | [ANALYSIS_PLAN.md](ANALYSIS_PLAN.md) | The locked pre-registered analysis plan; §13 is the amendment log |
 | [DECISIONS.md](DECISIONS.md) | Every technical decision, with the alternatives that were rejected |
-| [claude.md](claude.md) | Original scope |
-| [PHASE1.md](PHASE1.md) | Plain-language walkthrough of what the first phase deployed |
+| [POLYGON_ANALYSIS.md](POLYGON_ANALYSIS.md), [NEAR_ANALYSIS.md](NEAR_ANALYSIS.md), [LIGHTNING_ANALYSIS.md](LIGHTNING_ANALYSIS.md) | Results for each network |
+| [docs/near_methodology/](docs/near_methodology/) | The detailed defence of specific NEAR findings, one file per topic |
+| [claude.md](claude.md) | Original scope, written before any work began |
+
+Older documents mention six working notes deleted on 25 Oct 2026 (`RESUME_HERE.md`, `PHASE1.md`, `PHASE4_HANDOFF.md`, `docs/spend_ledger.md`, `docs/near_methodology/finishing_runbook.md`, `docs/near_methodology/README.md`). Git keeps them: `git log --all -- <file>` finds the last version.
+
+---
+
+## Where the study stands
+
+**Data collection closed 24 Aug 2026**, by Angad's decision. Both clusters were destroyed after every byte of data was pulled into this repository.
+
+**Spend: about $124 of a $300 budget**, estimated from machine-hours (Google gives no exact figure without a billing export). The rest of the credit expires 6 Nov 2026.
+
+**Still billing:** nine 13 Aug disk snapshots of the NEAR machines, about $24/month. The one unique file on them, the validator health log, was copied out on 19 Oct 2026 (`data/near_supplementary/rescued_generator_13aug/`). Deleting them is the next step: [docs/snapshot_retirement.md](docs/snapshot_retirement.md).
+
+**Left open at closure** (`ANALYSIS_PLAN.md` §13, amendment 17):
+
+| Question | Status |
+|---|---|
+| Does NEAR's collapse at 200/sec belong to NEAR or to our program that watches each payment? | **Open.** The 47.5/sec, 76.3%-failed result is always quoted with that condition. The 150/sec result is unaffected. |
+| Does a faster block timer change NEAR's waiting-time verdict? (2 s blocks: median 12.20 s; 1.2 s: 7.18 s) | **Preliminary only.** One or two tests survived, below the five-repeat minimum. |
+| Does the original token contract behave like the rebuilt one? | Not run. The original is committed in `data/reference/contracts/`. |
+| Polygon's limit on full-size machines | Not run. The corrected limit (320–340/sec) is a floor argued from smaller machines. |
 
 ---
 
@@ -145,3 +166,27 @@ terraform/        infrastructure, including the shutdown guards
 ```
 
 The measurement core is shared deliberately. Everything that produces a number — timing, arrival pattern, concurrency, storage — is byte-identical for all three architectures, so the cross-architecture comparison is genuinely like-for-like. That is why Hyperledger Caliper was dropped: it only supports one of the three, and using it there would have put two different measuring instruments inside a three-way comparison.
+
+---
+
+## Cloud traps
+
+Mistakes from running the machines, each of which cost real time or money. Comments in `scripts/` and `terraform/` refer to them by number.
+
+0. **A resumed sweep restarts from the bottom of the load ladder**, not where it stopped. After two preemptions this silently produced 22 duplicate runs with identical random seeds. `analysis/export.py` now drops re-executions; check repeat counts after any resumed sweep.
+1. **A spot machine being reclaimed wipes the sending program's Python environment and database.** The chain survives. Spot was still the right call: rebuilding costs ~15 minutes, while on-demand machines cost 4.5 times as much.
+2. **Startup scripts re-run on every boot**, not just creation. This reset folder ownership and made validator key setup fail on reboot. Every setup script now checks whether its work is already done.
+3. **The hard shutdown timer re-arms from each boot**, so a reboot silently extends the deadline.
+4. **SSH is allowed only from one home IP address**, set in the `terraform.tfvars` files. It changes every few weeks; if SSH hangs, compare `curl -s https://ifconfig.me` with the file.
+5. **Never nest quotes through `gcloud compute ssh --command`.** Three shell layers mangle them silently. Copy a script over and run it.
+6. **Starting a background job through SSH holds the session open forever.** Use `setsid nohup ... < /dev/null &` inside a script on the remote machine.
+7. **macOS `pgrep` has no `-c` flag**; the usage error looks like "zero processes". Use `pgrep -f X | wc -l`.
+8. **`pkill -f <pattern>` can match your own SSH command** and kill the connection.
+9. **Copying a live SQLite database needs `VACUUM INTO`**; a plain copy comes out corrupted.
+10. **Data files exceed GitHub's 100 MB limit** and live in large-file storage (Git LFS): 10 GB storage and 10 GB/month download included on Free and Pro.
+11. **Long commands hit a 10-minute timeout.** Run them detached and check back.
+12. **Quota increases: roughly 50% steps were approved, doubling was denied.** The limit ended at 96 processors.
+13. **`claude.md` is lowercase**, and the Mac's filesystem ignores case, so edits to `CLAUDE.md` land in the same file.
+14. **Zero-padded hours crash bash arithmetic** (`08` reads as invalid octal); use `10#` everywhere.
+15. **Never attach a copy of a boot disk to a machine while it boots.** The duplicate disk label threw the next boot into emergency mode (25 minutes lost on 24 Aug).
+16. **`/opt/benchmark` on the machines is owned by root**, so the sending program runs under sudo.

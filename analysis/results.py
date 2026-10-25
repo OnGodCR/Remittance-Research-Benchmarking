@@ -304,9 +304,9 @@ def main() -> int:
     if args.verify_polygon:
         print("\n" + "=" * 68)
         print("VERIFYING published Polygon $200 baseline figures against the data")
-        print("(POLYGON_ANALYSIS.md / RESUME_HERE.md §3)")
+        print("(POLYGON_ANALYSIS.md)")
         # achieved TPS, failure %, p50, p95, p99 -- exactly as printed in
-        # RESUME_HERE.md S3 and POLYGON_ANALYSIS.md. Latency is checked against
+        # POLYGON_ANALYSIS.md. Latency is checked against
         # the POOLED percentile, which is the definition those tables used.
         published = {10:  (9.9,   0.00,  3.19,  4.16,  4.40),
                      25:  (25.0,  0.00,  3.19,  4.17,  4.39),

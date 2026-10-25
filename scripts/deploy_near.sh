@@ -16,7 +16,7 @@
 #
 # GCP re-runs startup scripts on every boot. Regenerating genesis or a
 # validator key there would fork the chain or silently drop a node from the
-# validator set (RESUME_HERE.md S5 trap 2). Identity creation lives here, runs
+# validator set (README.md cloud trap 2). Identity creation lives here, runs
 # once, explicitly.
 #
 # NEVER nest quotes through `gcloud compute ssh --command` (trap 5): three
@@ -32,7 +32,7 @@ SSH="gcloud compute ssh --strict-host-key-checking=no --project $PROJECT"
 SCP="gcloud compute scp --strict-host-key-checking=no --quiet --project $PROJECT"
 
 # NOT mapfile: macOS ships bash 3.2, which does not have it. The same class of
-# trap as macOS pgrep lacking -c (RESUME_HERE.md S5 trap 7) -- the script runs
+# trap as macOS pgrep lacking -c (README.md cloud trap 7) -- the script runs
 # from the laptop, so it must stay bash 3.2 compatible.
 VALIDATORS=()
 while IFS= read -r line; do

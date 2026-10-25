@@ -5,7 +5,7 @@
 #
 # IDEMPOTENT BY REQUIREMENT, NOT BY STYLE.
 #
-# Phase 2 trap (RESUME_HERE.md S5 #2): GCP re-runs startup scripts on EVERY
+# Phase 2 trap (README.md cloud trap 2): GCP re-runs startup scripts on EVERY
 # boot, not just at creation. On Polygon that reset directory ownership and
 # made `secrets init` refuse to overwrite existing validator keys, so all four
 # validators' startup scripts exited 1 after a reboot. Here the stakes are

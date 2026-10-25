@@ -5,7 +5,7 @@ Runs ON THE GENERATOR, against the LND REST endpoints.
 
 WHY THIS IS A SCRIPT AND NOT PART OF THE STARTUP SCRIPT
 -------------------------------------------------------
-GCP re-runs startup scripts on every boot (RESUME_HERE.md S5 trap 2). On
+GCP re-runs startup scripts on every boot (README.md cloud trap 2). On
 Polygon that cost a morning. Here it would be far worse: re-creating an LND
 wallet destroys its channel state, and with it the entire funded topology this
 script spends real minutes building. Wallet creation therefore lives here,
