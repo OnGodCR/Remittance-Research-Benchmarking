@@ -36,7 +36,7 @@ Older documents mention six working notes deleted on 25 Oct 2026 (`RESUME_HERE.m
 
 **Spend: about $124 of a $300 budget**, estimated from machine-hours (Google gives no exact figure without a billing export). The rest of the credit expires 6 Nov 2026.
 
-**Still billing:** nine 13 Aug disk snapshots of the NEAR machines, about $24/month. The one unique file on them, the validator health log, was copied out on 19 Oct 2026 (`data/near_supplementary/rescued_generator_13aug/`). Deleting them is the next step: [docs/snapshot_retirement.md](docs/snapshot_retirement.md).
+**Nothing is billing in the NEAR project** (`project-c4c87dcb-da41-4caf-922`). Its nine 13 Aug disk snapshots were deleted on 25 Oct 2026, after the one unique file on them, the validator health log, was copied out (`data/near_supplementary/rescued_generator_13aug/`). The private chains themselves are gone; the per-payment records and the health log remain. The Polygon project (`remittances-benchmarking`) still needs a check in the console under the account that owns it: [docs/snapshot_retirement.md](docs/snapshot_retirement.md) step 6.
 
 **Left open at closure** (`ANALYSIS_PLAN.md` §13, amendment 17):
 

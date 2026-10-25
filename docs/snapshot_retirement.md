@@ -1,5 +1,7 @@
 # Retiring the nine NEAR snapshots
 
+> **Done 25 Oct 2026.** Health log rescued 19 Oct; all nine snapshots deleted 25 Oct and the project confirmed empty (no snapshots, disks or machines). Only step 6, checking the Polygon project, is left.
+
 **Written 19 Oct 2026. Do this before 6 Nov 2026**, when the $300 Google Cloud credit expires and the snapshots start billing the card.
 
 ## Why
@@ -35,7 +37,7 @@ The first prints the plan and touches nothing. The second does it. It deletes it
 
 **3. Commit and push that folder.** Ask Claude; it's data, so it stays in the repo. If the paper's dataset goes to Zenodo, include it there too.
 
-**4. Delete the snapshots.** Irreversible, so Angad runs it himself:
+**4. Delete the snapshots. Done 25 Oct 2026.** Irreversible, so Angad runs it himself:
 
 ```bash
 gcloud compute snapshots delete snap-near-generator snap-near-validator-0 snap-near-validator-1 snap-near-validator-2 snap-near-validator-3 snap-near-validator-4 snap-near-validator-5 snap-near-validator-6 snap-near-validator-7 --project project-c4c87dcb-da41-4caf-922
