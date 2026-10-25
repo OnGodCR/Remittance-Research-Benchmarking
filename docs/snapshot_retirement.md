@@ -1,6 +1,6 @@
 # Retiring the nine NEAR snapshots
 
-> **Done 25 Oct 2026.** Health log rescued 19 Oct; all nine snapshots deleted 25 Oct and the project confirmed empty (no snapshots, disks or machines). Only step 6, checking the Polygon project, is left.
+> **Done 25 Oct 2026.** Health log rescued 19 Oct; all nine snapshots deleted 25 Oct and the project confirmed empty (no snapshots, disks or machines). Step 6 done the same day: the Polygon project (owned by remitbridgesystemlabs@gmail.com, which is why the terminal login could not see it) has no machines, disks, snapshots or reserved addresses. Nothing is left to do.
 
 **Written 19 Oct 2026. Do this before 6 Nov 2026**, when the $300 Google Cloud credit expires and the snapshots start billing the card.
 
@@ -55,6 +55,6 @@ gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
 
 All three should print nothing. In the console, Billing → Reports should show snapshot storage falling to zero within a day or two.
 
-**6. Check the Polygon project too.** `remittances-benchmarking` is under a different Google login: `angadkochar2@gmail.com` cannot list it. The records say its machines were destroyed on 24 Aug with no snapshots kept. Confirm in the console, signed in with the account that owns it, that it has no machines, disks or snapshots.
+**6. Check the Polygon project too. Done 25 Oct 2026.** `remittances-benchmarking` is under a different Google login: `angadkochar2@gmail.com` cannot list it. The records say its machines were destroyed on 24 Aug with no snapshots kept. Confirm in the console, signed in with the account that owns it, that it has no machines, disks or snapshots.
 
 **7. Update the record.** Mark the snapshots deleted, with the date, in `README.md` (Where the study stands).
