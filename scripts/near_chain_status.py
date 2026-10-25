@@ -5,7 +5,7 @@ Runs ON THE GENERATOR (it needs the in-VPC RPC).
 
 WHY A FILE RATHER THAN AN INLINE SSH COMMAND
 Nesting quotes through `gcloud compute ssh --command` mangles escapes silently
-across three shell layers (RESUME_HERE.md §5 trap 5), and a Python f-string
+across three shell layers (README.md cloud trap 5), and a Python f-string
 containing a quoted dict lookup is exactly the shape that breaks. Write a
 script, copy it, run it.
 

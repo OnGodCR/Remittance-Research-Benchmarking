@@ -9,7 +9,7 @@
 # sees belongs to a shell that exits immediately. There is then nothing to
 # track, and liveness has to be guessed from process names -- which is exactly
 # the check that reported "sweep RUNNING" for processes that did not exist
-# (PHASE4_HANDOFF.md bug 4). Here the supervisor owns the detaching and the
+# (PHASE4_HANDOFF.md (in git history) bug 4). Here the supervisor owns the detaching and the
 # PID file, so "is the sweep alive" is answered by kill -0 on a known PID.
 #
 # 4 amounts x 7 load steps x 5 repeats = 140 runs at 300s each, ~13 hours.
@@ -23,7 +23,7 @@
 # ladder rather than from the point of interruption, which on Polygon silently
 # produced 22 duplicate runs with identical arrival seeds. The skip check below
 # is what prevents that, but audit repeat counts after any resumed sweep
-# anyway (RESUME_HERE.md S5 trap 0).
+# anyway (README.md cloud trap 0).
 # ---------------------------------------------------------------------------
 set -uo pipefail
 cd /opt/benchmark

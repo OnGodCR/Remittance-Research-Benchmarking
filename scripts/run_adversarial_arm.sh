@@ -8,7 +8,7 @@
 # cost hours on 22 Aug 2026 and, in one case, killed a sweep on its first
 # instruction. The brackets fix it: the regex [f]oo still matches the text
 # "foo" in a real process, but this line's own text reads "[f]oo", which the
-# regex does not match. Repo convention -- see RESUME_HERE.md S5 trap 8.
+# regex does not match. Repo convention -- see README.md cloud trap 8.
 # ---------------------------------------------------------------------------
 # The adversarial arm: 3 load levels x $200 x 5 repeats, with validators
 # dropping offline throughout.

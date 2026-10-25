@@ -7,7 +7,7 @@
 # the LND REST ports are firewalled to the operator IP and the macaroons live
 # on the hosts' disks.
 #
-# NEVER nest quotes through `gcloud compute ssh --command` (RESUME_HERE.md S5
+# NEVER nest quotes through `gcloud compute ssh --command` (README.md cloud
 # trap 5): three shell layers mangle escapes silently. The wallet logic is a
 # file, copied over and executed.
 #

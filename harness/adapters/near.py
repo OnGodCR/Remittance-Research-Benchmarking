@@ -523,7 +523,7 @@ class NearAdapter(Adapter):
         #
         #   still executing -- the chain HAS it and has not finalised it. This is
         #       the "money left one side and never arrived" case, which
-        #       RESUME_HERE S3 singles out as the serious one, and which on
+        #       POLYGON_ANALYSIS.md singles out as the serious one, and which on
         #       Polygon appeared ONLY under deliberate node failure.
         #
         # Reporting a NEAR loss rate without separating these would either

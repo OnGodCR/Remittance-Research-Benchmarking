@@ -28,7 +28,7 @@ WHAT IT DOES, AND WHY EACH PART EXISTS
 3. RESTARTS A DEAD SWEEP.
    Tracked by PID file, never by `pgrep -f` -- that matched the checking
    command's own arguments and reported healthy progress for processes that did
-   not exist (PHASE4_HANDOFF.md bug 4).
+   not exist (PHASE4_HANDOFF.md (in git history) bug 4).
 
 4. WRITES A STATUS FILE.
    `supervisor_status.json`, the single place to read what is happening. The
@@ -280,7 +280,7 @@ def _alive(pidfile: Path, expect: str) -> int | None:
     ----------------------------
     1. A bare `pgrep -f <pattern>` matches the arguments of the command doing
        the checking, so it reports RUNNING for processes that do not exist
-       (PHASE4_HANDOFF.md bug 4). Hence a PID file.
+       (PHASE4_HANDOFF.md (in git history) bug 4). Hence a PID file.
 
     2. A PID file is only as good as the PID in it. `start_sweep` originally ran
        `subprocess.Popen(["setsid", "bash", ...], start_new_session=True)` --
@@ -395,7 +395,7 @@ def _pid_matching(pattern: str) -> int | None:
     describe is demonstrably alive. Never used to decide whether to START
     something -- that stays with the PID files plus _running_count, because
     matching on a command line is how a check once reported a sweep running
-    that did not exist (PHASE4_HANDOFF.md bug 4).
+    that did not exist (PHASE4_HANDOFF.md (in git history) bug 4).
     """
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
@@ -480,7 +480,7 @@ def progress(phase: str) -> dict:
         # configuration being measured twice is not hypothetical: the sweep
         # resumes from the START of the load ladder, which on Polygon produced
         # 22 duplicate runs and filled four cells with ten runs instead of five
-        # (RESUME_HERE.md S5 trap 0). Measured on this database mid-sweep: 8
+        # (README.md cloud trap 0). Measured on this database mid-sweep: 8
         # valid runs covering only 2 distinct configurations.
         #
         # The consequence of getting this wrong is the worst kind: the cluster

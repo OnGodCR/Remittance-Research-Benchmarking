@@ -14,7 +14,7 @@
 # chunks from every shard, settlement stalled network-wide -- eleven consecutive
 # runs recorded ZERO settled payments.
 #
-# PHASE4_HANDOFF S6 lists "P2P must not bind [::1] -- this broke the chain
+# PHASE4_HANDOFF.md (in git history) S6 lists "P2P must not bind [::1] -- this broke the chain
 # twice". It is now three times. The fix is written into the node config rather
 # than applied by hand so a restart cannot undo it.
 set -uo pipefail

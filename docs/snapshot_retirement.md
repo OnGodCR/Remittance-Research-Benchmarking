@@ -19,7 +19,7 @@ Moving the full images somewhere else was considered and rejected. Downloading 3
 
 ## Steps
 
-**1. Rescue the health log.** About 15 minutes; it costs well under $0.10, from the credit:
+**1. Rescue the health log. Done 19 Oct 2026.** About 15 minutes; it costs well under $0.10, from the credit:
 
 ```bash
 ./scripts/rescue_generator_snapshot.sh --dry-run
@@ -53,6 +53,6 @@ gcloud compute instances list --project project-c4c87dcb-da41-4caf-922
 
 All three should print nothing. In the console, Billing → Reports should show snapshot storage falling to zero within a day or two.
 
-**6. Check the Polygon project too.** `remittances-benchmarking` is under a different Google login: `angadkochar2@gmail.com` cannot list it. RESUME_HERE says its machines were destroyed on 24 Aug with no snapshots kept. Confirm in the console, signed in with the account that owns it, that it has no machines, disks or snapshots.
+**6. Check the Polygon project too.** `remittances-benchmarking` is under a different Google login: `angadkochar2@gmail.com` cannot list it. The records say its machines were destroyed on 24 Aug with no snapshots kept. Confirm in the console, signed in with the account that owns it, that it has no machines, disks or snapshots.
 
-**7. Update the record.** Mark the snapshots deleted, with the date, in `RESUME_HERE.md` and `docs/spend_ledger.md`.
+**7. Update the record.** Mark the snapshots deleted, with the date, in `README.md` (Where the study stands).

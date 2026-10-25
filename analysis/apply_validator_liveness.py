@@ -5,8 +5,8 @@ WHAT THIS ENFORCES
 ------------------
 claude.md S8: a run touched by spot preemption is auto-invalidated and
 re-queued, because a validator disappearing mid-run is the adversarial arm's
-condition (technique #6) appearing inside the clean baseline. RESUME_HERE.md S5
-records the same rule for phases 2 and 3.
+condition (technique #6) appearing inside the clean baseline. The deleted RESUME_HERE.md (in git history)
+recorded the same rule for phases 2 and 3.
 
 `scripts/near_liveness_watch.py` samples the chain every ~10s and writes one
 JSON object per sample with an `ok` flag: True only when the full validator set

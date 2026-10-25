@@ -19,8 +19,8 @@
 >
 > **This document is the original scope, written before any work began. Several things below have since been decided, changed, or superseded.** For the live state read, in order:
 >
-> 1. **`RESUME_HERE.md`** — ⚠️ **READ FIRST.** Results so far and the operational traps that have already cost time or money.
-> 2. **`docs/near_methodology/`** — the Phase 4 write-up material, one file per topic. `README.md` indexes it. `generator_is_not_the_ceiling.md` is the one that defends NEAR's headline number.
+> 1. **`README.md`** — ⚠️ **READ FIRST.** Where the study stands, what is still open, and the cloud traps that already cost time or money. (`RESUME_HERE.md`, the earlier handover note, was deleted 25 Oct 2026; it is in git history.)
+> 2. **`docs/near_methodology/`** — the Phase 4 write-up material, one file per topic. `generator_is_not_the_ceiling.md` is the one that defends NEAR's headline number.
 > 3. **`METHODOLOGY_LOG.md`** — every decision and exact parameter, with dates. The paper's Methodology is written from this file.
 > 4. **`ANALYSIS_PLAN.md`** — the locked pre-registered analysis. §13 is the amendment log.
 >
@@ -31,11 +31,11 @@
 > **Phase 4 result in one paragraph.** The matrix settled at **140/140 cells: 118 measured, 22 unmeasurable.** NEAR's sustainable throughput at $200 under the full realism stack is **150 payments/second** (achieved 150.1/sec, 0.15% failures). At 200/sec it does not plateau, it **collapses** — 47.5/sec achieved against 200 offered, 76% failures; at 300/sec, 9.9/sec and 96.7% failures (those 20 runs are rule-excluded from the clean set for lag growth 57–83 ms vs the 50 ms threshold, and reported from raw as marked sensitivity data — they are consistent and complete the collapse curve). **Whether that ceiling is NEAR's or partly our own watcher's is under re-measurement (corrected 23 Aug 2026).** The capacity test proved the *scheduler* holds 300/sec (p95 lag 1.2 ms against a null backend) — but that backend makes no network calls, and on NEAR the program watches each waiting payment individually over the network, work the test reproduces as zero. The 150/sec figure itself is rule-clean, and the rebuilt cluster reproduces its 100/sec control cell exactly (150/sec itself has not been re-run); the 200–300/sec collapse framing is the part on hold (`docs/near_methodology/generator_is_not_the_ceiling.md`). Every one of the 118 measured cells passed the validator-liveness audit. Adversarial arm ran at **100/150/200**, not Polygon's 100/200/300, because NEAR's knee is in a different place; plus an exploratory low-duty-cycle block to make the arm calibratable.
 >
 > **Headline results:**
-> - **Polygon Edge sustains 200 payments/second** at $200, knee between 200 and 300. Details in `RESUME_HERE.md` §3.
+> - **Polygon Edge sustains 200 payments/second** at $200, knee between 200 and 300. Details in `POLYGON_ANALYSIS.md`.
 > - **NEAR sustains 150 payments/second** at $200 on a 4-shard, 8-validator cluster.
 > - **The failure MODES differ, and that is the more interesting finding.** Polygon degrades gracefully past its knee (270.5/sec achieved at 300 offered, 9.97% failures). NEAR collapses. For a payment system facing predictable demand spikes — payday and holiday clustering — the failure mode matters as much as the ceiling.
 >
-> **Superseded below:** the saturation criterion is now lag *growth* (§4 of RESUME_HERE), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), and NEAR settled at 118 measured + 22 unmeasurable rather than 140 measured.
+> **Superseded below:** the saturation criterion is now lag *growth* (`ANALYSIS_PLAN.md` §13; `METHODOLOGY_LOG.md` §7.2), not any absolute threshold. The hard shutdown cap is 900 minutes, not 480. Background traffic is calibrated to ~88/sec, matching real Polygon mainnet. **The 465-run matrix no longer holds**: Lightning's 140-run arm was dropped when its data source changed (`ANALYSIS_PLAN.md` §13 amendment 5), and NEAR settled at 118 measured + 22 unmeasurable rather than 140 measured.
 >
 > **Four amendments were added on 12-13 Aug and all four matter to anyone reading results** (`ANALYSIS_PLAN.md` §13):
 > - **9** — runs that never recorded an end are excluded. Without it, a truncated run measured during a fault would have been kept *and* the good re-run discarded, because amendment 4 keeps the earlier of two.

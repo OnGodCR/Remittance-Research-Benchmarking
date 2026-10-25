@@ -6,7 +6,7 @@
 #
 # WHY THIS IS SEPARATE FROM THE STARTUP SCRIPT
 #
-# GCP re-runs startup scripts on EVERY boot (RESUME_HERE.md S5 trap 2). Running
+# GCP re-runs startup scripts on EVERY boot (README.md cloud trap 2). Running
 # `initwallet` a second time would create a NEW wallet and abandon the channel
 # state of the old one -- destroying the funded topology and doing it silently:
 # the nodes would come back healthy with zero channels, which reads exactly

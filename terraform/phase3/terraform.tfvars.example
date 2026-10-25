@@ -4,7 +4,7 @@ project_id       = "your-gcp-project-id"
 
 # Your current public IP. It changes every few weeks; if SSH hangs, check
 #   curl -s https://ifconfig.me
-# against this value before debugging anything else (RESUME_HERE.md S5 trap 4).
+# against this value before debugging anything else (README.md cloud trap 4).
 operator_ip_cidr = "203.0.113.4/32"
 
 # Spot everywhere. Preemption costs ~15 minutes of rebuild; on-demand costs

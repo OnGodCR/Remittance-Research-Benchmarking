@@ -117,7 +117,7 @@ log() { printf '\033[0;36m==>\033[0m %s\n' "$*"; }
 
 # Written out per host rather than looped through gcloud where it matters:
 # a `for` loop wrapping `gcloud compute ssh` silently fails to take effect on
-# the remote host (PHASE4_HANDOFF.md §2.2). This loop only BUILDS commands; each
+# the remote host (PHASE4_HANDOFF.md (in git history) §2.2). This loop only BUILDS commands; each
 # ssh call is made individually below and its end state verified on the host.
 run_on() {  # index, command
   gcloud compute ssh "${NAMES[$1]}" --zone "${ZONES[$1]}" --project "$PROJECT" \

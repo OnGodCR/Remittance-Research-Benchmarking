@@ -35,7 +35,7 @@ echo "=== shutdown guard starting at $(date -u) ==="
 
 # Guard 1: hard cap, armed from boot.
 # NOTE: this re-arms on EVERY boot, not from creation, so a reboot silently
-# extends the deadline (RESUME_HERE.md S5 trap 3).
+# extends the deadline (README.md cloud trap 3).
 shutdown -c 2>/dev/null || true
 shutdown -h "+$MAX_LIFETIME_MINUTES" \
   "Automatic shutdown: cluster reached its $MAX_LIFETIME_MINUTES-minute lifetime cap."

@@ -32,7 +32,7 @@
 # WHY A DEBIAN MACHINE, AND WHY THE DISK IS ATTACHED AFTER BOOT
 # The snapshot is an Ubuntu boot disk. On 24 Aug, attaching a boot-disk clone
 # to an Ubuntu machine gave two disks the same filesystem label and threw the
-# next boot into emergency mode (RESUME_HERE.md §"New traps"). A Debian rescue
+# next boot into emergency mode (README.md cloud trap 15). A Debian rescue
 # machine has different labels, and attaching only once it is running means
 # the clone never takes part in a boot at all.
 #
