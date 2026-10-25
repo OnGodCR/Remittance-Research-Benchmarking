@@ -36,7 +36,7 @@ Older documents mention six working notes deleted on 25 Oct 2026 (`RESUME_HERE.m
 
 **Spend: about $124 of a $300 budget**, estimated from machine-hours (Google gives no exact figure without a billing export). The rest of the credit expires 6 Nov 2026.
 
-**Nothing is billing in the NEAR project** (`project-c4c87dcb-da41-4caf-922`). Its nine 13 Aug disk snapshots were deleted on 25 Oct 2026, after the one unique file on them, the validator health log, was copied out (`data/near_supplementary/rescued_generator_13aug/`). The private chains themselves are gone; the per-payment records and the health log remain. The Polygon project (`remittances-benchmarking`) still needs a check in the console under the account that owns it: [docs/snapshot_retirement.md](docs/snapshot_retirement.md) step 6.
+**Nothing is billing in the NEAR project** (`project-c4c87dcb-da41-4caf-922`). Its nine 13 Aug disk snapshots were deleted on 25 Oct 2026, after the one unique file on them, the validator health log, was copied out (`data/near_supplementary/rescued_generator_13aug/`). The private chains themselves are gone; the per-payment records and the health log remain. The Polygon project (`remittances-benchmarking`, owned by remitbridgesystemlabs@gmail.com) was checked in the console the same day: no machines, disks, snapshots or reserved addresses. **Neither research project bills anything.**
 
 **Left open at closure** (`ANALYSIS_PLAN.md` §13, amendment 17):
 
