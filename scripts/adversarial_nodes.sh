@@ -12,7 +12,7 @@
 # baseline is what makes the adversarial data interpretable at all -- the
 # finding is the DIFFERENCE between the two arms at the same load, and that
 # difference does not exist without a clean comparison. Scoped to 3 load
-# levels x $200 x 5 repeats per architecture (claude.md S5 #6).
+# levels x $200 x 5 repeats per architecture (PROJECT_BRIEF.md S5 #6).
 #
 # WHY THE FAILURE RATE IS CAPPED
 #

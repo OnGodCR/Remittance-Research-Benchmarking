@@ -32,7 +32,7 @@ PHASE="${1:-phase-4-full-stack}"
 
 # $200 FIRST, deliberately.
 #
-# $200 is the World Bank's standard remittance size (claude.md S6) and the
+# $200 is the World Bank's standard remittance size (PROJECT_BRIEF.md S6) and the
 # headline number of every comparison in the paper. In the original order --
 # 10, 50, 200, 500 -- it is measured THIRD, landing seven to ten hours into a
 # 13.5-hour sweep. Anything that cuts the sweep short therefore leaves the two

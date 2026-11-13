@@ -162,7 +162,7 @@ net["addr"] = "0.0.0.0:24567"
 # the bind address, is what keeps it private.
 c.setdefault("rpc",{})["addr"]="0.0.0.0:3030"
 # Archival off: we keep hours of blocks, not years, and archival storage would
-# be the single largest avoidable cost (claude.md S5 #4).
+# be the single largest avoidable cost (PROJECT_BRIEF.md S5 #4).
 c["archive"]=False
 json.dump(c, open(p,"w"), indent=2)
 print("  config patched: boot node set, rpc bound, archive off")

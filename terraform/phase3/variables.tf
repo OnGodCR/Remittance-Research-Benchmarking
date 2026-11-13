@@ -60,7 +60,7 @@ variable "machine_type" {
 
     A Lightning node is far lighter than a Polygon validator: it keeps channel
     state and a routing graph, not an executing EVM. Published guidance for a
-    routing node is around 2 vCPU / 4-8 GB, and claude.md S5 #4 explicitly
+    routing node is around 2 vCPU / 4-8 GB, and PROJECT_BRIEF.md S5 #4 explicitly
     anticipates co-locating several per instance.
 
     e2-standard-4 (4 vCPU / 16 GB) holds five LND nodes plus, on host 0,
@@ -85,7 +85,7 @@ variable "generator_machine_type" {
 
 variable "disk_size_gb" {
   description = <<-EOT
-    claude.md S5 #4: match CPU and RAM, do NOT match storage.
+    PROJECT_BRIEF.md S5 #4: match CPU and RAM, do NOT match storage.
 
     A regtest chain mined by us holds hours of blocks, not years of history.
     50 GB is ample for bitcoind's regtest data plus 5 LND databases, and this
@@ -112,7 +112,7 @@ variable "use_spot" {
 }
 
 variable "idle_shutdown_minutes" {
-  description = "Shut down after this long with no measured payments. claude.md S8."
+  description = "Shut down after this long with no measured payments. PROJECT_BRIEF.md S8."
   type        = number
   default     = 30
 }
@@ -128,7 +128,7 @@ variable "max_lifetime_minutes" {
 }
 
 variable "bitcoind_version" {
-  description = "Bitcoin Core version. Pinned -- claude.md S4 requires production software at a fixed commit."
+  description = "Bitcoin Core version. Pinned -- PROJECT_BRIEF.md S4 requires production software at a fixed commit."
   type        = string
   default     = "27.1"
 }
@@ -139,7 +139,7 @@ variable "lnd_version" {
 
     LND over Core Lightning or Eclair because LND dominates the real Lightning
     Network -- the same network Waugh & Holz measured -- so matching it is what
-    makes the replication meaningful (claude.md S4).
+    makes the replication meaningful (PROJECT_BRIEF.md S4).
   EOT
   type        = string
   default     = "v0.18.3-beta"

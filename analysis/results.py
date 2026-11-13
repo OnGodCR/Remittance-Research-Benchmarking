@@ -7,7 +7,7 @@ Until now no script produced the study's results tables. The Polygon figures in
 `POLYGON_ANALYSIS.md` were computed ad hoc, and `POLYGON_ANALYSIS.md` §"Confidence
 intervals" records the consequence: "Results above are means with observed
 ranges. The pre-registered protocol calls for bootstrap 95% intervals." Realism
-technique #8 (claude.md §5) requires ranges, not single numbers, in *every*
+technique #8 (PROJECT_BRIEF.md §5) requires ranges, not single numbers, in *every*
 results table. That obligation has not yet been met for any architecture.
 
 Two further reasons this has to be one script rather than three analyses:
@@ -117,7 +117,7 @@ def per_run_metrics(df: pd.DataFrame) -> pd.DataFrame:
         n = len(g)
         n_ok = int(ok.sum())
 
-        # Achieved throughput counts SUCCESSFUL payments only (claude.md §7).
+        # Achieved throughput counts SUCCESSFUL payments only (PROJECT_BRIEF.md §7).
         # The measured window is the run window minus the discarded warm-up,
         # not the wall-clock span of the surviving rows -- using the latter
         # would shrink the denominator on runs that failed early and flatter

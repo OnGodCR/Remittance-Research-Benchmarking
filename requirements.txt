@@ -16,7 +16,7 @@ pyarrow==25.0.0
 # run identical code. Used for account handling, Borsh serialisation and
 # signing -- but NOT for transaction status: py-near's get_tx uses the legacy
 # positional RPC form with no finality control, and this study requires FINAL
-# rather than EXECUTED_OPTIMISTIC (claude.md S7), so the adapter calls that
+# rather than EXECUTED_OPTIMISTIC (PROJECT_BRIEF.md S7), so the adapter calls that
 # RPC itself.
 py-near==1.2.22
 # Key generation for NEAR account creation. py-near signs with keys it is

@@ -248,7 +248,7 @@ measurement of realised fees paid exists at all.**
 ### ⚠️ Four figures to avoid
 
 1. **"~80% success for $500+, ~50% for $5K+"** — recurs across search results and
-   AI summaries. **False trail; no primary source.**
+   automated search summaries. **False trail; no primary source.**
 2. **"Stadelmann (2023), success rates as low as 50%"** — attributed to a real
    arXiv paper that contains no such claim. **Appears to be fabricated.**
 3. **"8.6 second median payment time"** — widely repeated (LnRouter 2022),

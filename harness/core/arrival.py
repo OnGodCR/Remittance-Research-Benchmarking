@@ -1,6 +1,6 @@
 """Poisson arrival process for the offered-load generator.
 
-Why Poisson and not fixed-interval (claude.md S6): real remittance traffic
+Why Poisson and not fixed-interval (PROJECT_BRIEF.md S6): real remittance traffic
 arrives at randomly-spaced times, not on a metronome. A fixed-interval
 generator at 100 TPS presents a perfectly smooth load that no real system
 ever sees, and it systematically *understates* queueing effects -- bursts are
@@ -128,7 +128,7 @@ def summarize_lag(scheduled: list[float], submitted: list[float | None],
                   growth_threshold: float = SATURATION_GROWTH_SECONDS) -> LagSummary:
     """Compare intended vs actual submission times.
 
-    This is the guard against the failure mode claude.md S8 warns about: at
+    This is the guard against the failure mode PROJECT_BRIEF.md S8 warns about: at
     300 TPS the load generator can become the bottleneck, and an observed
     throughput ceiling would then be a property of our tooling rather than of
     the architecture under test.

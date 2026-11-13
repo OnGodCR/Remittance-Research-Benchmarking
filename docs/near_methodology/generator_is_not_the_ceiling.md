@@ -67,7 +67,7 @@ first question a reviewer will ask about any measured ceiling.
 
 ## 1. Why this document has to exist
 
-`claude.md` §8 is explicit: *"Validate generator capacity first, against a null
+`PROJECT_BRIEF.md` §8 is explicit: *"Validate generator capacity first, against a null
 endpoint. Without this we cannot claim an observed throughput ceiling belongs to
 the blockchain rather than to our own tooling — and at 300 TPS that's a live
 risk."*

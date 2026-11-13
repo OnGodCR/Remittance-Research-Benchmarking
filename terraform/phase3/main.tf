@@ -11,7 +11,7 @@
  * WHAT IS DIFFERENT FROM PHASE 2, AND WHY
  *
  *   4 hosts, 20 nodes   Lightning nodes are light enough to co-locate
- *                       (claude.md S5 #4). Node placement follows remittance
+ *                       (PROJECT_BRIEF.md S5 #4). Node placement follows remittance
  *                       corridors so every measured payment crosses an ocean --
  *                       see harness/topology.py.
  *   bitcoind on host 0  Lightning settles channels on a Bitcoin chain. regtest

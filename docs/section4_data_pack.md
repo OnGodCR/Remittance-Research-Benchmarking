@@ -324,7 +324,7 @@ Say so in the paper.
 | Parameter | Value |
 |---|---|
 | Software | nearcore **2.13.3**, protocol 86 (same protocol version as mainnet) |
-| Validators / shards | **8 / 4** — exactly 2 per shard, the minimum *this study's sizing rule* allowed (claude.md §4). NEAR's own protocol minimum is 1 (mainnet `minimum_validators_per_shard` = 1). The 96 vCPU quota ruled out 12 validators (104 vCPU with the generator); 8 is the largest count that splits evenly over 4 shards and 4 regions. Mainnet: 10 shards, 422 validators (12 Aug 2026) |
+| Validators / shards | **8 / 4** — exactly 2 per shard, the minimum *this study's sizing rule* allowed (PROJECT_BRIEF.md §4). NEAR's own protocol minimum is 1 (mainnet `minimum_validators_per_shard` = 1). The 96 vCPU quota ruled out 12 validators (104 vCPU with the generator); 8 is the largest count that splits evenly over 4 shards and 4 regions. Mainnet: 10 shards, 422 validators (12 Aug 2026) |
 | Regions | Same four as Polygon, 2 validators per region |
 | Instance | n2-standard-8 (8 vCPU / 32 GB) |
 | Block time | **2 s** — nearcore's default 600 ms could not hold consensus across four continents |

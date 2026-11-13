@@ -102,7 +102,7 @@ Target average ≈ **6.5 channels per node**, matching the observed 6.54, with h
 
 **Why a cross-check.** A single API can be stale or wrong, and this one number multiplies into every Lightning cost and success figure in the paper. Two independent sources agreeing to 0.022% makes a bad quote unlikely. CoinGecko is the citation; Coinbase is the check.
 
-**One rate, held constant across every run** (`claude.md` §6). Lightning is the only architecture that needs an exchange rate at all — the stablecoin chains make $200 exactly 200 tokens, which is a second independent reason the ERC-20 / NEP-141 choice was right. The rate lives as a single constant, `harness.topology.BTC_USD_PINNED`, which the adapter and the funding script both import so they cannot drift apart.
+**One rate, held constant across every run** (`PROJECT_BRIEF.md` §6). Lightning is the only architecture that needs an exchange rate at all — the stablecoin chains make $200 exactly 200 tokens, which is a second independent reason the ERC-20 / NEP-141 choice was right. The rate lives as a single constant, `harness.topology.BTC_USD_PINNED`, which the adapter and the funding script both import so they cannot drift apart.
 
 > ⚠️ **Superseded value.** Lightning code initially used **$65,163**, inferred from 1ML's own capacity figures rather than quoted from a price source. It was only 0.55% out — the $200 test payment moves from 306,923 to 308,628 satoshis — but an inferred rate is not citable, and this figure appears throughout the Lightning results. Replaced before any Lightning run was measured, so no result was ever computed from it.
 

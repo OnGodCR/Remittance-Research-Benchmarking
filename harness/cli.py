@@ -51,7 +51,7 @@ AMOUNTS = [10.0, 50.0, 200.0, 500.0]
 #: Pre-registered repeat count (realism technique #8).
 REPEATS = 5
 
-#: Fixed window per run (claude.md S6).
+#: Fixed window per run (PROJECT_BRIEF.md S6).
 WINDOW = 300.0
 
 #: One base seed for the whole project makes every arrival pattern

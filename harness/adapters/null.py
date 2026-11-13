@@ -1,6 +1,6 @@
 """Null adapter -- measures the harness's own throughput ceiling.
 
-claude.md S8 and S13 step 8: before any measured run, we have to know the
+PROJECT_BRIEF.md S8 and S13 step 8: before any measured run, we have to know the
 maximum rate the generator itself can sustain. Without that number, an
 observed plateau at (say) 180 TPS is ambiguous -- it could be the chain
 degrading, or it could be our own Python event loop topping out. One of those

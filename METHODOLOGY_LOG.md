@@ -406,7 +406,7 @@ Lightning is the only architecture needing a currency conversion. Polygon and NE
 
 **Superseded value.** The Lightning code first used $65,163, *inferred* from 1ML's capacity figures ($172.4M ÷ 2,645.64 BTC) rather than quoted. Only 0.55% out, but an inferred rate is not citable. Replaced before any Lightning run was measured, so no result was ever computed from it.
 
-**Held constant across every run** (`claude.md` §6), as a single constant `harness.topology.BTC_USD_PINNED` that the adapter and the funding script both import — they cannot drift apart.
+**Held constant across every run** (`PROJECT_BRIEF.md` §6), as a single constant `harness.topology.BTC_USD_PINNED` that the adapter and the funding script both import — they cannot drift apart.
 
 **What it means for the arm.** At this rate a $200 remittance is 15.2% of a median Lightning channel and **99.3% of a median node's entire capacity**; $500 is 248%. That relationship is the structural reason payment size drives success on Lightning and not on Polygon, and it is why the topology keeps capacities at true mainnet scale rather than scaling down — shrinking the network would destroy the one ratio that decides every routing outcome.
 
@@ -416,7 +416,7 @@ Lightning is the only architecture needing a currency conversion. Polygon and NE
 
 **What happened.** The project-wide vCPU ceiling is 96. A 12-validator cluster needs 104 (12 × 8 vCPU plus an 8 vCPU generator), so an increase to 144 was requested and **denied**. A reduced request to 120 is pending.
 
-**Why 8 is still sufficient.** `claude.md` §4 sizes the cluster by NEAR's sharding structure: at least 4 shards with at least 2 validators each. Eight validators satisfies that exactly. Twelve was headroom, not a requirement.
+**Why 8 is still sufficient.** `PROJECT_BRIEF.md` §4 sizes the cluster by NEAR's sharding structure: at least 4 shards with at least 2 validators each. Eight validators satisfies that exactly. Twelve was headroom, not a requirement.
 
 **What is genuinely lost.** With 8 validators over 4 shards there are exactly 2 validators per shard and no margin: losing one node takes a shard to a single validator. That makes the adversarial arm harsher on NEAR than it was on Polygon, where losing one of four validators still left three. **State this when reporting NEAR's adversarial results** — the comparison is not like-for-like.
 
@@ -556,7 +556,7 @@ as evidence that the instrument works.
 
 `NearAdapter.await_confirmation` allowed `timeout_seconds` for the broadcast future and
 then started a **fresh** `timeout_seconds` for the FINAL poll, so a NEAR payment had up to
-**120s** where the pre-registered timeout is 60s (claude.md §7) and where Polygon enforces a
+**120s** where the pre-registered timeout is 60s (PROJECT_BRIEF.md §7) and where Polygon enforces a
 single 60s across submission and settlement.
 
 A NEAR payment could therefore have been recorded as settled while the identical Polygon
@@ -608,7 +608,7 @@ recorded for the adversarial arm — see 5e.
 
 ### 5d. Validator liveness is now recorded continuously, and runs are auto-invalidated
 
-claude.md §8 requires that any run touched by preemption be invalidated, and
+PROJECT_BRIEF.md §8 requires that any run touched by preemption be invalidated, and
 `analysis/export.py` already drops runs carrying a `node_events` row with
 `source='preemption'`. **Nothing had ever written one.** On 12 Aug the cluster had lost a
 validator, the protocol had expelled it, shard 3 was down to a single producer, and the
@@ -650,7 +650,7 @@ error.
 
 ### 5g. Generator capacity for NEAR — signing is not the constraint
 
-claude.md §8 and §13 step 8 require the generator's own ceiling to be known
+PROJECT_BRIEF.md §8 and §13 step 8 require the generator's own ceiling to be known
 *before* collecting, so that an observed plateau can be attributed to the chain
 rather than to our tooling. This had not been done for NEAR, and there was a
 specific reason to worry.
@@ -692,7 +692,7 @@ serialised twice per payment — worth knowing before anyone optimises, though a
 
 ### 6a. Zilliqa "x-shards" — checked and RULED OUT as a second sharding data point
 
-claude.md §4 and §9 require this be re-checked at Phase 4: *"if shipped, Zilliqa
+PROJECT_BRIEF.md §4 and §9 require this be re-checked at Phase 4: *"if shipped, Zilliqa
 becomes a cheap second sharding data point"*, which would meaningfully soften
 §12's caveat about generalising from one implementation.
 
@@ -1018,7 +1018,7 @@ source. Measured from the chain it is 79.6, which corroborates it.
 
 ### 10c. A finding that contradicts an assumption in the project scope
 
-claude.md §5 technique #7 anticipates reporting *"our private network measured X;
+PROJECT_BRIEF.md §5 technique #7 anticipates reporting *"our private network measured X;
 real mainnet activity suggests Y; results should be treated as an **upper bound**
 roughly Z% above expected real-world performance."*
 
@@ -1052,7 +1052,7 @@ labelled as such wherever it appears.
 **Change.** The sweep now measures amounts in the order **$200, $10, $50, $500**
 rather than $10, $50, $200, $500.
 
-**Why.** $200 is the World Bank's standard remittance size (claude.md §6) and the
+**Why.** $200 is the World Bank's standard remittance size (PROJECT_BRIEF.md §6) and the
 headline figure of every comparison the paper makes. In the original order it was
 measured *third*, landing seven to ten hours into a 13.5-hour sweep. Anything
 cutting the sweep short — a validator expulsion, a budget ceiling, a stall — would
@@ -1178,7 +1178,7 @@ one is evidence.
 **Why not download a ready-made copy.** There is not one. NEAR's release entry
 for 2.13.3 carries no downloadable files, and the storage locations that served
 older versions answer "forbidden". Compiling it is the only way to obtain exactly
-this version, and exactness is the point: `claude.md` §3 requires live,
+this version, and exactness is the point: `PROJECT_BRIEF.md` §3 requires live,
 maintained production node software pinned to a fixed commit, which aids
 reproducibility rather than harming it.
 

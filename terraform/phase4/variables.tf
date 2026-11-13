@@ -44,7 +44,7 @@ variable "validators_per_region" {
   description = <<-EOT
     2 per region, 8 total. This number is set by QUOTA, not by preference.
 
-    claude.md S4 sizes the cluster at 8-12 validators, enough to populate at
+    PROJECT_BRIEF.md S4 sizes the cluster at 8-12 validators, enough to populate at
     least 4 shards with at least 2 validators each. 12 validators plus a
     generator needs 104 vCPU; the project ceiling is 96, a request for 144 was
     denied on 10 Aug and 120 is pending. 8 validators plus the generator is 72
@@ -99,7 +99,7 @@ variable "generator_machine_type" {
 
 variable "disk_size_gb" {
   description = <<-EOT
-    claude.md S5 #4: match CPU and RAM, do NOT match storage.
+    PROJECT_BRIEF.md S5 #4: match CPU and RAM, do NOT match storage.
 
     NEAR publishes ~1 TB for a mainnet validator, but that figure exists to
     hold years of chain history. Ours starts empty and accumulates a few hours
@@ -152,7 +152,7 @@ variable "max_lifetime_minutes" {
 
 variable "near_version" {
   description = <<-EOT
-    nearcore release, pinned. claude.md S3 requires live, maintained,
+    nearcore release, pinned. PROJECT_BRIEF.md S3 requires live, maintained,
     production node software at a fixed commit -- pinning aids reproducibility
     rather than harming it.
 

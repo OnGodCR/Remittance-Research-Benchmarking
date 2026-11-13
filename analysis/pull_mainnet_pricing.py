@@ -22,7 +22,7 @@ that took it at face value would price Polygon with a six-month-old rate.
 
 WHAT THE COST FIGURES MEAN
 --------------------------
-Per claude.md §7, what is real is GAS CONSUMED -- a deterministic property of the
+Per PROJECT_BRIEF.md §7, what is real is GAS CONSUMED -- a deterministic property of the
 opcodes executed, identical on our private chain and on mainnet. The gas PRICE on
 our chain is a number we chose, so pricing with it would be circular. These are
 the mainnet prices that gas consumption gets multiplied by.
@@ -190,7 +190,7 @@ def main() -> int:
                   f"updated {d.get('age_seconds')}s ago{flag}")
 
     # Cost per payment, at the gas each architecture actually consumes. Gas
-    # consumption is measured on our own chain (claude.md §7); only the price
+    # consumption is measured on our own chain (PROJECT_BRIEF.md §7); only the price
     # comes from mainnet.
     if "error" not in n and "error" not in p and pr:
         near_usd = pr.get("NEAR", {}).get("usd")

@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-claude.md S8 requires that any run touched by a spot preemption be invalidated
+PROJECT_BRIEF.md S8 requires that any run touched by a spot preemption be invalidated
 and re-queued, because a validator vanishing mid-run is indistinguishable from
 the adversarial arm's deliberate fault injection (technique #6). If the two are
 mixed, neither arm means anything: a degraded baseline number cannot be told

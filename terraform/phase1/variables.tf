@@ -35,7 +35,7 @@ variable "machine_type" {
     Matches real Polygon validator guidance on processor and memory
     (8 vCPU / 32 GB). Deliberately NOT matched on storage: published specs
     quote ~1.2 TB purely to hold years of mainnet history, which a fresh
-    private chain does not have. See claude.md S5 technique #4.
+    private chain does not have. See PROJECT_BRIEF.md S5 technique #4.
 
     Keeping Phase 1 on the real spec means the cost baseline it produces is
     actually representative of later phases.

@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_tx_run_status ON transactions(run_id, status);
 
 -- Per-second time series. Exists so warm-up can be excluded analytically
--- later without re-running anything (claude.md S6: no warm-up discard).
+-- later without re-running anything (PROJECT_BRIEF.md S6: no warm-up discard).
 CREATE TABLE IF NOT EXISTS samples (
     run_id    TEXT    NOT NULL,
     second    INTEGER NOT NULL,
@@ -344,7 +344,7 @@ class Store:
         out = dict(row)
         out["run_id"] = run_id
         out["target_tps"] = cfg["target_tps"]
-        # Achieved throughput counts CONFIRMED transactions only (claude.md S7).
+        # Achieved throughput counts CONFIRMED transactions only (PROJECT_BRIEF.md S7).
         out["achieved_tps"] = (out["confirmed"] or 0) / cfg["window_seconds"]
         return out
 

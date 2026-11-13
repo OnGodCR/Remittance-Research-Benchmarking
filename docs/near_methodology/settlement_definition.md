@@ -9,7 +9,7 @@
 
 **A NEAR transaction counts as settled when its outcome reaches `FINAL`.**
 
-Not `EXECUTED_OPTIMISTIC`. This is required by `claude.md` §7 and it is not a formality.
+Not `EXECUTED_OPTIMISTIC`. This is required by `PROJECT_BRIEF.md` §7 and it is not a formality.
 
 ---
 
@@ -74,6 +74,6 @@ These are different mechanisms, not different levels of strictness. Each is the 
 
 ## 5. The timeout
 
-**60 seconds**, uniform across all three architectures (`claude.md` §7). Roughly 10× the expected p99, and past that a remittance has functionally failed regardless of what the network eventually decides.
+**60 seconds**, uniform across all three architectures (`PROJECT_BRIEF.md` §7). Roughly 10× the expected p99, and past that a remittance has functionally failed regardless of what the network eventually decides.
 
 A NEAR transaction that has not reached `FINAL` within 60s is recorded as `status = timeout`, not `failed` — the same distinction used on Polygon, where it separates *accepted-then-lost* payments from *rejected at submission*. That distinction turned out to matter enormously on Polygon: under clean conditions it never lost an accepted payment, and under node failure it did.

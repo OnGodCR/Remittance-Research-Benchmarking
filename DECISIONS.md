@@ -1,12 +1,12 @@
 # Technical Decision Record
 
-Companion to `claude.md`. Records every decision made after the Aug 2026 scoping pass, with the reasoning behind it. Optimization order set by Angad: **1) realism, 2) cost, 3) technical difficulty.**
+Companion to `PROJECT_BRIEF.md`. Records every decision made after the Aug 2026 scoping pass, with the reasoning behind it. Optimization order set by Angad: **1) realism, 2) cost, 3) technical difficulty.**
 
 Status key: **LOCKED** = decided, proceeding. **NEEDS REVIEW** = costs money or changes scope, awaiting Angad. **DEFERRED** = decide at the relevant phase.
 
 ---
 
-## 0. Corrections to `claude.md`
+## 0. Corrections to `PROJECT_BRIEF.md`
 
 ### 0.1 Run-time estimate was wrong by 10x
 An earlier estimate of "~210 hours of run time" for the full test matrix was arithmetic error. The correct figure:
@@ -16,19 +16,19 @@ An earlier estimate of "~210 hours of run time" for the full test matrix was ari
 
 Not 210. This materially changes the cost-vs-coverage tradeoff (see §5).
 
-### 0.2 Waugh & Holz (2020) is described backwards in `claude.md` §7 and §11
+### 0.2 Waugh & Holz (2020) is described backwards in `PROJECT_BRIEF.md` §7 and §11
 Verified against the source: **Finnegan Waugh and Ralph Holz, "An empirical study of availability and reliability properties of the Bitcoin Lightning Network," arXiv:2006.14358.**
 
 What the paper actually found:
 - Payment success rate ranged **15.32% to 72.09%**, with an **inverse relationship to payment volume** — success rate goes **DOWN as payment size goes UP**. So ~72% is the *smallest* payments and ~15% the *largest*.
 - **Separately**, only about **one third of destination nodes** could be reached at all, and this was *roughly independent* of payment volume.
 
-`claude.md` merged these two distinct findings into a single contradictory claim ("success drops as size increases" + "15-35% for the smallest payments"). The ~35% figure in §11 appears to be the *reachability* result, not a payment-size-specific success rate.
+`PROJECT_BRIEF.md` merged these two distinct findings into a single contradictory claim ("success drops as size increases" + "15-35% for the smallest payments"). The ~35% figure in §11 appears to be the *reachability* result, not a payment-size-specific success rate.
 
 **Why this matters:** §7 calls this "one of the most important things to check your own results against." Our Lightning data must be checked against the *correct* direction, or we would have concluded our data contradicted the literature when it agreed with it. The Literature Review section of the paper needs this fixed.
 
 ### 0.3 Cross-reference fix
-`claude.md` §1, §3, §5 cite "Section 7" for the phased rollout. The phasing is **Section 9**; Section 7 is Metrics. Confirmed with Angad.
+`PROJECT_BRIEF.md` §1, §3, §5 cite "Section 7" for the phased rollout. The phasing is **Section 9**; Section 7 is Metrics. Confirmed with Angad.
 
 ---
 
@@ -187,7 +187,7 @@ An earlier version of this plan put Phase 1 on Angad's laptop to save money. **R
 Phase 1 produces **no paper data** — it exists to prove the pipeline works — so "realistic conditions" is not the bar it's judged against. But two real problems remained:
 
 1. **arm64 vs x86_64.** The laptop is Apple Silicon; every cloud instance is x86_64. A stack built and debugged locally risks rework when it moves.
-2. **`claude.md` §10 assigns Phase 1 the job of producing the real per-hour cost baseline.** A local run cannot. Pushing that to Phase 2 quietly broke a stated requirement.
+2. **`PROJECT_BRIEF.md` §10 assigns Phase 1 the job of producing the real per-hour cost baseline.** A local run cannot. Pushing that to Phase 2 quietly broke a stated requirement.
 
 And the saving was negligible: one region, ~4 small nodes, a few hours with the 30-minute idle shutdown ≈ **$3-5**. Environment fidelity is worth far more than that.
 
@@ -257,7 +257,7 @@ Methodology-section consequence: Caliper is dropped as a named tool and must be 
 
 ## 8. Data — LOCKED
 
-**SQLite** as the primary store (Angad's criterion: easiest to interpret with AI later). One file, self-describing schema, and Phase 6 cross-architecture queries become single SELECTs instead of pandas glue. **Per-run CSV exports** alongside it for portability and for anything that wants flat files.
+**SQLite** as the primary store (Angad's criterion: easiest to interpret later). One file, self-describing schema, and Phase 6 cross-architecture queries become single SELECTs instead of pandas glue. **Per-run CSV exports** alongside it for portability and for anything that wants flat files.
 
 Recorded per run: full per-transaction records (submit ts, confirm ts, status, gas used, size, load level, repeat index, architecture, run id) plus a per-second time series, the node-offline event log, and the spot-preemption log.
 
@@ -273,12 +273,12 @@ Storing per-transaction rather than pre-aggregated data means new questions can 
 
 ## 10. Literature credibility — IN PROGRESS
 
-Angad asked that `claude.md` §11 figures be verified, not just used. Initial flags:
+Angad asked that `PROJECT_BRIEF.md` §11 figures be verified, not just used. Initial flags:
 
 - **"Polygon PoS theoretical max ~3,800 TPS"** — this is a widely-repeated *vendor/marketing* figure, not a peer-reviewed measurement. Observed sustained mainnet throughput is far lower (order of tens of TPS). Must be labeled as a theoretical vendor claim, and it is the *wrong* thing for our measured results to be compared against as though it were an empirical benchmark.
 - **OmniLedger (~6,000 TPS) and RapidChain (~7,384 TPS)** — these come from genuine peer-reviewed venues (IEEE S&P 2018; ACM CCS 2018) and are citable, but were obtained under favorable lab assumptions that must be stated alongside the numbers.
 - **El Salvador ~0.7%** — traceable to central bank (BCR) reporting; credible.
-- **Waugh & Holz** — verified, and `claude.md` describes it backwards. See §0.2.
+- **Waugh & Holz** — verified, and `PROJECT_BRIEF.md` describes it backwards. See §0.2.
 
 Full verification pass pending.
 

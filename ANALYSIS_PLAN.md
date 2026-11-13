@@ -22,7 +22,7 @@ Six items were raised against the draft. Two were factual errors, corrected in p
 | 5 | §5, §9 | Size-sweep structure conflicted with the trimmed 240-run matrix | **Full matrix adopted — every amount tested at every load level on every architecture.** Angad's call, taken over a cheaper trimmed alternative, for an unqualified symmetry claim. See §5. |
 | 6 | §11 | Calibration ratio compared our *capacity* against mainnet *demand* — different quantities | **Two figures reported separately**, demand ratio and capability gap. See §11. |
 
-**On §7's warm-up rule:** this reverses the earlier "no warm-up discard" decision in `CLAUDE.md` §6. The reversal is an improvement and is adopted. It costs nothing retroactively, because the harness records a full per-second time series precisely so warm-up can be excluded in analysis rather than at collection time. `CLAUDE.md` §6 has been updated to match.
+**On §7's warm-up rule:** this reverses the earlier "no warm-up discard" decision in `PROJECT_BRIEF.md` §6. The reversal is an improvement and is adopted. It costs nothing retroactively, because the harness records a full per-second time series precisely so warm-up can be excluded in analysis rather than at collection time. `PROJECT_BRIEF.md` §6 has been updated to match.
 
 ---
 
@@ -394,7 +394,7 @@ The pooled table also omitted the 10-second warm-up cut that §7 applies uniform
 
 **Sections affected:** §2 (primary outcome), §3 (secondary metrics), §7 (exclusions).
 
-**This is a bug fix, not a rule change.** The 60-second timeout is pre-registered in `claude.md` §7, with its reason stated: *"past 60s a remittance has functionally failed regardless of what the chain eventually does."* The rule was not being applied consistently by the harness. This amendment records the correction, not a new criterion.
+**This is a bug fix, not a rule change.** The 60-second timeout is pre-registered in `PROJECT_BRIEF.md` §7, with its reason stated: *"past 60s a remittance has functionally failed regardless of what the chain eventually does."* The rule was not being applied consistently by the harness. This amendment records the correction, not a new criterion.
 
 **What was wrong.** `analysis/export.py` defined `succeeded = (status == 'confirmed')`, ignoring latency. Polygon's adapter stops at the deadline, so its slowest recorded settlement is **60.0101s** and the omission was invisible. NEAR's adapter drains still-in-flight payments after the send window closes, so a payment finalising at 91 seconds was recorded `confirmed` with its true latency — and counted as a success.
 
@@ -411,7 +411,7 @@ The pooled table also omitted the 10-second warm-up cut that §7 applies uniform
 
 **Why in analysis rather than in the adapter.**
 1. It lands identically on all three architectures, which is the comparability argument that justified dropping Caliper in the first place.
-2. It is recoverable for data already collected, because per-transaction latency was recorded — the reason `claude.md` §8 insists on per-transaction records rather than pre-aggregated summaries.
+2. It is recoverable for data already collected, because per-transaction latency was recorded — the reason `PROJECT_BRIEF.md` §8 insists on per-transaction records rather than pre-aggregated summaries.
 3. It does not require changing a measurement instrument in the middle of a matrix.
 
 **`status` is deliberately left untouched.** It remains the raw observation — what the chain actually did — so a reviewer can see both *"it did confirm, at 91s"* and *"it counts as a failure"*. The fact stays separate from the verdict.

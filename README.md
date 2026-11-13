@@ -24,7 +24,7 @@ Read in this order.
 | [DECISIONS.md](DECISIONS.md) | Every technical decision, with the alternatives that were rejected |
 | [POLYGON_ANALYSIS.md](POLYGON_ANALYSIS.md), [NEAR_ANALYSIS.md](NEAR_ANALYSIS.md), [LIGHTNING_ANALYSIS.md](LIGHTNING_ANALYSIS.md) | Results for each network |
 | [docs/near_methodology/](docs/near_methodology/) | The detailed defence of specific NEAR findings, one file per topic |
-| [claude.md](claude.md) | Original scope, written before any work began |
+| [PROJECT_BRIEF.md](PROJECT_BRIEF.md) | Original scope, written before any work began |
 
 Older documents mention six working notes deleted on 25 Oct 2026 (`RESUME_HERE.md`, `PHASE1.md`, `PHASE4_HANDOFF.md`, `docs/spend_ledger.md`, `docs/near_methodology/finishing_runbook.md`, `docs/near_methodology/README.md`). Git keeps them: `git log --all -- <file>` finds the last version.
 
@@ -186,7 +186,7 @@ Mistakes from running the machines, each of which cost real time or money. Comme
 10. **Data files exceed GitHub's 100 MB limit** and live in large-file storage (Git LFS): 10 GB storage and 10 GB/month download included on Free and Pro.
 11. **Long commands hit a 10-minute timeout.** Run them detached and check back.
 12. **Quota increases: roughly 50% steps were approved, doubling was denied.** The limit ended at 96 processors.
-13. **`claude.md` is lowercase**, and the Mac's filesystem ignores case, so edits to `CLAUDE.md` land in the same file.
+13. **`PROJECT_BRIEF.md` is lowercase**, and the Mac's filesystem ignores case, so edits to `PROJECT_BRIEF.md` land in the same file.
 14. **Zero-padded hours crash bash arithmetic** (`08` reads as invalid octal); use `10#` everywhere.
 15. **Never attach a copy of a boot disk to a machine while it boots.** The duplicate disk label threw the next boot into emergency mode (25 minutes lost on 24 Aug).
 16. **`/opt/benchmark` on the machines is owned by root**, so the sending program runs under sudo.

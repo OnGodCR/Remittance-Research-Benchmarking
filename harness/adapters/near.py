@@ -10,7 +10,7 @@ liquidity to fail.
 
 Two consequences the adapter has to respect:
 
-**Settlement means FINAL, not EXECUTED_OPTIMISTIC** (claude.md S7). NEAR will
+**Settlement means FINAL, not EXECUTED_OPTIMISTIC** (PROJECT_BRIEF.md S7). NEAR will
 tell you a transaction executed as soon as its shard has run it, before the
 result is final across the network. Accepting that would measure shard-local
 execution and understate real settlement latency -- flattering NEAR against
@@ -26,7 +26,7 @@ rather than clustered.
 
 WHY NEP-141 AND NOT NATIVE NEAR
 -------------------------------
-Real remittances move stablecoins, not the native token (claude.md S6). A
+Real remittances move stablecoins, not the native token (PROJECT_BRIEF.md S6). A
 NEP-141 transfer is also the closer analogue of the ERC-20 transfer measured on
 Polygon, which keeps the cross-architecture comparison honest: two token
 transfers, not a token transfer against a native one.
@@ -124,7 +124,7 @@ class NearAdapter(Adapter):
         self._recipients = recipients
 
         #: Shards the chain must have for this arm to mean anything.
-        #: claude.md S4 sizes the cluster at >=4 shards with >=2 validators
+        #: PROJECT_BRIEF.md S4 sizes the cluster at >=4 shards with >=2 validators
         #: each; with the 8 validators the quota allows, 4 shards gives exactly
         #: 2 per shard and no margin.
         self.expected_shards = 4
@@ -474,7 +474,7 @@ class NearAdapter(Adapter):
         #
         # This must match Polygon exactly. There, await_confirmation is a single
         # `wait_for(future, timeout_seconds)` covering submission through
-        # settlement, so a payment has 60s total (claude.md S7) and is a failure
+        # settlement, so a payment has 60s total (PROJECT_BRIEF.md S7) and is a failure
         # after that whatever the chain later decides.
         #
         # NEAR settles in two observable stages -- the node accepts the
@@ -538,7 +538,7 @@ class NearAdapter(Adapter):
             try:
                 # Called directly rather than through py-near's get_tx, which
                 # uses the legacy positional form and cannot request a finality
-                # level. Settlement here means FINAL (claude.md S7).
+                # level. Settlement here means FINAL (PROJECT_BRIEF.md S7).
                 # wait_until=NONE, NOT FINAL -- and this still measures
                 # FINAL, because finality is READ from the response rather than
                 # waited for.
@@ -551,7 +551,7 @@ class NearAdapter(Adapter):
                 # ten-second requests against a single RPC node, and the ceiling
                 # we measured would be that node's request capacity rather than
                 # NEAR's throughput -- our own tooling reported as a finding,
-                # the exact error claude.md S8 exists to prevent. It was already
+                # the exact error PROJECT_BRIEF.md S8 exists to prevent. It was already
                 # visible at the LOWEST load step as 1.6% of payments timing out
                 # with HANDLER_ERROR/TIMEOUT_ERROR.
                 #
@@ -573,7 +573,7 @@ class NearAdapter(Adapter):
             reached = (result or {}).get("final_execution_status")
             # Both conditions, and the finality one is not optional: an outcome
             # can be successful at EXECUTED_OPTIMISTIC and still be reorged.
-            # claude.md S7 requires FINAL for NEAR precisely so the comparison
+            # PROJECT_BRIEF.md S7 requires FINAL for NEAR precisely so the comparison
             # against Polygon's deterministic instant finality is honest.
             if reached != _FINALITY:
                 last_error = f"reached {reached}, not {_FINALITY}"
@@ -612,7 +612,7 @@ class NearAdapter(Adapter):
             last_error = f"present but not FINAL (status keys: {list(status)[:3]})"
             await asyncio.sleep(0.2)
 
-        # 60s per claude.md S7. Past that a remittance has functionally failed
+        # 60s per PROJECT_BRIEF.md S7. Past that a remittance has functionally failed
         # regardless of what the chain eventually decides. The last thing the
         # chain said is carried through so the failure can be classified rather
         # than guessed at -- see the note above the poll loop.

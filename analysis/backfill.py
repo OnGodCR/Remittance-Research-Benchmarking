@@ -104,7 +104,7 @@ def backfill_realism(conn: sqlite3.Connection) -> int:
     # The adversarial arm ran the identical stack with node failures ON. It is
     # listed separately rather than folded in because `adversarial_nodes` is
     # exactly the variable that distinguishes the two arms -- the whole reason
-    # claude.md S5 #6 keeps them apart is so "degrades under load" can be told
+    # PROJECT_BRIEF.md S5 #6 keeps them apart is so "degrades under load" can be told
     # from "degrades under node failure".
     adversarial = dict(FULL_STACK_REALISM)
     adversarial["adversarial_nodes"] = {

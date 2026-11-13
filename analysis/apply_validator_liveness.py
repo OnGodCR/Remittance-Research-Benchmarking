@@ -3,7 +3,7 @@
 
 WHAT THIS ENFORCES
 ------------------
-claude.md S8: a run touched by spot preemption is auto-invalidated and
+PROJECT_BRIEF.md S8: a run touched by spot preemption is auto-invalidated and
 re-queued, because a validator disappearing mid-run is the adversarial arm's
 condition (technique #6) appearing inside the clean baseline. The deleted RESUME_HERE.md (in git history)
 recorded the same rule for phases 2 and 3.

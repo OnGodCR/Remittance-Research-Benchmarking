@@ -1,6 +1,6 @@
 """Adapter interface -- the one seam between the shared harness and each chain.
 
-claude.md S8: one measurement instrument across all three architectures.
+PROJECT_BRIEF.md S8: one measurement instrument across all three architectures.
 Everything that determines a *number* -- Poisson arrival, concurrency, timing,
 storage schema -- lives in the shared core and is byte-identical for Polygon,
 Lightning and NEAR. Adapters only know how to build, send and confirm a
@@ -9,7 +9,7 @@ cross-architecture comparison in Phase 6 stops being apples-to-apples, which
 is the entire reason Hyperledger Caliper was dropped.
 
 Submission and confirmation are deliberately separate calls. Concurrent
-submission (claude.md S6) means we must never block the send loop waiting for
+submission (PROJECT_BRIEF.md S6) means we must never block the send loop waiting for
 a confirmation; the runner fires `submit()` on schedule and watches for
 settlement independently.
 """
@@ -38,7 +38,7 @@ class ConfirmResult:
     `status` is one of: confirmed | failed | timeout.
 
     What counts as settled differs per architecture and is defined in
-    claude.md S7 -- Polygon: inclusion in a committed block (PolyBFT gives
+    PROJECT_BRIEF.md S7 -- Polygon: inclusion in a committed block (PolyBFT gives
     instant finality, so no N-confirmations wait); Lightning: preimage
     returned to sender; NEAR: outcome at FINAL, not EXECUTED_OPTIMISTIC.
     Each adapter is responsible for honouring its own definition.
@@ -89,7 +89,7 @@ class Adapter(ABC):
     async def await_confirmation(self, tx_ref: str, timeout_seconds: float) -> ConfirmResult:
         """Wait for settlement, or give up at `timeout_seconds`.
 
-        Timeout is 60s per claude.md S7 -- roughly 10x the expected p99 for
+        Timeout is 60s per PROJECT_BRIEF.md S7 -- roughly 10x the expected p99 for
         both chains, and past that point a remittance has functionally failed
         regardless of what the network eventually does.
         """

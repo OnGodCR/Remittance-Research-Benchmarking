@@ -15,7 +15,7 @@ WHAT THIS GENERATES
 -------------------
 Non-remittance transactions, running concurrently with the remittance
 workload, at a rate that VARIES OVER TIME rather than staying constant
-(claude.md S5 #3). Constant noise is unrealistic in the same way constant
+(PROJECT_BRIEF.md S5 #3). Constant noise is unrealistic in the same way constant
 arrival is: real congestion comes in waves, and it is the waves that cause
 queues to build.
 

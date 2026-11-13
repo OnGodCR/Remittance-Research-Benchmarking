@@ -86,7 +86,7 @@ async def check_pipeline() -> None:
 
 async def check_failure_accounting() -> None:
     """Failures must be counted separately and excluded from achieved
-    throughput (claude.md S7). For Lightning this is the headline result, so
+    throughput (PROJECT_BRIEF.md S7). For Lightning this is the headline result, so
     the accounting has to be right."""
     print("\n== failure accounting ==")
     with tempfile.TemporaryDirectory() as tmp:

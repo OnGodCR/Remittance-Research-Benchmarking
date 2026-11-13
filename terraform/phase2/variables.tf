@@ -63,7 +63,7 @@ variable "machine_type" {
   description = <<-EOT
     PHASE 2 STEP 1 uses the same small machines as Phase 1, deliberately.
 
-    The phased rollout (claude.md S9) adds one realism technique at a time so
+    The phased rollout (PROJECT_BRIEF.md S9) adds one realism technique at a time so
     that if results shift, the cause is unambiguous. This step changes ONLY
     geography. Hardware matching is technique #4 and comes two steps later --
     changing both at once would make it impossible to say which caused what.

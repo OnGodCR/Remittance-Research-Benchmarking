@@ -18,7 +18,7 @@ harness near 150/sec and forced it onto eight worker processes.
 If this generator cannot build and sign 300 payments a second in one process,
 then a NEAR ceiling observed at 300/sec is OUR ceiling wearing NEAR's name. That
 is the specific error that produced Polygon's phantom knee, and the reason
-claude.md S8 says to validate generator capacity BEFORE collecting.
+PROJECT_BRIEF.md S8 says to validate generator capacity BEFORE collecting.
 
 WHAT THIS MEASURES
 The exact construct-and-sign sequence from NearAdapter._send_one, with the

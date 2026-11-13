@@ -5,7 +5,7 @@ every architecture. Adapters plug in underneath it (see adapters/base.py).
 
 Two design points that materially affect the numbers:
 
-**Submission never waits for confirmation.** claude.md S6 is explicit: submit
+**Submission never waits for confirmation.** PROJECT_BRIEF.md S6 is explicit: submit
 concurrently at the target rate, do not send-and-wait. A sequential harness
 measures the round-trip latency of one transaction and calls it throughput,
 which is a different (and much easier) question than sustained load. Here a
@@ -31,7 +31,7 @@ from ..adapters.base import Adapter
 from .arrival import poisson_schedule, summarize_lag
 from .storage import RunConfig, Store
 
-#: Per claude.md S7. Roughly 10x expected p99 for both chains; past this a
+#: Per PROJECT_BRIEF.md S7. Roughly 10x expected p99 for both chains; past this a
 #: remittance has functionally failed whatever the network later does.
 DEFAULT_TIMEOUT_SECONDS = 60.0
 
@@ -188,7 +188,7 @@ async def run_benchmark(
 
     async def sampler() -> None:
         """Per-second time series. Enables excluding warm-up analytically
-        later without re-running anything (claude.md S6)."""
+        later without re-running anything (PROJECT_BRIEF.md S6)."""
         last = _Counters()
         second = 0
         try:

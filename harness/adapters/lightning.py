@@ -32,7 +32,7 @@ WHY SEND AND TRACK ARE ONE STREAM
 ---------------------------------
 LND's SendPaymentV2 is server-streaming: it emits IN_FLIGHT then a final
 SUCCEEDED/FAILED. `submit()` starts that stream in a background task and
-returns the payment hash immediately, so the send loop never blocks (claude.md
+returns the payment hash immediately, so the send loop never blocks (PROJECT_BRIEF.md
 S6). `await_confirmation()` waits on that task's future. Using the separate
 TrackPaymentV2 endpoint would mean a second connection per payment, and at 300
 payments/second that is 300 extra connections a second competing with the
@@ -204,7 +204,7 @@ class LightningAdapter(Adapter):
         """Convert at the rate pinned for the whole study.
 
         One rate, fixed at project start and held across every run
-        (claude.md S6). Lightning is the only architecture needing this at all:
+        (PROJECT_BRIEF.md S6). Lightning is the only architecture needing this at all:
         the stablecoin chains make $200 exactly 200 tokens, which is a second
         independent reason the ERC-20/NEP-141 choice was right.
         """
@@ -237,7 +237,7 @@ class LightningAdapter(Adapter):
         try:
             return await asyncio.wait_for(future, timeout=timeout_seconds)
         except asyncio.TimeoutError:
-            # Settlement is the preimage returning to the sender (claude.md S7).
+            # Settlement is the preimage returning to the sender (PROJECT_BRIEF.md S7).
             # Past 60s a remittance has functionally failed regardless of what
             # the network eventually decides.
             return ConfirmResult(status="timeout", error=f"no preimage within {timeout_seconds:g}s")

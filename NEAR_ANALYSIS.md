@@ -112,7 +112,7 @@ Not lost money. The errors read `reached EXECUTED, not FINAL` — payments were
 accepted and executed on chain but did not reach final settlement inside the
 60-second budget. NEAR degrades by becoming slow, not by dropping transactions.
 
-Per `claude.md` §7, past 60s a remittance has functionally failed regardless of
+Per `PROJECT_BRIEF.md` §7, past 60s a remittance has functionally failed regardless of
 what the chain eventually does, so these count as failures (`ANALYSIS_PLAN.md`
 §13 amendment 11).
 

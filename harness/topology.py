@@ -1,6 +1,6 @@
 """Build a Lightning channel topology matching the real network's shape.
 
-REALISM TECHNIQUE #5 (claude.md S5). This is the module that decides whether
+REALISM TECHNIQUE #5 (PROJECT_BRIEF.md S5). This is the module that decides whether
 the Lightning results mean anything.
 
 WHY THIS EXISTS
@@ -60,7 +60,7 @@ SATS_PER_BTC = 100_000_000
 
 #: The single BTC/USD rate for the entire study, pinned and cited.
 #:
-#: claude.md S6 requires one exchange rate fixed at project start and held
+#: PROJECT_BRIEF.md S6 requires one exchange rate fixed at project start and held
 #: constant across every run, so results stay reproducible. Lightning is the
 #: only architecture that needs one at all -- the stablecoin chains make $200
 #: exactly 200 tokens, which is a second independent reason the ERC-20/NEP-141

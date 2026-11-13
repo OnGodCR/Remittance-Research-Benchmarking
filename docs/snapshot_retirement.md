@@ -35,7 +35,7 @@ The first prints the plan and touches nothing. The second does it. It deletes it
 - `manifest.tsv` lists every file that was on the generator, including ones not copied. Skim it for anything else worth keeping before step 4. A file not copied is gone after step 4.
 - `validator_liveness.sha256` is the health log's fingerprint, taken on the machine.
 
-**3. Commit and push that folder.** Ask Claude; it's data, so it stays in the repo. If the paper's dataset goes to Zenodo, include it there too.
+**3. Commit and push that folder.** It's data, so it stays in the repo. If the paper's dataset goes to Zenodo, include it there too.
 
 **4. Delete the snapshots. Done 25 Oct 2026.** Irreversible, so Angad runs it himself:
 

@@ -62,7 +62,7 @@ LOG_PATH = REPO / "data" / "clean" / "exclusions.log"
 #: truncated latency.
 WARMUP_SECONDS = 10.0
 
-#: claude.md S7. Roughly 10x the expected p99 for both chains, and past it a
+#: PROJECT_BRIEF.md S7. Roughly 10x the expected p99 for both chains, and past it a
 #: remittance has functionally failed whatever the chain eventually does. Used
 #: to decide `succeeded`, not to drop rows -- see `load()`.
 TIMEOUT_SECONDS = 60.0
@@ -274,7 +274,7 @@ def load(db_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     # SUCCESS MEANS SETTLED *WITHIN THE BUDGET*, not merely settled.
     #
-    # claude.md S7 fixes the timeout at 60 seconds and says why: "past 60s a
+    # PROJECT_BRIEF.md S7 fixes the timeout at 60 seconds and says why: "past 60s a
     # remittance has functionally failed regardless of what the chain
     # eventually does". A payment that finalises at 91 seconds is not a
     # success that happened to be slow; by the study's own definition it is a
@@ -291,7 +291,7 @@ def load(db_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Applied here rather than in the adapter for three reasons: the rule then
     # lands identically on all three architectures; it is recoverable for data
     # already collected, because per-transaction latency was recorded (which is
-    # the reason claude.md S8 insists on per-transaction records); and it does
+    # the reason PROJECT_BRIEF.md S8 insists on per-transaction records); and it does
     # not require changing a measurement instrument in the middle of a matrix.
     #
     # `status` is deliberately left alone. It stays the raw observation -- what
