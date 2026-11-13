@@ -747,6 +747,12 @@ is not answerable at 200/sec with the present watcher**, and no figure from that
 load may be published from either arm until the instrument is no longer the
 binding limit.
 
+> ⚠️ **Note added 13 Nov 2026:** the stored database for this campaign
+> (`data/near_supplementary/latest_runs.sqlite`) holds **37 runs, 25 excluded**, all for
+> the program falling behind (p95 lag 0.32–0.74 s). The "24 exclusions across all 44 runs"
+> above could not be reproduced from it. Block-cadence survivors in that file: 3 at 2000 ms
+> and 2 at 1200 ms (1–2 per load).
+
 **Block cadence (the amendment 12.1 queue), first measurement.** At 2000 ms
 blocks settlement was p50 12.20s / p95 15.07s; at 1200 ms, **p50 7.18s / p95
 8.20s** — the decision rule's 10-second bar is failed at the published cadence

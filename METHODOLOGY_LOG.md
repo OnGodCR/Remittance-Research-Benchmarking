@@ -29,7 +29,7 @@ Last updated: **22 August 2026**
 |---|---|---|
 | Chain ID | 100100 | Arbitrary, unused by any public network |
 | Validators | 4 | Smallest genuinely Byzantine-fault-tolerant set (tolerates one failure) |
-| Block gas limit | 30,000,000 | Matches Polygon mainnet |
+| Block gas limit | 30,000,000 | Intended to match Polygon mainnet. ⚠️ Corrected 13 Nov 2026: mainnet blocks carried 160,000,000 by Aug 2026 (block 91,888,638, 12 Aug). Not a limiting factor at the loads tested; see `docs/section4_data_pack.md` C1 |
 | Block time | ~2s | Polygon Edge default |
 | Premined balance | 1,000,000 native coin | Funds contract deployment and wallet setup |
 | Disk per node | 100 GB | See §3.5 — deliberately not matched to published specs |

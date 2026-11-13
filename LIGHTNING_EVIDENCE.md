@@ -88,7 +88,7 @@ more interesting than expected.
 | Median channel | — | 2,042,100 sat | — |
 
 **The finding: channel count today is barely above 2019. Capital per channel is
-nearly five times deeper.**
+about 4.4 times deeper** (total capacity 4.7×, spread over ~6% more channels; corrected 13 Nov 2026 — earlier text said nearly five times).
 
 That is not steady growth — it is a peak and a long decline:
 
@@ -112,7 +112,7 @@ The mechanism behind their size-dependent failures was **insufficient channel
 liquidity** (Temporary Channel Failure, 31.6% of all attempts — their single
 largest error class), not nodes being offline. Channel count is essentially
 unchanged since then, so the *routing* topology is comparable. But capital per
-channel is ~4.7× deeper, which should have **improved** success at larger amounts.
+channel is ~4.4× deeper (total capacity ~4.7×), which should have **improved** success at larger amounts.
 
 **So their absolute numbers are probably pessimistic for 2026, while the direction
 — success falls as payment size rises — should still hold.** State it that way.
@@ -133,9 +133,13 @@ That is exactly the condition that produces size-dependent failure.
 | $0.01 | **71.92%** | 35.24% |
 | $1 | 57.82% | 35.19% |
 | $5 | 44.06% | 25.66% |
-| $10 | 44.15% | — |
-| $50 | 30.93% | — |
-| **$100** | **17.30%** | — |
+| $10 | 44.15% | 33.72% |
+| $50 | 30.93% | 9.22% |
+| **$100** | **17.30%** | 4.82% |
+
+⚠️ **Corrected 13 Nov 2026:** the nodes-reached cells for $10, $50 and $100 were
+previously blank. The paper's Table I reports them (33.72%, 9.22%, 4.82%; checked
+against the full text). Reachability is therefore NOT independent of size above $10.
 
 The **$5 and $10 rows are new** to this project — the brief only had the endpoints.
 The fall is monotonic apart from a flat step at $5→$10.
